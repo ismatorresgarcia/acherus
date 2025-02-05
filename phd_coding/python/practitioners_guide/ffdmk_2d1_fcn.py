@@ -1,18 +1,115 @@
 """
-Solves the unidirectional Envelope Propagation Equation (EPE) of an ultra-intense and
-ultra-short laser pulse using Finite Differences and the split-step Fourier's spectral
-method.
+This program solves the Unidirectional Pulse Propagation Equation (UPPE) of an ultra-intense
+and ultra-short laser pulse.
+This program includes:
+    - Diffraction (for the transverse direction).
+    - Second order group velocity dispersion (GVD).
+    - Nonlinear optical Kerr effect (for a third-order centrosymmetric medium).
+    - Multiphotonic ionization by multiphoton absorption (MPA).
 
-UEPE:           ∂ℰ/∂z = 𝑖/(2k) ∂²ℰ/∂x² - 𝑖k₀⁽²⁾/2 ∂²ℰ/∂t²
+Numerical discretization: Finite Differences Method (FDM).
+    - Method: Split-step Fourier Crank-Nicolson (FCN) scheme.
+        *- Fast Fourier Transform (FFT) scheme (for diffraction).
+        *- Extended Crank-Nicolson (CN) scheme (for diffraction, Kerr and MPA).
+    - Initial condition: Gaussian.
+    - Boundary conditions: Neumann-Dirichlet (radial) and Periodic (temporal).
+
+UPPE:           ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t² + ik_0n_2|E|^2 E - iB|E|^(2K-2)E
+
+DISCLAIMER: UPPE uses "god-like" units, where envelope intensity and its square module are the same.
+            This is equivalent to setting 0.5*c*e_0*n_0 = 1 in the UPPE when using the SI system.
+            The result obtained is identical since the consistency is mantained throught the code.
+            This way, the number of operations is reduced, and the code is more readable.
+
+E: envelope.
+i: imaginary unit.
+r: radial coordinate.
+z: distance coordinate.
+t: time coordinate.
+k: wavenumber (in the interacting media).
+k_0: wavenumber (in vacuum).
+n_2: nonlinear refractive index (for a third-order centrosymmetric medium).
+B: nonlinear multiphoton absorption coefficient.
+∇: nabla operator (for the tranverse direction).
+∇²: laplace operator (for the transverse direction).
 """
 
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 import numpy as np
-import scipy.sparse as sp
 from numpy.fft import fft, ifft
+from scipy.sparse import diags_array
 from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
+
+
+def gaussian_beam(r, t, amplitude, waist, wavenumber, focal, peak_time, chirp):
+    """
+    Set the post-lens chirped Gaussian beam.
+
+    Parameters:
+    - r (array): Radial array
+    - t (array): Time array
+    - amplitude (float): Amplitude of the Gaussian beam
+    - waist (float): Waist of the Gaussian beam
+    - focal (float): Focal length of the initial lens
+    - peak_time (float): Time at which the Gaussian beam reaches its peaks
+    - chirp (float): Initial chirping introduced by some optical system
+    """
+    gaussian = amplitude * np.exp(
+        -((r / waist) ** 2)
+        - IMAG_UNIT * 0.5 * wavenumber * r**2 / focal
+        - (1 + IMAG_UNIT * chirp) * (t / peak_time) ** 2
+    )
+
+    return gaussian
+
+
+def crank_nicolson_diagonals(nodes, off_coeff, main_coeff, coor_system):
+    """
+    Generate the three diagonals for a Crank-Nicolson array with centered differences.
+
+    Parameters:
+    - nodes (int): Number of radial nodes
+    - off_coeff (float): Coefficient for the off-diagonal elements
+    - main_coeff (float): Coefficient for the main diagonal elements
+    - coor_system (int): Parameter for planar (0) or cylindrical (1) geometry
+
+    Returns:
+    - tuple: Containing the upper, main, and lower diagonals
+    """
+    indices = np.arange(1, nodes - 1)
+
+    lower_diag = off_coeff * (1 - 0.5 * coor_system / indices)
+    main_diag = np.full(nodes, main_coeff)
+    upper_diag = off_coeff * (1 + 0.5 * coor_system / indices)
+    lower_diag = np.append(lower_diag, [0])
+    upper_diag = np.insert(upper_diag, 0, [0])
+
+    return lower_diag, main_diag, upper_diag
+
+
+def crank_nicolson_array(nodes, off_coeff, main_coeff, coor_system):
+    """
+    Generate a Crank-Nicolson sparse array in CSR format using the diagonals.
+
+    Parameters:
+    - nodes (int): Number of radial nodes
+    - off_coeff (float): Coefficient for the off-diagonal elements
+    - main_coeff (float): Coefficient for the main diagonal elements
+    - coor_system (int): Parameter for planar (0) or cylindrical (1) geometry
+
+    Returns:
+    - array: Containing the Crank-Nicolson sparse array in CSR format
+    """
+    lower_diag, main_diag, upper_diag = crank_nicolson_diagonals(
+        nodes, off_coeff, main_coeff, coor_system
+    )
+
+    diagonals = [lower_diag, main_diag, upper_diag]
+    offset = [-1, 0, 1]
+    array = diags_array(diagonals, offsets=offset, format="csr")
+
+    return array
+
 
 ## Set physical and mathematical constants
 IMAG_UNIT = 1j
@@ -33,7 +130,7 @@ BEAM_WNUMBER = BEAM_WNUMBER_0 * LINEAR_REFF
 # KERR_COEFF = 0
 KERR_COEFF = IMAG_UNIT * BEAM_WNUMBER_0 * NON_LINEAR_REFF  # [m/W]
 # MPA_COEFF = 0
-MPA_COEFF = -0.5 * BETA_K ** (PHOTON_NUMBER - 1)  # [m(2K-3) / W-(K-1)]
+MPA_COEFF = -0.5 * BETA_K  # [m(2K-3) / W-(K-1)]
 MPA_EXPONENT = 2 * PHOTON_NUMBER - 2
 
 ## Set parameters (grid spacing, propagation step, etc.)
@@ -80,35 +177,13 @@ d_array = np.empty_like(radi_array)
 f_array = np.empty_like(radi_array)
 w_array = np.empty([N_RADI_NODES, N_TIME_NODES, 2], dtype=complex)
 
-# Set lower, main, and upper diagonals
+## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1 = IMAG_UNIT * DELTA_R
-MATRIX_CNT_2 = 1 - 2 * MATRIX_CNT_1
-MATRIX_CNT_3 = 1 + 2 * MATRIX_CNT_1
-left_m1_diag = np.empty_like(radi_array, dtype=complex)
-right_m1_diag = np.empty_like(left_m1_diag)
-left_main_diag = np.empty_like(left_m1_diag)
-right_main_diag = np.empty_like(left_m1_diag)
-left_p1_diag = np.empty_like(left_m1_diag)
-right_p1_diag = np.empty_like(left_m1_diag)
-for i in range(1, N_RADI_NODES - 1):
-    right_m1_diag[i - 1] = MATRIX_CNT_1 * (1 - 0.5 * EU_CYL / i)
-    left_m1_diag[i - 1] = -right_m1_diag[i - 1]
-    right_main_diag[i] = MATRIX_CNT_2
-    left_main_diag[i] = MATRIX_CNT_3
-    right_p1_diag[i + 1] = MATRIX_CNT_1 * (1 + 0.5 * EU_CYL / i)
-    left_p1_diag[i + 1] = -right_p1_diag[i + 1]
-
-# Store diagonals in a list of arrays
-left_diagonals = [left_m1_diag, left_main_diag, left_p1_diag]
-right_diagonals = [right_m1_diag, right_main_diag, right_p1_diag]
-offsets = [-1, 0, 1]
-
-# Store tridiagonal matrices in sparse form
-left_cn_matrix = sp.dia_array(
-    (left_diagonals, offsets), shape=(N_RADI_NODES, N_RADI_NODES)
+left_cn_matrix = crank_nicolson_array(
+    N_RADI_NODES, -MATRIX_CNT_1, 1 + 2 * MATRIX_CNT_1, EU_CYL
 )
-right_cn_matrix = sp.dia_array(
-    (right_diagonals, offsets), shape=(N_RADI_NODES, N_RADI_NODES)
+right_cn_matrix = crank_nicolson_array(
+    N_RADI_NODES, MATRIX_CNT_1, 1 - 2 * MATRIX_CNT_1, EU_CYL
 )
 
 # Convert to lil_array (dia_array class does not support slicing) class to manipulate BCs easier
@@ -121,10 +196,10 @@ if EU_CYL == 0:  # (Dirichlet type)
     left_cn_matrix[0, 1], right_cn_matrix[0, 1] = 0, 0
     left_cn_matrix[-1, -1], right_cn_matrix[-1, -1] = 1, 0
 else:  # (Neumann-Dirichlet type)
-    right_cn_matrix[0, 0] = MATRIX_CNT_2
-    left_cn_matrix[0, 0] = MATRIX_CNT_3
+    right_cn_matrix[0, 0] = 1 - 2 * MATRIX_CNT_1
+    left_cn_matrix[0, 0] = 1 + 2 * MATRIX_CNT_1
     right_cn_matrix[0, 1] = 2 * MATRIX_CNT_1
-    left_cn_matrix[0, 1] = -right_cn_matrix[0, 1]
+    left_cn_matrix[0, 1] = -2 * MATRIX_CNT_1
     right_cn_matrix[-1, -1] = 0
     left_cn_matrix[-1, -1] = 1
 
@@ -143,10 +218,15 @@ BEAM_POWER = BEAM_ENERGY / (BEAM_PEAK_TIME * np.sqrt(0.5 * PI_NUMBER))
 BEAM_INTENSITY = 2 * BEAM_POWER / (PI_NUMBER * BEAM_WAIST_0**2)
 BEAM_AMPLITUDE = np.sqrt(BEAM_INTENSITY)
 # Wave packet's initial condition
-envelope = BEAM_AMPLITUDE * np.exp(
-    -((radi_2d_array_2 / BEAM_WAIST_0) ** 2)
-    - IMAG_UNIT * 0.5 * BEAM_WNUMBER * radi_2d_array_2**2 / FOCAL_LEN
-    - (1 + IMAG_UNIT * BEAM_CHIRP) * (time_2d_array_2 / BEAM_PEAK_TIME) ** 2
+envelope = gaussian_beam(
+    radi_2d_array_2,
+    time_2d_array_2,
+    BEAM_AMPLITUDE,
+    BEAM_WAIST_0,
+    BEAM_WNUMBER,
+    FOCAL_LEN,
+    BEAM_PEAK_TIME,
+    BEAM_CHIRP,
 )
 # Save on-axis envelope initial state
 envelope_axis[0, :] = envelope[AXIS_NODE, :]
@@ -203,118 +283,17 @@ for k in tqdm(range(N_STEPS - 1)):
         AXIS_NODE, :
     ]  # Save on-axis envelope k-step
 
-### Plots
-plt.style.use("dark_background")
-cmap_option = mpl.colormaps["plasma"]
-figsize_option = (13, 7)
-
-# Set up conversion factors
-# INTENSITY_FACTOR = 0.5 * LIGHT_SPEED_0 * ELEC_PERMITTIVITY_0 * LINEAR_REFF
-INTENSITY_FACTOR = 1
-RADI_FACTOR = 1.0e6
-DIST_FACTOR = 100.0
-TIME_FACTOR = 1.0e15
-AREA_FACTOR = 1.0e-4
-# Set up plotting grid (µm, cm and fs)
-new_radi_2d_array_2 = RADI_FACTOR * radi_2d_array_2
-new_dist_2d_array_3 = DIST_FACTOR * dist_2d_array_3
-new_time_2d_array_2 = TIME_FACTOR * time_2d_array_2
-new_time_2d_array_3 = TIME_FACTOR * time_2d_array_3
-new_dist_array = new_dist_2d_array_3[:, 0]
-new_time_array = new_time_2d_array_3[0, :]
-
-# Set up intensities (W/cm^2)
-plot_intensity_axis = AREA_FACTOR * INTENSITY_FACTOR * np.abs(envelope_axis) ** 2
-plot_intensity_end = AREA_FACTOR * INTENSITY_FACTOR * np.abs(envelope) ** 2
-
-## Set up figure 1
-fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize_option)
-# First subplot
-ax1.plot(
-    new_time_array,
-    plot_intensity_axis[0, :],
-    color="#32CD32",  # Lime green
-    linestyle="--",
-    label=r"On-axis numerical solution at beginning $z$ step",
+np.savez(
+    "/Users/ytoga/projects/phd_thesis/phd_coding/python/practitioners_guide/storage/ffdmk_fcn_1",
+    INI_RADI_COOR=INI_RADI_COOR,
+    FIN_RADI_COOR=FIN_RADI_COOR,
+    INI_DIST_COOR=INI_DIST_COOR,
+    FIN_DIST_COOR=FIN_DIST_COOR,
+    INI_TIME_COOR=INI_TIME_COOR,
+    FIN_TIME_COOR=FIN_TIME_COOR,
+    AXIS_NODE=AXIS_NODE,
+    PEAK_NODE=PEAK_NODE,
+    LINEAR_REFF=LINEAR_REFF,
+    e=envelope,
+    e_axis=envelope_axis,
 )
-ax1.plot(
-    new_time_array,
-    plot_intensity_axis[-1, :],
-    color="#1E90FF",  # Electric Blue
-    linestyle="--",
-    label=r"On-axis numerical solution at final $z$ step",
-)
-ax1.set(xlabel=r"$t$ ($\mathrm{fs}$)", ylabel=r"$I(t)$ ($\mathrm{W/{cm}^2}$)")
-ax1.legend(facecolor="black", edgecolor="white")
-# Second subplot
-ax2.plot(
-    new_dist_array,
-    plot_intensity_axis[:, PEAK_NODE],
-    color="#FFFF00",  # Pure yellow
-    linestyle="-",
-    label="On-axis peak time numerical solution",
-)
-ax2.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$I(z)$ ($\mathrm{W/{cm}^2}$)")
-ax2.legend(facecolor="black", edgecolor="white")
-
-# fig1.tight_layout()
-plt.show()
-
-## Set up figure 2
-fig2, (ax3, ax4) = plt.subplots(1, 2, figsize=figsize_option)
-# First subplot
-fig2_1 = ax3.pcolormesh(
-    new_dist_2d_array_3, new_time_2d_array_3, plot_intensity_axis, cmap=cmap_option
-)
-fig2.colorbar(fig2_1, ax=ax3)
-ax3.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$t$ ($\mathrm{fs}$)")
-ax3.set_title("On-axis solution in 2D")
-# Second subplot
-fig2_2 = ax4.pcolormesh(
-    new_radi_2d_array_2, new_time_2d_array_2, plot_intensity_end, cmap=cmap_option
-)
-fig2.colorbar(fig2_2, ax=ax4)
-ax4.set(xlabel=r"$r$ ($\mathrm{\mu m}$)", ylabel=r"$t$ ($\mathrm{fs}$)")
-ax4.set_title(r"Final step solution in 2D")
-
-# fig2.tight_layout()
-plt.show()
-
-## Set up figure 3
-fig3, (ax5, ax6) = plt.subplots(
-    1, 2, figsize=figsize_option, subplot_kw={"projection": "3d"}
-)
-# First subplot
-ax5.plot_surface(
-    new_dist_2d_array_3,
-    new_time_2d_array_3,
-    plot_intensity_axis,
-    cmap=cmap_option,
-    linewidth=0,
-    antialiased=False,
-)
-ax5.set(
-    xlabel=r"$z$ ($\mathrm{cm}$)",
-    ylabel=r"$t$ ($\mathrm{fs}$)",
-    zlabel=r"$I(z,t)$ ($\mathrm{W/{cm}^2}$)",
-)
-ax5.set_title("On-axis solution in 3D")
-
-# Second subplot
-ax6.plot_surface(
-    new_radi_2d_array_2,
-    new_time_2d_array_2,
-    plot_intensity_end,
-    cmap=cmap_option,
-    linewidth=0,
-    antialiased=False,
-)
-ax6.set(
-    xlabel=r"$r$ ($\mathrm{\mu m}$)",
-    ylabel=r"$t$ ($\mathrm{fs}$)",
-    zlabel=r"$I(r,t)$ ($\mathrm{W/{cm}^2}$)",
-)
-ax6.set_title(r"Final step solution in 3D")
-
-# fig3.tight_layout()
-plt.show()

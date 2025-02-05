@@ -1,5 +1,5 @@
 """
-Python script for plotting NumPy arrays saved during the simulations
+Python script for plotting NumPy arrays saved during the simulations.
 """
 
 import matplotlib as mpl
@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 ## Load arrays
-data = np.load("pruebilla2_fcn.npz")
+data = np.load("~/projects/phd_thesis/phd_coding/python/storage/ffdmk_fcn_1.npz")
 INI_RADI_COOR = data["INI_RADI_COOR"]
 FIN_RADI_COOR = data["FIN_RADI_COOR"]
 INI_DIST_COOR = data["INI_DIST_COOR"]

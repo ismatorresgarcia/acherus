@@ -1,21 +1,22 @@
 """
 This program solves the Unidirectional Pulse Propagation Equation (UPPE) of an ultra-intense
 and ultra-short laser pulse.
-This program only includes second order group velocity dispersion (GVD).
+This program includes:
+    - Second order group velocity dispersion (GVD).
 
 Numerical discretization: Finite Differences Method (FDM)
-- Method: Fast Fourier Transform (FFT)
-- Initial condition: Gaussian
-- Boundary conditions: Periodic
+    - Method: Fast Fourier Transform (FFT)
+    - Initial condition: Gaussian
+    - Boundary conditions: Periodic
 
 UPPE:           ∂ℰ/∂z = -ik''/2 ∂²E/∂t²
 
 
 E: envelope (2d complex array)
 i: imaginary unit
-k'': GVD coefficient of 2nd order
 z: distance coordinate
 t: time coordinate
+k'': GVD coefficient of 2nd order
 """
 
 import matplotlib as mpl
@@ -23,6 +24,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.fft import fft, ifft
 from tqdm import tqdm
+
+
+def gaussian_beam(t, amplitude, peak_time, chirp):
+    """
+    Set the chirped Gaussian beam.
+
+    Parameters:
+    - t (array): Time array
+    - amplitude (float): Amplitude of the Gaussian beam
+    - peak_time (float): Time at which the Gaussian beam reaches its peaks
+    - chirp (float): Initial chirping introduced by some optical system
+    """
+    gaussian = amplitude * np.exp(-(1 + IMAG_UNIT * chirp) * (t / peak_time) ** 2)
+
+    return gaussian
+
 
 ## Set physical and mathematical constants
 IMAG_UNIT = 1j
@@ -75,9 +92,7 @@ BEAM_POWER = BEAM_ENERGY / (BEAM_PEAK_TIME * np.sqrt(0.5 * PI_NUMBER))
 BEAM_INTENSITY = 2 * BEAM_POWER / (PI_NUMBER * BEAM_WAIST_0**2)
 BEAM_AMPLITUDE = np.sqrt(BEAM_INTENSITY / INTENSITY_FACTOR)
 # Wave packet's initial condition
-envelope[0, :] = BEAM_AMPLITUDE * np.exp(
-    -(1 + IMAG_UNIT * BEAM_CHIRP) * (time_array / BEAM_PEAK_TIME) ** 2
-)
+envelope[0, :] = gaussian_beam(time_array, BEAM_AMPLITUDE, BEAM_PEAK_TIME, BEAM_CHIRP)
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):

@@ -1,21 +1,22 @@
 """
 This program solves the Unidirectional Pulse Propagation Equation (UPPE) of an ultra-intense
 and ultra-short laser pulse.
-This program only includes second order group velocity dispersion (GVD).
+This program includes:
+    - Second order group velocity dispersion (GVD).
 
 Numerical discretization: Finite Differences Method (FDM)
-- Method: Crank-Nicolson (CN) scheme
-- Initial condition: Gaussian
-- Boundary conditions: homogeneous Dirichlet
+    - Method: Crank-Nicolson (CN) scheme.
+    - Initial condition: Gaussian.
+    - Boundary conditions: homogeneous Dirichlet.
 
 UPPE:           ∂ℰ/∂z = -ik''/2 ∂²E/∂t²
 
 
-E: envelope (2d complex array)
+E: envelope
 i: imaginary unit
-k'': GVD coefficient of 2nd order
 z: distance coordinate
 t: time coordinate
+k'': GVD coefficient of 2nd order
 """
 
 import matplotlib as mpl
@@ -26,9 +27,24 @@ from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
 
 
+def gaussian_beam(t, amplitude, peak_time, chirp):
+    """
+    Set the chirped Gaussian beam.
+
+    Parameters:
+    - t (array): Time array
+    - amplitude (float): Amplitude of the Gaussian beam
+    - peak_time (float): Time at which the Gaussian beam reaches its peaks
+    - chirp (float): Initial chirping introduced by some optical system
+    """
+    gaussian = amplitude * np.exp(-(1 + IMAG_UNIT * chirp) * (t / peak_time) ** 2)
+
+    return gaussian
+
+
 def crank_nicolson_diagonals(nodes, off_coeff, main_coeff):
     """
-    Generate the three diagonals for a Crank-Nicolson array with centered differences.
+    Set the three diagonals for a Crank-Nicolson array with centered differences.
 
     Parameters:
     - nodes (int): Number of time nodes
@@ -47,7 +63,7 @@ def crank_nicolson_diagonals(nodes, off_coeff, main_coeff):
 
 def crank_nicolson_array(nodes, off_coeff, main_coeff):
     """
-    Generate a Crank-Nicolson sparse array in CSR format using the diagonals.
+    Set a Crank-Nicolson sparse array in CSR format using the diagonals.
 
     Parameters:
     - nodes (int): Number of time nodes
@@ -134,9 +150,7 @@ BEAM_POWER = BEAM_ENERGY / (BEAM_PEAK_TIME * np.sqrt(0.5 * PI_NUMBER))
 BEAM_INTENSITY = 2 * BEAM_POWER / (PI_NUMBER * BEAM_WAIST_0**2)
 BEAM_AMPLITUDE = np.sqrt(BEAM_INTENSITY / INTENSITY_FACTOR)
 # Wave packet's initial condition
-envelope[0, :] = BEAM_AMPLITUDE * np.exp(
-    -(1 + IMAG_UNIT * BEAM_CHIRP) * (time_array / BEAM_PEAK_TIME) ** 2
-)
+envelope[0, :] = gaussian_beam(time_array, BEAM_AMPLITUDE, BEAM_PEAK_TIME, BEAM_CHIRP)
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):

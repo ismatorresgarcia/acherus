@@ -1,25 +1,147 @@
 """
-Solves the unidirectional Envelope Propagation Equation (EPE) of an ultra-intense and
-ultra-short laser pulse using Finite Differences and Alternate Direction Implicit method.
+This program solves the Unidirectional Pulse Propagation Equation (UPPE) of an ultra-intense
+and ultra-short laser pulse.
+This program includes:
+    - Diffraction (for the transverse direction).
+    - Second order group velocity dispersion (GVD).
 
-UEPE:           ∂ℰ/∂z = 𝑖/(2k) ∂²ℰ/∂x² - 𝑖k₀⁽²⁾/2 ∂²ℰ/∂t²
+Numerical discretization: Finite Differences Method (FDM).
+    - Method: Alternating Direction Implicit (ADI) scheme.
+    - Initial condition: Gaussian.
+    - Boundary conditions: Neumann-Dirichlet (radial) and homogeneous Dirichlet (temporal).
+
+UPPE:           ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t²
 
 
-ℰ:     Envelope (3d complex vector)
-𝑖:     Imaginary unit
-k₀⁽²⁾: GVD coefficient of 2nd order 
-x:     X-coordinate
-z:     Z-coordinate
-t:     Time-coordinate
-k:     Wavenumber (in the interacting media)
+E: envelope (2d complex vector)
+i: imaginary unit
+r: radial coordinate
+z: distance coordinate
+t: time coordinate
+k: wavenumber (in the interacting media)
+∇: nabla operator (for the tranverse direction)
+∇²: laplace operator (for the transverse direction)
 """
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.sparse as sp
+from scipy.sparse import diags_array
 from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
+
+
+def gaussian_beam(r, t, amplitude, waist, wavenumber, focal, peak_time, chirp):
+    """
+    Set the post-lens chirped Gaussian beam.
+
+    Parameters:
+    - r (array): Radial array
+    - t (array): Time array
+    - amplitude (float): Amplitude of the Gaussian beam
+    - waist (float): Waist of the Gaussian beam
+    - focal (float): Focal length of the initial lens
+    - peak_time (float): Time at which the Gaussian beam reaches its peaks
+    - chirp (float): Initial chirping introduced by some optical system
+    """
+    gaussian = amplitude * np.exp(
+        -((r / waist) ** 2)
+        - IMAG_UNIT * 0.5 * wavenumber * r**2 / focal
+        - (1 + IMAG_UNIT * chirp) * (t / peak_time) ** 2
+    )
+
+    return gaussian
+
+
+def crank_nicolson_diagonals_r(nodes, off_coeff, main_coeff, coor_system):
+    """
+    Set the three diagonals for a Crank-Nicolson radial array with centered differences.
+
+    Parameters:
+    - nodes (int): Number of radial nodes
+    - off_coeff (float): Coefficient for the off-diagonal elements
+    - main_coeff (float): Coefficient for the main diagonal elements
+    - coor_system (int): Parameter for planar (0) or cylindrical (1) geometry
+
+    Returns:
+    - tuple: Containing the upper, main, and lower diagonals
+    """
+    indices = np.arange(1, nodes - 1)
+
+    lower_diag = off_coeff * (1 - 0.5 * coor_system / indices)
+    main_diag = np.full(nodes, main_coeff)
+    upper_diag = off_coeff * (1 + 0.5 * coor_system / indices)
+    lower_diag = np.append(lower_diag, [0])
+    upper_diag = np.insert(upper_diag, 0, [0])
+
+    return lower_diag, main_diag, upper_diag
+
+
+def crank_nicolson_diagonals_t(nodes, off_coeff, main_coeff):
+    """
+    Set the three diagonals for a Crank-Nicolson time array with centered differences.
+
+    Parameters:
+    - nodes (int): Number of time nodes
+    - off_coeff (float): Coefficient for the off-diagonal elements
+    - main_coeff (float): Coefficient for the main diagonal elements
+
+    Returns:
+    - tuple: Containing the upper, main, and lower diagonals
+    """
+    lower_diag = np.full(nodes - 1, off_coeff)
+    main_diag = np.full(nodes, main_coeff)
+    upper_diag = np.full(nodes - 1, off_coeff)
+
+    return lower_diag, main_diag, upper_diag
+
+
+def crank_nicolson_array_r(nodes, off_coeff, main_coeff, coor_system):
+    """
+    Set the Crank-Nicolson radial sparse array in CSR format using the diagonals.
+
+    Parameters:
+    - nodes (int): Number of radial nodes
+    - off_coeff (float): Coefficient for the off-diagonal elements
+    - main_coeff (float): Coefficient for the main diagonal elements
+    - coor_system (int): Parameter for planar (0) or cylindrical (1) geometry
+
+    Returns:
+    - array: Containing the Crank-Nicolson sparse array in CSR format
+    """
+    lower_diag, main_diag, upper_diag = crank_nicolson_diagonals_r(
+        nodes, off_coeff, main_coeff, coor_system
+    )
+
+    diagonals = [lower_diag, main_diag, upper_diag]
+    offset = [-1, 0, 1]
+    array = diags_array(diagonals, offsets=offset, format="csr")
+
+    return array
+
+
+def crank_nicolson_array_t(nodes, off_coeff, main_coeff):
+    """
+    Set the Crank-Nicolson time sparse array in CSR format using the diagonals.
+
+    Parameters:
+    - nodes (int): Number of time nodes
+    - off_coeff (float): Coefficient for the off-diagonal elements
+    - main_coeff (float): Coefficient for the main diagonal elements
+
+    Returns:
+    - array: Containing the Crank-Nicolson sparse array in CSR format
+    """
+    lower_diag, main_diag, upper_diag = crank_nicolson_diagonals_t(
+        nodes, off_coeff, main_coeff
+    )
+
+    diagonals = [lower_diag, main_diag, upper_diag]
+    offset = [-1, 0, 1]
+    array = diags_array(diagonals, offsets=offset, format="csr")
+
+    return array
+
 
 ## Set physical and mathematical constants
 IMAG_UNIT = 1j
@@ -43,7 +165,7 @@ N_RADI_NODES = I_RADI_NODES + 2
 RADI_STEP_LEN = (FIN_RADI_COOR - INI_RADI_COOR) / (N_RADI_NODES - 1)
 AXIS_NODE = int(-INI_RADI_COOR / RADI_STEP_LEN)  # On-axis node
 # Propagation (z) grid
-INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0.0, 6e-2, 1000
+INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0.0, 6e-2, 100
 DIST_STEP_LEN = FIN_DIST_COOR / N_STEPS
 # Time (t) grid
 INI_TIME_COOR, FIN_TIME_COOR, I_TIME_NODES = -300e-15, 300e-15, 1024
@@ -67,59 +189,20 @@ envelope_store = np.empty_like(envelope)
 b_array = np.empty_like(envelope)
 c_array = np.empty_like(envelope)
 
-# Set lower, main, and upper diagonals
+## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1R = IMAG_UNIT * DELTA_R
-MATRIX_CNT_2R = 1 - 2 * MATRIX_CNT_1R
-MATRIX_CNT_3R = 1 + 2 * MATRIX_CNT_1R
 MATRIX_CNT_1T = IMAG_UNIT * DELTA_T
-MATRIX_CNT_2T = 1 - 2 * MATRIX_CNT_1T
-MATRIX_CNT_3T = 1 + 2 * MATRIX_CNT_1T
-left_m1_diag_r = np.empty_like(radi_array, dtype=complex)
-right_m1_diag_r = np.empty_like(left_m1_diag_r)
-left_main_diag_r = np.empty_like(left_m1_diag_r)
-right_main_diag_r = np.empty_like(left_m1_diag_r)
-left_p1_diag_r = np.empty_like(left_m1_diag_r)
-right_p1_diag_r = np.empty_like(left_m1_diag_r)
-left_m1_diag_t = np.empty_like(time_array, dtype=complex)
-right_m1_diag_t = np.empty_like(left_m1_diag_t)
-left_main_diag_t = np.empty_like(left_m1_diag_t)
-right_main_diag_t = np.empty_like(left_m1_diag_t)
-left_p1_diag_t = np.empty_like(left_m1_diag_t)
-right_p1_diag_t = np.empty_like(left_m1_diag_t)
-for i in range(1, N_RADI_NODES - 1):
-    right_m1_diag_r[i - 1] = MATRIX_CNT_1R * (1 - 0.5 * EU_CYL / i)
-    left_m1_diag_r[i - 1] = -right_m1_diag_r[i - 1]
-    right_main_diag_r[i] = MATRIX_CNT_2R
-    left_main_diag_r[i] = MATRIX_CNT_3R
-    right_p1_diag_r[i + 1] = MATRIX_CNT_1R * (1 + 0.5 * EU_CYL / i)
-    left_p1_diag_r[i + 1] = -right_p1_diag_r[i + 1]
-for l in range(1, N_TIME_NODES - 1):
-    right_m1_diag_t[l - 1] = MATRIX_CNT_1T
-    left_m1_diag_t[l - 1] = -right_m1_diag_t[l - 1]
-    right_main_diag_t[l] = MATRIX_CNT_2T
-    left_main_diag_t[l] = MATRIX_CNT_3T
-    right_p1_diag_t[l + 1] = MATRIX_CNT_1T
-    left_p1_diag_t[l + 1] = -right_p1_diag_t[l + 1]
-
-# Store diagonals in a list of arrays
-left_diagonals_r = [left_m1_diag_r, left_main_diag_r, left_p1_diag_r]
-right_diagonals_r = [right_m1_diag_r, right_main_diag_r, right_p1_diag_r]
-left_diagonals_t = [left_m1_diag_t, left_main_diag_t, left_p1_diag_t]
-right_diagonals_t = [right_m1_diag_t, right_main_diag_t, right_p1_diag_t]
-offsets = [-1, 0, 1]
-
-# Store tridiagonal matrices in sparse form
-left_cn_matrix_r = sp.dia_array(
-    (left_diagonals_r, offsets), shape=(N_RADI_NODES, N_RADI_NODES)
+left_cn_matrix_r = crank_nicolson_array_r(
+    N_RADI_NODES, -MATRIX_CNT_1R, 1 + 2 * MATRIX_CNT_1R, EU_CYL
 )
-right_cn_matrix_r = sp.dia_array(
-    (right_diagonals_r, offsets), shape=(N_RADI_NODES, N_RADI_NODES)
+right_cn_matrix_r = crank_nicolson_array_r(
+    N_RADI_NODES, MATRIX_CNT_1R, 1 - 2 * MATRIX_CNT_1R, EU_CYL
 )
-left_cn_matrix_t = sp.dia_array(
-    (left_diagonals_t, offsets), shape=(N_TIME_NODES, N_TIME_NODES)
+left_cn_matrix_t = crank_nicolson_array_t(
+    N_TIME_NODES, -MATRIX_CNT_1T, 1 + 2 * MATRIX_CNT_1T
 )
-right_cn_matrix_t = sp.dia_array(
-    (right_diagonals_t, offsets), shape=(N_TIME_NODES, N_TIME_NODES)
+right_cn_matrix_t = crank_nicolson_array_t(
+    N_TIME_NODES, MATRIX_CNT_1T, 1 - 2 * MATRIX_CNT_1T
 )
 
 # Convert to lil_array (dia_array does not support slicing) class to manipulate BCs easier
@@ -135,8 +218,8 @@ if EU_CYL == 0:  # (Dirichlet type)
     left_cn_matrix_r[0, 1], right_cn_matrix_r[0, 1] = 0, 0
     left_cn_matrix_r[-1, -1], right_cn_matrix_r[-1, -1] = 1, 0
 else:  # (Neumann-Dirichlet type)
-    right_cn_matrix_r[0, 0] = MATRIX_CNT_2R
-    left_cn_matrix_r[0, 0] = MATRIX_CNT_3R
+    right_cn_matrix_r[0, 0] = 1 - 2 * MATRIX_CNT_1R
+    left_cn_matrix_r[0, 0] = 1 + 2 * MATRIX_CNT_1R
     right_cn_matrix_r[0, 1] = 2 * MATRIX_CNT_1R
     left_cn_matrix_r[0, 1] = -2 * MATRIX_CNT_1R
     right_cn_matrix_r[-1, -1] = 0
@@ -162,10 +245,15 @@ BEAM_POWER = BEAM_ENERGY / (BEAM_PEAK_TIME * np.sqrt(0.5 * PI_NUMBER))
 BEAM_INTENSITY = 2 * BEAM_POWER / (PI_NUMBER * BEAM_WAIST_0**2)
 BEAM_AMPLITUDE = np.sqrt(BEAM_INTENSITY / INTENSITY_FACTOR)
 # Wave packet's initial condition
-envelope = BEAM_AMPLITUDE * np.exp(
-    -((radi_2d_array_2 / BEAM_WAIST_0) ** 2)
-    - IMAG_UNIT * 0.5 * BEAM_WNUMBER * radi_2d_array_2**2 / FOCAL_LEN
-    - (1 + IMAG_UNIT * BEAM_CHIRP) * (time_2d_array_2 / BEAM_PEAK_TIME) ** 2
+envelope = gaussian_beam(
+    radi_2d_array_2,
+    time_2d_array_2,
+    BEAM_AMPLITUDE,
+    BEAM_WAIST_0,
+    BEAM_WNUMBER,
+    FOCAL_LEN,
+    BEAM_PEAK_TIME,
+    BEAM_CHIRP,
 )
 # Save on-axis envelope initial state
 envelope_axis[0, :] = envelope[AXIS_NODE, :]

@@ -1,22 +1,24 @@
 """
 This program solves the Unidirectional Pulse Propagation Equation (UPPE) of an ultra-intense
 and ultra-short laser pulse.
-This program only includes diffraction for the radial direction.
+This program includes:
+    - Diffraction (for the transverse direction).
 
 Numerical discretization: Finite Differences Method (FDM)
-- Method: Fast Fourier Transform (FFT)
-- Initial condition: Gaussian
-- Boundary conditions: Periodic
+    - Method: Fast Fourier Transform (FFT).
+    - Initial condition: Gaussian.
+    - Boundary conditions: Periodic.
 
-UEPE:           ∂E/∂z = i/(2k) ∂²E/∂x²
+UPPE:           ∂E/∂z = i/(2k) ∂²E/∂x²
 
 
-E: envelope (2d complex vector)
-i: imaginary unit
-z: distance coordinate
-k: wavenumber (in the interacting media)
-∇: nabla operator (for the tranverse direction)
-∇²: laplace operator (for the transverse direction)
+E: envelope.
+i: imaginary unit.
+r: radial coordinate.
+z: distance coordinate.
+k: wavenumber (in the interacting media).
+∇: nabla operator (for the tranverse direction).
+∇²: laplace operator (for the transverse direction).
 """
 
 import matplotlib as mpl
@@ -24,6 +26,24 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.fft import fft, ifft
 from tqdm import tqdm
+
+
+def gaussian_beam(r, amplitude, waist, wavenumber, focal):
+    """
+    Set the post-lens Gaussian beam.
+
+    Parameters:
+    - r (array): Radial array
+    - amplitude (float): Amplitude of the Gaussian beam
+    - waist (float): Waist of the Gaussian beam
+    - focal (float): Focal length of the initial lens
+    """
+    gaussian = amplitude * np.exp(
+        -((r / waist) ** 2) - IMAG_UNIT * 0.5 * wavenumber * r**2 / focal
+    )
+
+    return gaussian
+
 
 ## Set physical and mathematical constants
 IMAG_UNIT = 1j
@@ -74,9 +94,8 @@ BEAM_POWER = BEAM_ENERGY / (BEAM_PEAK_TIME * np.sqrt(0.5 * PI_NUMBER))
 BEAM_INTENSITY = 2 * BEAM_POWER / (PI_NUMBER * BEAM_WAIST_0**2)
 BEAM_AMPLITUDE = np.sqrt(BEAM_INTENSITY / INTENSITY_FACTOR)
 # Wave packet's initial condition
-envelope[:, 0] = BEAM_AMPLITUDE * np.exp(
-    -((radi_array / BEAM_WAIST_0) ** 2)
-    - IMAG_UNIT * 0.5 * BEAM_WNUMBER * radi_array**2 / FOCAL_LEN
+envelope[:, 0] = gaussian_beam(
+    radi_array, BEAM_AMPLITUDE, BEAM_WAIST_0, BEAM_WNUMBER, FOCAL_LEN
 )
 
 ## Propagation loop over desired number of steps

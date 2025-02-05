@@ -1,5 +1,9 @@
 """
-Analytical solution to the linear propagation equation
+This program represents graphically the linear solution for the Unidirectional 
+Pulse Propagation Equation (UPPE) of an ultra-intense and ultra-short laser pulse.
+
+Since it's the linear solution, only diffraction in the transverse direction and
+second order group velocity dispersion (GVD) are considered.
 """
 
 import matplotlib as mpl

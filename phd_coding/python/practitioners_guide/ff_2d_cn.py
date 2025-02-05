@@ -1,18 +1,20 @@
 """
 This program solves the Unidirectional Pulse Propagation Equation (UPPE) of an ultra-intense
 and ultra-short laser pulse.
-This program only includes diffraction for the radial direction.
+This program includes:
+    - Diffraction (for the transverse direction).
 
 Numerical discretization: Finite Differences Method (FDM)
 - Method: Crank-Nicolson (CN) scheme
 - Initial condition: Gaussian
 - Boundary conditions: Neumann-Dirichlet
 
-UEPE:           ∂E/∂z = i/(2k) ∇²E
+UPPE:           ∂E/∂z = i/(2k) ∇²E
 
 
 E: envelope (2d complex vector)
 i: imaginary unit
+r: radial coordinate
 z: distance coordinate
 k: wavenumber (in the interacting media)
 ∇: nabla operator (for the tranverse direction)
@@ -25,6 +27,23 @@ import numpy as np
 from scipy.sparse import diags_array
 from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
+
+
+def gaussian_beam(r, amplitude, waist, wavenumber, focal):
+    """
+    Set the post-lens Gaussian beam.
+
+    Parameters:
+    - r (array): Radial array
+    - amplitude (float): Amplitude of the Gaussian beam
+    - waist (float): Waist of the Gaussian beam
+    - focal (float): Focal length of the initial lens
+    """
+    gaussian = amplitude * np.exp(
+        -((r / waist) ** 2) - IMAG_UNIT * 0.5 * wavenumber * r**2 / focal
+    )
+
+    return gaussian
 
 
 def crank_nicolson_diagonals(nodes, off_coeff, main_coeff, coor_system):
@@ -115,7 +134,6 @@ left_cn_matrix = crank_nicolson_array(
 right_cn_matrix = crank_nicolson_array(
     N_RADI_NODES, MATRIX_CNT_1, 1 - 2 * MATRIX_CNT_1, EU_CYL
 )
-print(left_cn_matrix.shape)
 
 # Convert to lil_array (dia_array class does not support slicing) class to manipulate BCs easier
 left_cn_matrix = left_cn_matrix.tolil()
@@ -147,9 +165,8 @@ BEAM_POWER = BEAM_ENERGY / (BEAM_PEAK_TIME * np.sqrt(0.5 * PI_NUMBER))
 BEAM_INTENSITY = 2 * BEAM_POWER / (PI_NUMBER * BEAM_WAIST_0**2)
 BEAM_AMPLITUDE = np.sqrt(BEAM_INTENSITY / INTENSITY_FACTOR)
 # Wave packet's initial condition
-envelope[:, 0] = BEAM_AMPLITUDE * np.exp(
-    -((radi_array / BEAM_WAIST_0) ** 2)
-    - IMAG_UNIT * 0.5 * BEAM_WNUMBER * radi_array**2 / FOCAL_LEN
+envelope[:, 0] = gaussian_beam(
+    radi_array, BEAM_AMPLITUDE, BEAM_WAIST_0, BEAM_WNUMBER, FOCAL_LEN
 )
 
 ## Propagation loop over desired number of steps
