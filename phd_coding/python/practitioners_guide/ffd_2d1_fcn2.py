@@ -5,22 +5,22 @@ This program includes:
     - Diffraction (for the transverse direction).
     - Second order group velocity dispersion (GVD).
 
-Numerical discretization: Finite Differences Method (FDM)
-    - Method: Spectral (in frequency) Crank-Nicolson (CN) scheme
-    - Initial condition: Gaussian
-    - Boundary conditions: Neumann-Dirichlet (radial) and Periodic (temporal)
+Numerical discretization: Finite Differences Method (FDM).
+    - Method: Spectral (in frequency) Crank-Nicolson (CN) scheme.
+    - Initial condition: Gaussian.
+    - Boundary conditions: Neumann-Dirichlet (radial) and Periodic (temporal).
 
 UPPE:           ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t²
 
 
-E: envelope (2d complex vector)
-i: imaginary unit
-r: radial coordinate
-z: distance coordinate
-t: time coordinate
-k: wavenumber (in the interacting media)
-∇: nabla operator (for the tranverse direction)
-∇²: laplace operator (for the transverse direction)
+E: envelope.
+i: imaginary unit.
+r: radial coordinate.
+z: distance coordinate.
+t: time coordinate.
+k: wavenumber (in the interacting media).
+∇: nabla operator (for the tranverse direction).
+∇²: laplace operator (for the transverse direction).
 """
 
 import matplotlib as mpl

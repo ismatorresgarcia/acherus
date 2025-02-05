@@ -12,11 +12,11 @@ Numerical discretization: Finite Differences Method (FDM)
 UPPE:           ∂ℰ/∂z = -ik''/2 ∂²E/∂t²
 
 
-E: envelope
-i: imaginary unit
-z: distance coordinate
-t: time coordinate
-k'': GVD coefficient of 2nd order
+E: envelope.
+i: imaginary unit.
+z: distance coordinate.
+t: time coordinate.
+k'': GVD coefficient of 2nd order.
 """
 
 import matplotlib as mpl

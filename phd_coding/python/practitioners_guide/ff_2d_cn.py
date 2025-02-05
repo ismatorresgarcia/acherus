@@ -5,20 +5,20 @@ This program includes:
     - Diffraction (for the transverse direction).
 
 Numerical discretization: Finite Differences Method (FDM)
-- Method: Crank-Nicolson (CN) scheme
-- Initial condition: Gaussian
-- Boundary conditions: Neumann-Dirichlet
+    - Method: Crank-Nicolson (CN) scheme.
+    - Initial condition: Gaussian.
+    - Boundary conditions: Neumann-Dirichlet.
 
 UPPE:           ∂E/∂z = i/(2k) ∇²E
 
 
-E: envelope (2d complex vector)
-i: imaginary unit
-r: radial coordinate
-z: distance coordinate
-k: wavenumber (in the interacting media)
-∇: nabla operator (for the tranverse direction)
-∇²: laplace operator (for the transverse direction)
+E: envelope.
+i: imaginary unit.
+r: radial coordinate.
+z: distance coordinate.
+k: wavenumber (in the interacting media).
+∇: nabla operator (for the tranverse direction).
+∇²: laplace operator (for the transverse direction).
 """
 
 import matplotlib as mpl
