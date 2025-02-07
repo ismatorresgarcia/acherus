@@ -11,27 +11,54 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 ## Set physical and mathematical constants
-IMAG_UNIT = 1j
-PI_NUMBER = np.pi
-ELEC_PERMITTIVITY_0 = 8.8541878128e-12
-LIGHT_SPEED_0 = 299792458.0
+IM_UNIT = 1j
+PI = np.pi
 
-## Set physical variables (for water at 800 nm)
-BEAM_WLEN_0 = 800e-9
-LINEAR_REFF = 1.334
-# GVD_COEFF = 0
-GVD_COEFF = 241e-28  # 2nd order GVD coefficient [s2 / m]
-BEAM_WNUMBER_0 = 2 * PI_NUMBER / BEAM_WLEN_0
-BEAM_WNUMBER = BEAM_WNUMBER_0 * LINEAR_REFF
-INTENSITY_FACTOR = 0.5 * LIGHT_SPEED_0 * ELEC_PERMITTIVITY_0 * LINEAR_REFF
+MEDIA = {
+    "WATER": {
+        "LIN_REF_IND": 1.334,
+        "GVD_COEF": 241e-28,
+    },
+    "VACUUM": {
+        "LINEAR_REFF_INDEX": 1,
+        "LIGHT_SPEED": 299792458,
+        "PERMITTIVITY": 8.8541878128e-12,
+    },
+}
+BEAM = {
+    "WAVELENGTH_0": 800e-9,
+    "WAIST_0": 100e-6,
+    "PEAK_TIME": 130e-15,
+    "ENERGY": 2.2e-6,
+    "FOCAL_LENGTH": 20,
+    "CHIRP": -10,
+}
+MEDIA["WATER"].update(
+    {
+        "INT_FACTOR": 0.5
+        * MEDIA["VACUUM"]["LIGHT_SPEED"]
+        * MEDIA["VACUUM"]["PERMITTIVITY"]
+        * MEDIA["WATER"]["LIN_REF_IND"],
+        # "INT_FACTOR": 1,
+    }
+)
+BEAM.update(
+    {
+        "WAVENUMBER_0": 2 * PI / BEAM["WAVELENGTH_0"],
+        "WAVENUMBER": 2 * PI * MEDIA["WATER"]["LIN_REF_IND"] / BEAM["WAVELENGTH_0"],
+        "POWER": BEAM["ENERGY"] / (BEAM["PEAK_TIME"] * np.sqrt(0.5 * PI)),
+    }
+)
+BEAM.update({"INTENSITY": 2 * BEAM["POWER"] / (PI * BEAM["WAIST_0"] ** 2)})
+BEAM.update({"AMPLITUDE": np.sqrt(BEAM["INTENSITY"] / MEDIA["WATER"]["INT_FACTOR"])})
 
 ## Set parameters (grid spacing, propagation step, etc.)
 # Radial (r) grid
-INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES = 0.0, 75e-5, 500
+INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES = 0, 75e-5, 500
 RADI_STEP_LEN = (FIN_RADI_COOR - INI_RADI_COOR) / (N_RADI_NODES - 1)
 AXIS_NODE = int(-INI_RADI_COOR / RADI_STEP_LEN)
 # Propagation (z) grid
-INI_DISTANCE_COOR, FIN_DISTANCE_COOR, N_STEPS = 0.0, 6e-2, 500
+INI_DISTANCE_COOR, FIN_DISTANCE_COOR, N_STEPS = 0, 6e-2, 500
 DISTANCE_STEP_LEN = FIN_DISTANCE_COOR / N_STEPS
 # Time (t) grid
 INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES = -150e-15, 150e-15, 2048
@@ -44,16 +71,6 @@ radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij"
 radi_2d_array_2, time_2d_array_2 = np.meshgrid(radi_array, time_array, indexing="ij")
 dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing="ij")
 
-# Set wave packet
-BEAM_WAIST_0 = 75e-6
-BEAM_PEAK_TIME = 130e-15
-BEAM_ENERGY = 2.2e-6
-FOCAL_LEN = 20
-BEAM_CHIRP = -10
-BEAM_POWER = BEAM_ENERGY / (BEAM_PEAK_TIME * np.sqrt(0.5 * PI_NUMBER))  # W
-BEAM_INTENSITY = 2 * BEAM_POWER / (PI_NUMBER * BEAM_WAIST_0**2)  # W/m^2
-BEAM_AMPLITUDE = np.sqrt(BEAM_INTENSITY / INTENSITY_FACTOR)  # V/m
-
 ## Analytical solution for a Gaussian beam
 # Set arrays
 envelope_radial_s = np.empty_like(radi_2d_array, dtype=complex)
@@ -62,40 +79,43 @@ envelope_axis_s = np.empty_like(envelope_time_s)
 envelope_end_s = np.empty_like(radi_2d_array_2, dtype=complex)
 
 # Set variables
-RAYLEIGH_LEN = 0.5 * BEAM_WNUMBER * BEAM_WAIST_0**2
-DISPERSION_LEN = 0.5 * BEAM_PEAK_TIME**2 / GVD_COEFF
-LENS_DISTANCE = FOCAL_LEN / (1 + (FOCAL_LEN / RAYLEIGH_LEN) ** 2)
-beam_waist = BEAM_WAIST_0 * np.sqrt(
-    (1 - dist_array / FOCAL_LEN) ** 2 + (dist_array / RAYLEIGH_LEN) ** 2
+RAYLEIGH_LEN = 0.5 * BEAM["WAVENUMBER"] * BEAM["WAIST_0"] ** 2
+DISPERSION_LEN = 0.5 * BEAM["PEAK_TIME"] ** 2 / MEDIA["WATER"]["GVD_COEF"]
+LENS_DISTANCE = BEAM["FOCAL_LENGTH"] / (1 + (BEAM["FOCAL_LENGTH"] / RAYLEIGH_LEN) ** 2)
+beam_waist = BEAM["WAIST_0"] * np.sqrt(
+    (1 - dist_array / BEAM["FOCAL_LENGTH"]) ** 2 + (dist_array / RAYLEIGH_LEN) ** 2
 )
-beam_duration = BEAM_PEAK_TIME * np.sqrt(
-    (1 + BEAM_CHIRP * dist_array / DISPERSION_LEN) ** 2
+beam_duration = BEAM["PEAK_TIME"] * np.sqrt(
+    (1 + BEAM["CHIRP"] * dist_array / DISPERSION_LEN) ** 2
     + (dist_array / DISPERSION_LEN) ** 2
 )
 beam_radius = (
     dist_array
     - LENS_DISTANCE
-    + (LENS_DISTANCE * (FOCAL_LEN - LENS_DISTANCE)) / (dist_array - LENS_DISTANCE)
+    + (LENS_DISTANCE * (BEAM["FOCAL_LENGTH"] - LENS_DISTANCE))
+    / (dist_array - LENS_DISTANCE)
 )
 gouy_radial_phase = np.atan(
-    (dist_array - LENS_DISTANCE) / np.sqrt(FOCAL_LEN * LENS_DISTANCE - LENS_DISTANCE**2)
+    (dist_array - LENS_DISTANCE)
+    / np.sqrt(BEAM["FOCAL_LENGTH"] * LENS_DISTANCE - LENS_DISTANCE**2)
 )
 gouy_time_phase = 0.5 * np.atan(
-    -dist_array / (DISPERSION_LEN + BEAM_CHIRP * dist_array)
+    -dist_array / (DISPERSION_LEN + BEAM["CHIRP"] * dist_array)
 )
 #
-ratio_term = BEAM_WAIST_0 / beam_waist[np.newaxis, :]
-sqrt_term = np.sqrt(BEAM_PEAK_TIME / beam_duration[:, np.newaxis])
+ratio_term = BEAM["WAIST_0"] / beam_waist[np.newaxis, :]
+sqrt_term = np.sqrt(BEAM["PEAK_TIME"] / beam_duration[:, np.newaxis])
 decay_radial_exp_term = (radi_array[:, np.newaxis] / beam_waist) ** 2
 decay_time_exp_term = (time_array / beam_duration[:, np.newaxis]) ** 2
 prop_radial_exp_term = (
-    0.5 * IMAG_UNIT * BEAM_WNUMBER * radi_array[:, np.newaxis] ** 2 / beam_radius
+    0.5 * IM_UNIT * BEAM["WAVENUMBER"] * radi_array[:, np.newaxis] ** 2 / beam_radius
 )
-prop_time_exp_term = 1 + IMAG_UNIT * (
-    BEAM_CHIRP + (1 + BEAM_CHIRP**2) * (dist_array[:, np.newaxis] / DISPERSION_LEN)
+prop_time_exp_term = 1 + IM_UNIT * (
+    BEAM["CHIRP"]
+    + (1 + BEAM["CHIRP"] ** 2) * (dist_array[:, np.newaxis] / DISPERSION_LEN)
 )
-gouy_radial_exp_term = IMAG_UNIT * gouy_radial_phase[np.newaxis, :]
-gouy_time_exp_term = IMAG_UNIT * gouy_time_phase[:, np.newaxis]
+gouy_radial_exp_term = IM_UNIT * gouy_radial_phase[np.newaxis, :]
+gouy_time_exp_term = IM_UNIT * gouy_time_phase[:, np.newaxis]
 
 # Compute solution
 envelope_radial_s = ratio_term * np.exp(
@@ -104,10 +124,10 @@ envelope_radial_s = ratio_term * np.exp(
 envelope_time_s = sqrt_term * np.exp(
     -decay_time_exp_term * prop_time_exp_term - gouy_time_exp_term
 )
-envelope_end_s = BEAM_AMPLITUDE * (
+envelope_end_s = BEAM["AMPLITUDE"] * (
     envelope_radial_s[:, -1, np.newaxis] * envelope_time_s[-1, :]
 )
-envelope_axis_s = BEAM_AMPLITUDE * (
+envelope_axis_s = BEAM["AMPLITUDE"] * (
     envelope_radial_s[AXIS_NODE, :, np.newaxis] * envelope_time_s
 )
 
@@ -132,8 +152,12 @@ new_time_array = new_time_2d_array_3[0, :]
 # Set up intensities (W/cm^2)
 plot_beam_waist = RADI_FACTOR * beam_waist
 plot_beam_duration = TIME_FACTOR * beam_duration
-plot_intensity_axis_s = AREA_FACTOR * INTENSITY_FACTOR * np.abs(envelope_axis_s) ** 2
-plot_intensity_end_s = AREA_FACTOR * INTENSITY_FACTOR * np.abs(envelope_end_s) ** 2
+plot_intensity_axis_s = (
+    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_axis_s) ** 2
+)
+plot_intensity_end_s = (
+    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_end_s) ** 2
+)
 
 ## Set up figure 1
 fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize_option)

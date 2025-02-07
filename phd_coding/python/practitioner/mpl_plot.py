@@ -1,5 +1,6 @@
 """
 Python script for plotting NumPy arrays saved during the simulations.
+This script uses the matplotlib library to plot the results.
 """
 
 import matplotlib as mpl
@@ -16,13 +17,13 @@ INI_TIME_COOR = data["INI_TIME_COOR"]
 FIN_TIME_COOR = data["FIN_TIME_COOR"]
 AXIS_NODE = data["AXIS_NODE"]
 PEAK_NODE = data["PEAK_NODE"]
-LINEAR_REFF = data["LINEAR_REFF"]
+LIN_REF_IND = data["LIN_REF_IND"]
 envelope = data["e"]
 envelope_axis = data["e_axis"]
 
 ## Initialize physical and mathematical constants
 ELEC_PERMITTIVITY_0 = 8.8541878128e-12
-LIGHT_SPEED_0 = 299792458.0
+LIGHT_SPEED_0 = 299792458
 
 # Set up parameters
 N_RADI_NODES = envelope.shape[0]
@@ -30,7 +31,7 @@ N_DIST_NODES = envelope_axis.shape[0]
 N_TIME_NODES = envelope_axis.shape[1]
 
 ## Choose the computational domain which you would like to graph
-RADI_COOR_A, RADI_COOR_B = INI_RADI_COOR, FIN_RADI_COOR / 20.0
+RADI_COOR_A, RADI_COOR_B = INI_RADI_COOR, FIN_RADI_COOR / 20
 DIST_COOR_A, DIST_COOR_B = INI_DIST_COOR, FIN_DIST_COOR
 TIME_COOR_A, TIME_COOR_B = -100e-15, 100e-15
 # Compute nodes and arrays
@@ -62,7 +63,6 @@ RADI_NODE_A, RADI_NODE_B = int(RADI_FLOAT_A), int(RADI_FLOAT_B)
 DIST_NODE_A, DIST_NODE_B = int(DIST_FLOAT_A), int(DIST_FLOAT_B)
 TIME_NODE_A, TIME_NODE_B = int(TIME_FLOAT_A), int(TIME_FLOAT_B)
 PEAK_NODE = -int(TIME_COOR_A * (N_TIME_NODES - 1) // (FIN_TIME_COOR - INI_TIME_COOR))
-print(PEAK_NODE)
 slice_nodes_r = slice(RADI_NODE_A, RADI_NODE_B + 1)
 slice_nodes_z = slice(DIST_NODE_A, DIST_NODE_B + 1)
 slice_nodes_t = slice(TIME_NODE_A, TIME_NODE_B + 1)
@@ -83,10 +83,10 @@ cmap_option = mpl.colormaps["plasma"]
 figsize_option = (13, 7)
 
 # Set up conversion factors
-INTENSITY_FACTOR = 1.0
-# INTENSITY_FACTOR = 0.5 * LIGHT_SPEED_0 * ELEC_PERMITTIVITY_0 * LINEAR_REFF
+INT_FACTOR = 1
+# INT_FACTOR = 0.5 * LIGHT_SPEED_0 * ELEC_PERMITTIVITY_0 * LIN_REF_IND
 RADI_FACTOR = 1e6
-DIST_FACTOR = 100.0
+DIST_FACTOR = 100
 TIME_FACTOR = 1e15
 AREA_FACTOR = 1e-4
 # Set up plotting grid (µm, cm and fs)
@@ -98,8 +98,8 @@ new_dist_array = new_dist_2d_array_3[:, 0]
 new_time_array = new_time_2d_array_3[0, :]
 
 # Set up intensities (W/cm^2)
-plot_intensity_end = AREA_FACTOR * INTENSITY_FACTOR * np.abs(envelope) ** 2
-plot_intensity_axis = AREA_FACTOR * INTENSITY_FACTOR * np.abs(envelope_axis) ** 2
+plot_intensity_end = AREA_FACTOR * INT_FACTOR * np.abs(envelope) ** 2
+plot_intensity_axis = AREA_FACTOR * INT_FACTOR * np.abs(envelope_axis) ** 2
 
 ## Set up figure 1
 fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize_option)

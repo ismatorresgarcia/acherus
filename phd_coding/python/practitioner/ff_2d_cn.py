@@ -29,92 +29,135 @@ from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
 
 
-def gaussian_beam(r, amplitude, waist, wavenumber, focal):
+def initial_condition(r, imu, bpm):
     """
-    Set the post-lens Gaussian beam.
+    Set the post-lens chirped Gaussian beam.
 
     Parameters:
     - r (array): Radial array
-    - amplitude (float): Amplitude of the Gaussian beam
-    - waist (float): Waist of the Gaussian beam
-    - focal (float): Focal length of the initial lens
+    - imu (complex): Square root of -1
+    - bpm (dict): Dictionary containing the beam parameters
+        - ampli (float): Amplitude of the Gaussian beam
+        - waist (float): Waist of the Gaussian beam
+        - wnum (float): Wavenumber of the Gaussian beam
+        - f (float): Focal length of the initial lens
+
+    Returns:
+    - array: Gaussian beam envelope's initial condition
     """
-    gaussian = amplitude * np.exp(
-        -((r / waist) ** 2) - IMAG_UNIT * 0.5 * wavenumber * r**2 / focal
-    )
+    ampli = bpm["AMPLITUDE"]
+    waist = bpm["WAIST_0"]
+    wnum = bpm["WAVENUMBER"]
+    f = bpm["FOCAL_LENGTH"]
+    gauss = ampli * np.exp(-((r / waist) ** 2) - 0.5 * imu * wnum * r**2 / f)
 
-    return gaussian
+    return gauss
 
 
-def crank_nicolson_diagonals(nodes, off_coeff, main_coeff, coor_system):
+def crank_nicolson_diags(n, pos, coor, coef):
     """
     Generate the three diagonals for a Crank-Nicolson array with centered differences.
 
     Parameters:
-    - nodes (int): Number of radial nodes
-    - off_coeff (float): Coefficient for the off-diagonal elements
-    - main_coeff (float): Coefficient for the main diagonal elements
-    - coor_system (int): Parameter for planar (0) or cylindrical (1) geometry
+    - n (int): Number of radial nodes
+    - pos (str): Position of the Crank-Nicolson array (left or right)
+    - coor (int): Parameter for planar (0) or cylindrical (1) geometry
+    - coef (float): Coefficient for the diagonal elements
 
     Returns:
     - tuple: Containing the upper, main, and lower diagonals
     """
-    indices = np.arange(1, nodes - 1)
+    mcf = 1.0 + 2.0 * coef
+    ind = np.arange(1, n - 1)
 
-    lower_diag = off_coeff * (1 - 0.5 * coor_system / indices)
-    main_diag = np.full(nodes, main_coeff)
-    upper_diag = off_coeff * (1 + 0.5 * coor_system / indices)
-    lower_diag = np.append(lower_diag, [0])
-    upper_diag = np.insert(upper_diag, 0, [0])
+    diag_m1 = -coef * (1 - 0.5 * coor / ind)
+    diag_0 = np.full(n, mcf)
+    diag_p1 = -coef * (1 + 0.5 * coor / ind)
 
-    return lower_diag, main_diag, upper_diag
+    diag_m1 = np.append(diag_m1, [0.0])
+    diag_p1 = np.insert(diag_p1, 0, [0.0])
+    if coor == 0 and pos == "LEFT":
+        diag_0[0], diag_0[-1] = 1.0, 1.0
+    elif coor == 0 and pos == "RIGHT":
+        diag_0[0], diag_0[-1] = 0.0, 0.0
+    elif coor == 1 and pos == "LEFT":
+        diag_0[0], diag_0[-1] = mcf, 1.0
+        diag_p1[0] = -2.0 * coef
+    elif coor == 1 and pos == "RIGHT":
+        diag_0[0], diag_0[-1] = mcf, 0.0
+        diag_p1[0] = -2.0 * coef
+
+    return diag_m1, diag_0, diag_p1
 
 
-def crank_nicolson_array(nodes, off_coeff, main_coeff, coor_system):
+def crank_nicolson_array(n, pos, coor, coef):
     """
     Generate a Crank-Nicolson sparse array in CSR format using the diagonals.
 
     Parameters:
-    - nodes (int): Number of radial nodes
-    - off_coeff (float): Coefficient for the off-diagonal elements
-    - main_coeff (float): Coefficient for the main diagonal elements
-    - coor_system (int): Parameter for planar (0) or cylindrical (1) geometry
+    - n (int): Number of radial nodes
+    - pos (str): Position of the Crank-Nicolson array (left or right)
+    - coor (int): Parameter for planar (0) or cylindrical (1) geometry
+    - coef (float): Coefficient for the diagonal elements
 
     Returns:
     - array: Containing the Crank-Nicolson sparse array in CSR format
     """
-    lower_diag, main_diag, upper_diag = crank_nicolson_diagonals(
-        nodes, off_coeff, main_coeff, coor_system
-    )
+    diag_m1, diag_0, diag_p1 = crank_nicolson_diags(n, pos, coor, coef)
 
-    diagonals = [lower_diag, main_diag, upper_diag]
+    diags = [diag_m1, diag_0, diag_p1]
     offset = [-1, 0, 1]
-    array = diags_array(diagonals, offsets=offset, format="csr")
+    cn_array = diags_array(diags, offsets=offset, format="csr")
 
-    return array
+    return cn_array
 
 
-## Set physical and mathematical constants
-IMAG_UNIT = 1j
-PI_NUMBER = np.pi
-ELEC_PERMITTIVITY_0 = 8.8541878128e-12
-LIGHT_SPEED_0 = 299792458.0
+IM_UNIT = 1j
+PI = np.pi
 
-## Set physical variables (for water at 800 nm)
-BEAM_WLEN_0 = 800e-9
-LINEAR_REFF = 1.334
-BEAM_WNUMBER_0 = 2 * PI_NUMBER / BEAM_WLEN_0
-BEAM_WNUMBER = BEAM_WNUMBER_0 * LINEAR_REFF
-INTENSITY_FACTOR = 0.5 * LIGHT_SPEED_0 * ELEC_PERMITTIVITY_0 * LINEAR_REFF
+MEDIA = {
+    "WATER": {
+        "LIN_REF_IND": 1.334,
+    },
+    "VACUUM": {
+        "LIN_REF_IND": 1,
+        "LIGHT_SPEED": 299792458,
+        "PERMITTIVITY": 8.8541878128e-12,
+    },
+}
+MEDIA["WATER"].update(
+    {
+        "INT_FACTOR": 0.5
+        * MEDIA["VACUUM"]["LIGHT_SPEED"]
+        * MEDIA["VACUUM"]["PERMITTIVITY"]
+        * MEDIA["WATER"]["LIN_REF_IND"],
+    }
+)
+BEAM = {
+    "WAVELENGTH_0": 800e-9,
+    "WAIST_0": 9e-3,
+    "PEAK_TIME": 130e-15,
+    "ENERGY": 4e-3,
+    "FOCAL_LENGTH": 10,
+}
+BEAM.update(
+    {
+        "WAVENUMBER_0": 2 * PI / BEAM["WAVELENGTH_0"],
+        "WAVENUMBER": 2 * PI * MEDIA["WATER"]["LIN_REF_IND"] / BEAM["WAVELENGTH_0"],
+        "POWER": BEAM["ENERGY"] / (BEAM["PEAK_TIME"] * np.sqrt(0.5 * PI)),
+    }
+)
+BEAM.update({"INTENSITY": 2 * BEAM["POWER"] / (PI * BEAM["WAIST_0"] ** 2)})
+BEAM.update({"AMPLITUDE": np.sqrt(BEAM["INTENSITY"] / MEDIA["WATER"]["INT_FACTOR"])})
 
 ## Set parameters (grid spacing, propagation step, etc.)
 # Radial (r) grid
-INI_RADI_COOR, FIN_RADI_COOR, I_RADI_NODES = 0.0, 2e-2, 1000
+INI_RADI_COOR, FIN_RADI_COOR, I_RADI_NODES = 0, 2e-2, 1000
 N_RADI_NODES = I_RADI_NODES + 2
 RADI_STEP_LEN = (FIN_RADI_COOR - INI_RADI_COOR) / (N_RADI_NODES - 1)
 AXIS_NODE = int(-INI_RADI_COOR / RADI_STEP_LEN)  # On-axis node
 # Propagation (z) grid
-INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0.0, 3.0, 1000
+INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 3, 1000
 DIST_STEP_LEN = FIN_DIST_COOR / N_STEPS
 radi_array = np.linspace(INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES)
 dist_array = np.linspace(INI_DIST_COOR, FIN_DIST_COOR, N_STEPS + 1)
@@ -122,52 +165,17 @@ radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij"
 
 ## Set loop variables
 EU_CYL = 1
-DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM_WNUMBER * RADI_STEP_LEN**2)
+DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 envelope = np.empty_like(radi_2d_array, dtype=complex)
 b_array = np.empty_like(radi_array, dtype=complex)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
-MATRIX_CNT_1 = IMAG_UNIT * DELTA_R
-left_cn_matrix = crank_nicolson_array(
-    N_RADI_NODES, -MATRIX_CNT_1, 1 + 2 * MATRIX_CNT_1, EU_CYL
-)
-right_cn_matrix = crank_nicolson_array(
-    N_RADI_NODES, MATRIX_CNT_1, 1 - 2 * MATRIX_CNT_1, EU_CYL
-)
+MATRIX_CNT_1 = IM_UNIT * DELTA_R
+left_cn_matrix = crank_nicolson_array(N_RADI_NODES, "LEFT", EU_CYL, MATRIX_CNT_1)
+right_cn_matrix = crank_nicolson_array(N_RADI_NODES, "RIGHT", EU_CYL, -MATRIX_CNT_1)
 
-# Convert to lil_array (dia_array class does not support slicing) class to manipulate BCs easier
-left_cn_matrix = left_cn_matrix.tolil()
-right_cn_matrix = right_cn_matrix.tolil()
-
-# Set boundary conditions
-if EU_CYL == 0:  # (Dirichlet type)
-    left_cn_matrix[0, 0], right_cn_matrix[0, 0] = 1, 0
-    left_cn_matrix[0, 1], right_cn_matrix[0, 1] = 0, 0
-    left_cn_matrix[-1, -1], right_cn_matrix[-1, -1] = 1, 0
-else:  # (Neumann-Dirichlet type)
-    right_cn_matrix[0, 0] = 1 - 2 * MATRIX_CNT_1
-    left_cn_matrix[0, 0] = 1 + 2 * MATRIX_CNT_1
-    right_cn_matrix[0, 1] = 2 * MATRIX_CNT_1
-    left_cn_matrix[0, 1] = -2 * MATRIX_CNT_1
-    right_cn_matrix[-1, -1] = 0
-    left_cn_matrix[-1, -1] = 1
-
-# Convert to csr_array class (better for conversion from lil_array class) to perform operations
-left_cn_matrix = left_cn_matrix.tocsr()
-right_cn_matrix = right_cn_matrix.tocsr()
-
-## Set electric field wave packet
-BEAM_WAIST_0 = 9e-3
-BEAM_PEAK_TIME = 130e-15
-BEAM_ENERGY = 4e-3
-FOCAL_LEN = 10
-BEAM_POWER = BEAM_ENERGY / (BEAM_PEAK_TIME * np.sqrt(0.5 * PI_NUMBER))
-BEAM_INTENSITY = 2 * BEAM_POWER / (PI_NUMBER * BEAM_WAIST_0**2)
-BEAM_AMPLITUDE = np.sqrt(BEAM_INTENSITY / INTENSITY_FACTOR)
-# Wave packet's initial condition
-envelope[:, 0] = gaussian_beam(
-    radi_array, BEAM_AMPLITUDE, BEAM_WAIST_0, BEAM_WNUMBER, FOCAL_LEN
-)
+## Set initial electric field wave packet
+envelope[:, 0] = initial_condition(radi_array, IM_UNIT, BEAM)
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):
@@ -180,30 +188,30 @@ for k in tqdm(range(N_STEPS)):
 envelope_s = np.empty_like(envelope)
 
 # Set variables
-RAYLEIGH_LEN = 0.5 * BEAM_WNUMBER * BEAM_WAIST_0**2
-LENS_DIST = FOCAL_LEN / (1 + (FOCAL_LEN / RAYLEIGH_LEN) ** 2)
-beam_waist = BEAM_WAIST_0 * np.sqrt(
-    (1 - dist_array / FOCAL_LEN) ** 2 + (dist_array / RAYLEIGH_LEN) ** 2
+RAYLEIGH_LEN = 0.5 * BEAM["WAVENUMBER"] * BEAM["WAIST_0"] ** 2
+LENS_DIST = BEAM["FOCAL_LENGTH"] / (1 + (BEAM["FOCAL_LENGTH"] / RAYLEIGH_LEN) ** 2)
+beam_waist = BEAM["WAIST_0"] * np.sqrt(
+    (1 - dist_array / BEAM["FOCAL_LENGTH"]) ** 2 + (dist_array / RAYLEIGH_LEN) ** 2
 )
 beam_radius = (
     dist_array
     - LENS_DIST
-    + (LENS_DIST * (FOCAL_LEN - LENS_DIST)) / (dist_array - LENS_DIST)
+    + (LENS_DIST * (BEAM["FOCAL_LENGTH"] - LENS_DIST)) / (dist_array - LENS_DIST)
 )
 gouy_phase = np.atan(
-    (dist_array - LENS_DIST) / np.sqrt(FOCAL_LEN * LENS_DIST - LENS_DIST**2)
+    (dist_array - LENS_DIST) / np.sqrt(BEAM["FOCAL_LENGTH"] * LENS_DIST - LENS_DIST**2)
 )
 #
-ratio_term = BEAM_WAIST_0 / beam_waist[np.newaxis, :]
+ratio_term = BEAM["WAIST_0"] / beam_waist[np.newaxis, :]
 decay_exp_term = (radi_array[:, np.newaxis] / beam_waist) ** 2
 prop_exp_term = (
-    0.5 * IMAG_UNIT * BEAM_WNUMBER * radi_array[:, np.newaxis] ** 2 / beam_radius
+    0.5 * IM_UNIT * BEAM["WAVENUMBER"] * radi_array[:, np.newaxis] ** 2 / beam_radius
 )
-gouy_exp_term = IMAG_UNIT * gouy_phase[np.newaxis, :]
+gouy_exp_term = IM_UNIT * gouy_phase[np.newaxis, :]
 
 # Compute solution
 envelope_s = (
-    BEAM_AMPLITUDE
+    BEAM["AMPLITUDE"]
     * ratio_term
     * np.exp(-decay_exp_term + prop_exp_term - gouy_exp_term)
 )
@@ -214,9 +222,9 @@ cmap_option = mpl.colormaps["plasma"]
 figsize_option = (13, 7)
 
 # Set up conversion factors
-RADI_FACTOR = 1000.0
-DIST_FACTOR = 100.0
-AREA_FACTOR = 1.0e-4
+RADI_FACTOR = 1000
+DIST_FACTOR = 100
+AREA_FACTOR = 1e-4
 # Set up plotting grid (mm, cm)
 new_radi_2d_array = RADI_FACTOR * radi_2d_array
 new_dist_2d_array = DIST_FACTOR * dist_2d_array
@@ -224,8 +232,8 @@ new_radi_array = new_radi_2d_array[:, 0]
 new_dist_array = new_dist_2d_array[0, :]
 
 # Set up intensities (W/cm^2)
-plot_intensity = 1.0e-4 * INTENSITY_FACTOR * np.abs(envelope) ** 2
-plot_intensity_s = 1.0e-4 * INTENSITY_FACTOR * np.abs(envelope_s) ** 2
+plot_intensity = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope) ** 2
+plot_intensity_s = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_s) ** 2
 
 ## Set up figure 1
 fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize_option)

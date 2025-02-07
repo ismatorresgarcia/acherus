@@ -27,80 +27,120 @@ from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
 
 
-def gaussian_beam(t, amplitude, peak_time, chirp):
+def initial_condition(t, imu, bpm):
     """
     Set the chirped Gaussian beam.
 
     Parameters:
     - t (array): Time array
-    - amplitude (float): Amplitude of the Gaussian beam
-    - peak_time (float): Time at which the Gaussian beam reaches its peaks
-    - chirp (float): Initial chirping introduced by some optical system
+    - imu (complex): Square root of -1
+    - bpm (dict): Dictionary containing the beam parameters
+        - amplitude (float): Amplitude of the Gaussian beam
+        - peak_time (float): Time when the Gaussian beam reaches its peak intensity
+        - chirp (float): Chirp of the Gaussian beam introduced by some optical system
+
+    Returns:
+    - array: Gaussian beam envelope's initial condition
     """
-    gaussian = amplitude * np.exp(-(1 + IMAG_UNIT * chirp) * (t / peak_time) ** 2)
+    ampli = bpm["AMPLITUDE"]
+    pkt = bpm["PEAK_TIME"]
+    ch = bpm["CHIRP"]
+    gauss = ampli * np.exp(-(1 + imu * ch) * (t / pkt) ** 2)
 
-    return gaussian
+    return gauss
 
 
-def crank_nicolson_diagonals(nodes, off_coeff, main_coeff):
+def crank_nicolson_diags(n, pos, coef):
     """
     Set the three diagonals for a Crank-Nicolson array with centered differences.
 
     Parameters:
-    - nodes (int): Number of time nodes
-    - off_coeff (float): Coefficient for the off-diagonal elements
-    - main_coeff (float): Coefficient for the main diagonal elements
+    - n (int): Number of time nodes
+    - pos (str): Position of the Crank-Nicolson array (left or right)
+    - coef (float): Coefficient for the diagonal elements
 
     Returns:
     - tuple: Containing the upper, main, and lower diagonals
     """
-    lower_diag = np.full(nodes - 1, off_coeff)
-    main_diag = np.full(nodes, main_coeff)
-    upper_diag = np.full(nodes - 1, off_coeff)
+    mcf = 1.0 + 2.0 * coef
 
-    return lower_diag, main_diag, upper_diag
+    diag_m1 = np.full(n - 1, -coef)
+    diag_0 = np.full(n, mcf)
+    diag_p1 = np.full(n - 1, -coef)
+
+    diag_p1[0], diag_m1[-1] = 0.0, 0.0
+    if pos == "LEFT":
+        diag_0[0], diag_0[-1] = 1.0, 1.0
+    elif pos == "RIGHT":
+        diag_0[0], diag_0[-1] = 0.0, 0.0
+
+    return diag_m1, diag_0, diag_p1
 
 
-def crank_nicolson_array(nodes, off_coeff, main_coeff):
+def crank_nicolson_array(n, pos, coef):
     """
     Set a Crank-Nicolson sparse array in CSR format using the diagonals.
 
     Parameters:
-    - nodes (int): Number of time nodes
-    - off_coeff (float): Coefficient for the off-diagonal elements
-    - main_coeff (float): Coefficient for the main diagonal elements
+    - n (int): Number of time nodes
+    - pos (str): Position of the Crank-Nicolson array (left or right)
+    - coef (float): Coefficient for the diagonal elements
 
     Returns:
     - array: Containing the Crank-Nicolson sparse array in CSR format
     """
-    lower_diag, main_diag, upper_diag = crank_nicolson_diagonals(
-        nodes, off_coeff, main_coeff
-    )
+    diag_m1, diag_0, diag_p1 = crank_nicolson_diags(n, pos, coef)
 
-    diagonals = [lower_diag, main_diag, upper_diag]
+    diags = [diag_m1, diag_0, diag_p1]
     offset = [-1, 0, 1]
-    array = diags_array(diagonals, offsets=offset, format="csr")
+    cn_array = diags_array(diags, offsets=offset, format="csr")
 
-    return array
+    return cn_array
 
 
-## Set physical and mathematical constants
-IMAG_UNIT = 1j
-PI_NUMBER = np.pi
-ELEC_PERMITTIVITY_0 = 8.8541878128e-12
-LIGHT_SPEED_0 = 299792458.0
+IM_UNIT = 1j
+PI = np.pi
 
-## Set physical variables (for water at 800 nm)
-BEAM_WLEN_0 = 800e-9
-LINEAR_REFF = 1.334
-GVD_COEFF = 241e-28  # 2nd order GVD coefficient [s2 / m]
-BEAM_WNUMBER_0 = 2 * PI_NUMBER / BEAM_WLEN_0
-BEAM_WNUMBER = BEAM_WNUMBER_0 * LINEAR_REFF
-INTENSITY_FACTOR = 0.5 * LIGHT_SPEED_0 * ELEC_PERMITTIVITY_0 * LINEAR_REFF
+MEDIA = {
+    "WATER": {
+        "LIN_REF_IND": 1.334,
+        "GVD_COEF": 241e-28,
+    },
+    "VACUUM": {
+        "LIN_REF_IND": 1,
+        "LIGHT_SPEED": 299792458,
+        "PERMITTIVITY": 8.8541878128e-12,
+    },
+}
+MEDIA["WATER"].update(
+    {
+        "INT_FACTOR": 0.5
+        * MEDIA["VACUUM"]["LIGHT_SPEED"]
+        * MEDIA["VACUUM"]["PERMITTIVITY"]
+        * MEDIA["WATER"]["LIN_REF_IND"],
+    }
+)
+BEAM = {
+    "WAVELENGTH_0": 800e-9,
+    "WAIST_0": 75e-6,
+    "PEAK_TIME": 130e-15,
+    "ENERGY": 2.2e-6,
+    "CHIRP": -10,
+    "FOCAL_LENGTH": 20,
+}
+BEAM.update(
+    {
+        "WAVENUMBER_0": 2 * PI / BEAM["WAVELENGTH_0"],
+        "WAVENUMBER": 2 * PI * MEDIA["WATER"]["LIN_REF_IND"] / BEAM["WAVELENGTH_0"],
+        "POWER": BEAM["ENERGY"] / (BEAM["PEAK_TIME"] * np.sqrt(0.5 * PI)),
+    }
+)
+BEAM.update({"INTENSITY": 2 * BEAM["POWER"] / (PI * BEAM["WAIST_0"] ** 2)})
+BEAM.update({"AMPLITUDE": np.sqrt(BEAM["INTENSITY"] / MEDIA["WATER"]["INT_FACTOR"])})
 
 ## Set parameters (grid spacing, propagation step, etc.)
 # Propagation (z) grid
-INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0.0, 5e-2, 1000
+INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 5e-2, 1000
 DIST_STEP_LEN = (FIN_DIST_COOR - INI_DIST_COOR) / N_STEPS
 # Time (t) grid
 INI_TIME_COOR, FIN_TIME_COOR, I_TIME_NODES = -300e-15, 300e-15, 2048
@@ -108,49 +148,27 @@ N_TIME_NODES = I_TIME_NODES + 2
 TIME_STEP_LEN = (FIN_TIME_COOR - INI_TIME_COOR) / (N_TIME_NODES - 1)
 PEAK_NODE = N_TIME_NODES // 2
 # Angular frequency (ω) grid
-FRQ_STEP_LEN = 2 * PI_NUMBER / (N_TIME_NODES * TIME_STEP_LEN)
-INI_FRQ_COOR_W1 = 0.0
-FIN_FRQ_COOR_W1 = PI_NUMBER / TIME_STEP_LEN - FRQ_STEP_LEN
-INI_FRQ_COOR_W2 = -PI_NUMBER / TIME_STEP_LEN
+FRQ_STEP_LEN = 2 * PI / (N_TIME_NODES * TIME_STEP_LEN)
+INI_FRQ_COOR_W1 = 0
+FIN_FRQ_COOR_W1 = PI / TIME_STEP_LEN - FRQ_STEP_LEN
+INI_FRQ_COOR_W2 = -PI / TIME_STEP_LEN
 FIN_FRQ_COOR_W2 = -FRQ_STEP_LEN
 dist_array = np.linspace(INI_DIST_COOR, FIN_DIST_COOR, N_STEPS + 1)
 time_array = np.linspace(INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES)
 dist_2d_array, time_2d_array = np.meshgrid(dist_array, time_array, indexing="ij")
 
 ## Set loop variables
-DELTA_T = -0.25 * DIST_STEP_LEN * GVD_COEFF / TIME_STEP_LEN**2
+DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
 envelope = np.empty_like(dist_2d_array, dtype=complex)
 b_array = np.empty_like(time_array, dtype=complex)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
-MATRIX_CNT_1 = IMAG_UNIT * DELTA_T
-left_cn_matrix = crank_nicolson_array(N_TIME_NODES, -MATRIX_CNT_1, 1 + 2 * MATRIX_CNT_1)
-right_cn_matrix = crank_nicolson_array(N_TIME_NODES, MATRIX_CNT_1, 1 - 2 * MATRIX_CNT_1)
+MATRIX_CNT_1 = IM_UNIT * DELTA_T
+left_cn_matrix = crank_nicolson_array(N_TIME_NODES, "LEFT", MATRIX_CNT_1)
+right_cn_matrix = crank_nicolson_array(N_TIME_NODES, "RIGHT", -MATRIX_CNT_1)
 
-# Convert to lil_array (dia_array class does not support slicing) class to manipulate BCs easier
-left_cn_matrix = left_cn_matrix.tolil()
-right_cn_matrix = right_cn_matrix.tolil()
-
-# Set boundary conditions (Dirichlet type)
-left_cn_matrix[0, 0], right_cn_matrix[0, 0] = 1, 0
-left_cn_matrix[0, 1], right_cn_matrix[0, 1] = 0, 0
-left_cn_matrix[-1, -1], right_cn_matrix[-1, -1] = 1, 0
-
-# Convert to csr_array class (better for conversion from lil_array class) to perform operations
-left_cn_matrix = left_cn_matrix.tocsr()
-right_cn_matrix = right_cn_matrix.tocsr()
-
-## Set electric field wave packet
-BEAM_WAIST_0 = 75e-6
-BEAM_PEAK_TIME = 130e-15
-BEAM_ENERGY = 2.2e-6
-BEAM_CHIRP = -10
-FOCAL_LEN = 20
-BEAM_POWER = BEAM_ENERGY / (BEAM_PEAK_TIME * np.sqrt(0.5 * PI_NUMBER))
-BEAM_INTENSITY = 2 * BEAM_POWER / (PI_NUMBER * BEAM_WAIST_0**2)
-BEAM_AMPLITUDE = np.sqrt(BEAM_INTENSITY / INTENSITY_FACTOR)
-# Wave packet's initial condition
-envelope[0, :] = gaussian_beam(time_array, BEAM_AMPLITUDE, BEAM_PEAK_TIME, BEAM_CHIRP)
+## Set initial electric field wave packet
+envelope[0, :] = initial_condition(time_array, IM_UNIT, BEAM)
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):
@@ -163,23 +181,26 @@ for k in tqdm(range(N_STEPS)):
 envelope_s = np.empty_like(envelope)
 
 # Set variables
-DISPERSION_LEN = 0.5 * BEAM_PEAK_TIME**2 / GVD_COEFF
-beam_duration = BEAM_PEAK_TIME * np.sqrt(
-    (1 + BEAM_CHIRP * dist_array / DISPERSION_LEN) ** 2
+DISPERSION_LEN = 0.5 * BEAM["PEAK_TIME"] ** 2 / MEDIA["WATER"]["GVD_COEF"]
+beam_duration = BEAM["PEAK_TIME"] * np.sqrt(
+    (1 + BEAM["CHIRP"] * dist_array / DISPERSION_LEN) ** 2
     + (dist_array / DISPERSION_LEN) ** 2
 )
-gouy_phase = 0.5 * np.atan(-dist_array / (DISPERSION_LEN + BEAM_CHIRP * dist_array))
+gouy_phase = 0.5 * np.atan(-dist_array / (DISPERSION_LEN + BEAM["CHIRP"] * dist_array))
 #
-sqrt_term = np.sqrt(BEAM_PEAK_TIME / beam_duration[:, np.newaxis])
+sqrt_term = np.sqrt(BEAM["PEAK_TIME"] / beam_duration[:, np.newaxis])
 decay_exp_term = (time_array / beam_duration[:, np.newaxis]) ** 2
-prop_exp_term = 1 + IMAG_UNIT * (
-    BEAM_CHIRP + (1 + BEAM_CHIRP**2) * (dist_array[:, np.newaxis] / DISPERSION_LEN)
+prop_exp_term = 1 + IM_UNIT * (
+    BEAM["CHIRP"]
+    + (1 + BEAM["CHIRP"] ** 2) * (dist_array[:, np.newaxis] / DISPERSION_LEN)
 )
-gouy_exp_term = IMAG_UNIT * gouy_phase[:, np.newaxis]
+gouy_exp_term = IM_UNIT * gouy_phase[:, np.newaxis]
 
 # Compute solution
 envelope_s = (
-    BEAM_AMPLITUDE * sqrt_term * np.exp(-decay_exp_term * prop_exp_term - gouy_exp_term)
+    BEAM["AMPLITUDE"]
+    * sqrt_term
+    * np.exp(-decay_exp_term * prop_exp_term - gouy_exp_term)
 )
 
 ### Plots
@@ -187,18 +208,18 @@ plt.style.use("dark_background")
 cmap_option = mpl.colormaps["plasma"]
 figsize_option = (13, 7)
 
-# Set up conversion factors
-DIST_FACTOR = 100.0
-AREA_FACTOR = 1.0e-4
+## Set up conversion factors
+DIST_FACTOR = 100
+AREA_FACTOR = 1e-4
 # Set up plotting grid (cm, s)
 new_dist_2d_array = DIST_FACTOR * dist_2d_array
 new_time_2d_array = time_2d_array
 new_dist_array = new_dist_2d_array[:, 0]
 new_time_array = new_time_2d_array[0, :]
 
-# Set up intensities (W/cm^2)
-plot_intensity = AREA_FACTOR * INTENSITY_FACTOR * np.abs(envelope) ** 2
-plot_intensity_s = AREA_FACTOR * INTENSITY_FACTOR * np.abs(envelope_s) ** 2
+## Set up intensities (W/cm^2)
+plot_intensity = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope) ** 2
+plot_intensity_s = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_s) ** 2
 
 ## Set up figure 1
 fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize_option)
