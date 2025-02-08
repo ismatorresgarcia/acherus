@@ -1,2 +1,10 @@
 phd_coding/python/practitioners_guide/arrays
 phd_coding/python/storage
+phd_coding/python/practitioner/.vscode/launch.json
+phd_coding/python/practitioner/beam_simulation/__pycache__/__init__.cpython-313.pyc
+phd_coding/python/practitioner/beam_simulation/__pycache__/beam_config.cpython-313.pyc
+phd_coding/python/practitioner/beam_simulation/__pycache__/crank_nicolson.cpython-313.pyc
+phd_coding/python/practitioner/beam_simulation/__pycache__/grid_config.cpython-313.pyc
+phd_coding/python/practitioner/beam_simulation/__pycache__/main.cpython-313.pyc
+phd_coding/python/practitioner/beam_simulation/__pycache__/plotting.cpython-313.pyc
+phd_coding/python/practitioner/beam_simulation/__pycache__/simulation.cpython-313.pyc
