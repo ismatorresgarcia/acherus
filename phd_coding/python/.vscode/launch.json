@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Beam Simulation",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "hastur_simulation.hastur",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": true
+        }
+    ]
+}

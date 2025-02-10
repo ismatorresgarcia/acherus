@@ -204,5 +204,5 @@ class BeamPlotter:
         )
         ax6.set_title("Analytical solution")
 
-        fig3.tight_layout()
+        #fig3.tight_layout()
         plt.show()
