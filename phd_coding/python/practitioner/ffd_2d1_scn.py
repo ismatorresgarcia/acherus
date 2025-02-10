@@ -76,11 +76,10 @@ def crank_nicolson_diags(n, pos, coor, coef):
     Returns:
     - tuple: Containing the upper, main, and lower diagonals
     """
-    mcf = 1 + 2 * coef
     ind = np.arange(1, n - 1)
 
     diag_m1 = -coef * (1 - 0.5 * coor / ind)
-    diag_0 = np.full(n, mcf)
+    diag_0 = np.ones(n)
     diag_p1 = -coef * (1 + 0.5 * coor / ind)
 
     diag_m1 = np.append(diag_m1, [0])
@@ -90,10 +89,8 @@ def crank_nicolson_diags(n, pos, coor, coef):
     elif coor == 0 and pos == "RIGHT":
         diag_0[0], diag_0[-1] = 0, 0
     elif coor == 1 and pos == "LEFT":
-        diag_0[0], diag_0[-1] = mcf, 1
         diag_p1[0] = -2 * coef
     elif coor == 1 and pos == "RIGHT":
-        diag_0[0], diag_0[-1] = mcf, 0
         diag_p1[0] = -2 * coef
 
     return diag_m1, diag_0, diag_p1
@@ -175,7 +172,7 @@ N_RADI_NODES = I_RADI_NODES + 2
 RADI_STEP_LEN = (FIN_RADI_COOR - INI_RADI_COOR) / (N_RADI_NODES - 1)
 AXIS_NODE = int(-INI_RADI_COOR / RADI_STEP_LEN)  # On-axis node
 # Propagation (z) grid
-INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 6e-2, 100
+INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 6e-2, 500
 DIST_STEP_LEN = FIN_DIST_COOR / N_STEPS
 # Time (t) grid
 INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES = -300e-15, 300e-15, 1024
@@ -200,12 +197,12 @@ dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing=
 ## Set loop variables
 EU_CYL = 1  # Parameter for planar (0) or cylindrical (1) geometry
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
-DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
+DELTA_T = 0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"]
 envelope = np.empty_like(radi_2d_array_2, dtype=complex)
 envelope_axis = np.empty_like(dist_2d_array_3, dtype=complex)
 envelope_fourier = np.empty_like(envelope)
 envelope_store = np.empty_like(envelope)
-fourier_coeff = IM_UNIT * DELTA_T * frq_array
+fourier_coeff = IM_UNIT * DELTA_T * frq_array**2
 b_array = np.empty_like(radi_array, dtype=complex)
 c_array = np.empty_like(envelope)
 
@@ -233,6 +230,11 @@ for k in tqdm(range(N_STEPS)):
         # Update only the diagonal elements for each matrix (in-place)
         right_cn_matrix.setdiag(matrix_cnt_2[l])
         left_cn_matrix.setdiag(matrix_cnt_3[l])
+
+        # Set boundary conditions for each matrix final row
+        right_cn_matrix.data[-1] = 0
+        left_cn_matrix.data[-1] = 1
+
         ## Compute Crank-Nicolson array operations
         b_array = right_cn_matrix @ envelope_fourier[:, l]
         c_array[:, l] = spsolve(left_cn_matrix, b_array)
