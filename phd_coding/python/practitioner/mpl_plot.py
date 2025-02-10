@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 ## Load arrays
-data = np.load("~/projects/phd_thesis/phd_coding/python/storage/ffdmk_fcn_1.npz")
+data = np.load("/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/pruebilla_fcn.npz")
 INI_RADI_COOR = data["INI_RADI_COOR"]
 FIN_RADI_COOR = data["FIN_RADI_COOR"]
 INI_DIST_COOR = data["INI_DIST_COOR"]

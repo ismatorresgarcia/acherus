@@ -24,7 +24,7 @@ def main():
     3. Generates intensity profile plots comparing numerical and analytical solutions
 
     Example usage:
-        $ python -m hastur_simulation.hastur
+        $ python -m hastur_simulation.Hastur
     """
     # Create configurations
     beam_config = BeamConfig(wavelength=800e-9, waist=9e-3)

@@ -182,65 +182,66 @@ def crank_nicolson_array_t(n, pos, coef):
 IM_UNIT = 1j
 PI = np.pi
 
+LIGHT_SPEED = 299792458
+PERMITTIVITY = 8.8541878128e-12
+LIN_REF_IND_WATER = 1.334
+NLIN_REF_IND_WATER = 1.6e-20
+GVD_COEF_WATER = 241e-28
+N_PHOTONS_WATER = 5
+BETA_COEF_WATER = 8e-61
+
+WAVELENGTH_0 = 800e-9
+WAIST_0 = 100e-6
+PEAK_TIME = 130e-15
+ENERGY = 2.2e-6
+FOCAL_LENGTH = 20
+CHIRP = -1
+
+# INT_FACTOR = 0.5 * LIGHT_SPEED * PERMITTIVITY * LIN_REF_IND_WATER
+INT_FACTOR = 1
+WAVENUMBER_0 = 2 * PI / WAVELENGTH_0
+WAVENUMBER = 2 * PI * LIN_REF_IND_WATER / WAVELENGTH_0
+POWER = ENERGY / (PEAK_TIME * np.sqrt(0.5 * PI))
+CR_POWER = 3.77 * WAVELENGTH_0**2 / (8 * PI * LIN_REF_IND_WATER * NLIN_REF_IND_WATER)
+INTENSITY = 2 * POWER / (PI * WAIST_0**2)
+AMPLITUDE = np.sqrt(INTENSITY / INT_FACTOR)
+
+MPA_EXP = 2 * N_PHOTONS_WATER - 2
+KERR_COEF = IM_UNIT * WAVENUMBER_0 * NLIN_REF_IND_WATER * INT_FACTOR
+MPA_COEF = -0.5 * BETA_COEF_WATER * INT_FACTOR ** (N_PHOTONS_WATER - 1)
+
 MEDIA = {
     "WATER": {
-        "LIN_REF_IND": 1.334,
-        "NLIN_REF_IND": 1.6e-20,
-        "GVD_COEF": 241e-28,
-        "N_PHOTONS": 5,  # Number of photons absorbed [-]
-        "BETA_COEF": 1e-61,  # MPA coefficient [m(2K-3) / W-(K-1)]
+        "LIN_REF_IND": LIN_REF_IND_WATER,
+        "NLIN_REF_IND": NLIN_REF_IND_WATER,
+        "GVD_COEF": GVD_COEF_WATER,
+        "N_PHOTONS": N_PHOTONS_WATER,  # Number of photons absorbed [-]
+        "BETA_COEF": BETA_COEF_WATER,  # MPA coefficient [m(2K-3) / W-(K-1)]
+        "MPA_EXP": MPA_EXP,  # MPA exponent [-]
+        "KERR_COEF": KERR_COEF,  # Kerr coefficient [m^2 / W]
+        "MPA_COEF": MPA_COEF,  # MPA coefficient [m^2 / W]
+        "INT_FACTOR": INT_FACTOR,
     },
     "VACUUM": {
-        "LINEAR_REFF_INDEX": 1,
         "LIGHT_SPEED": 299792458,
         "PERMITTIVITY": 8.8541878128e-12,
     },
 }
+
 BEAM = {
-    "WAVELENGTH_0": 800e-9,
-    "WAIST_0": 75e-5,
-    "PEAK_TIME": 130e-15,
-    "ENERGY": 2.2e-6,
-    "FOCAL_LENGTH": 1000,
-    "CHIRP": -1,
+    "WAVELENGTH_0": WAVELENGTH_0,
+    "WAIST_0": WAIST_0,
+    "PEAK_TIME": PEAK_TIME,
+    "ENERGY": ENERGY,
+    "FOCAL_LENGTH": FOCAL_LENGTH,
+    "CHIRP": CHIRP,
+    "WAVENUMBER_0": WAVENUMBER_0,
+    "WAVENUMBER": WAVENUMBER,
+    "POWER": POWER,
+    "CR_POWER": CR_POWER,
+    "INTENSITY": INTENSITY,
+    "AMPLITUDE": AMPLITUDE,
 }
-MEDIA["WATER"].update(
-    {
-        # "INT_FACTOR": 0.5
-        # * MEDIA["VACUUM"]["LIGHT_SPEED"]
-        # * MEDIA["VACUUM"]["PERMITTIVITY"]
-        # * MEDIA["WATER"]["LIN_REF_IND"],
-        "INT_FACTOR": 1,
-    }
-)
-BEAM.update(
-    {
-        "WAVENUMBER_0": 2 * PI / BEAM["WAVELENGTH_0"],
-        "WAVENUMBER": 2 * PI * MEDIA["WATER"]["LIN_REF_IND"] / BEAM["WAVELENGTH_0"],
-        "POWER": BEAM["ENERGY"] / (BEAM["PEAK_TIME"] * np.sqrt(0.5 * PI)),
-        "CR_POWER": 3.77
-        * BEAM["WAVELENGTH_0"] ** 2
-        / (8 * PI * MEDIA["WATER"]["LIN_REF_IND"] * MEDIA["WATER"]["NLIN_REF_IND"]),
-    }
-)
-MEDIA["WATER"].update(
-    {
-        "MPA_EXP": 2 * MEDIA["WATER"]["N_PHOTONS"] - 2,
-        "KERR_COEF": IM_UNIT
-        * BEAM["WAVENUMBER_0"]
-        * MEDIA["WATER"]["NLIN_REF_IND"]
-        * MEDIA["WATER"]["INT_FACTOR"],
-    }
-)
-MEDIA["WATER"].update(
-    {
-        "MPA_COEF": -0.5
-        * MEDIA["WATER"]["BETA_COEF"]
-        * MEDIA["WATER"]["INT_FACTOR"] ** (MEDIA["WATER"]["N_PHOTONS"] - 1)
-    }
-)
-BEAM.update({"INTENSITY": 2 * BEAM["POWER"] / (PI * BEAM["WAIST_0"] ** 2)})
-BEAM.update({"AMPLITUDE": np.sqrt(BEAM["INTENSITY"] / MEDIA["WATER"]["INT_FACTOR"])})
 
 ## Set parameters (grid spacing, propagation step, etc.)
 # Radial (r) grid

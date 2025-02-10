@@ -67,25 +67,25 @@ def crank_nicolson_diags(n, pos, coor, coef):
     Returns:
     - tuple: Containing the upper, main, and lower diagonals
     """
-    mcf = 1.0 + 2.0 * coef
+    mcf = 1 + 2 * coef
     ind = np.arange(1, n - 1)
 
     diag_m1 = -coef * (1 - 0.5 * coor / ind)
     diag_0 = np.full(n, mcf)
     diag_p1 = -coef * (1 + 0.5 * coor / ind)
 
-    diag_m1 = np.append(diag_m1, [0.0])
-    diag_p1 = np.insert(diag_p1, 0, [0.0])
+    diag_m1 = np.append(diag_m1, [0])
+    diag_p1 = np.insert(diag_p1, 0, [0])
     if coor == 0 and pos == "LEFT":
-        diag_0[0], diag_0[-1] = 1.0, 1.0
+        diag_0[0], diag_0[-1] = 1, 1
     elif coor == 0 and pos == "RIGHT":
-        diag_0[0], diag_0[-1] = 0.0, 0.0
+        diag_0[0], diag_0[-1] = 0, 0
     elif coor == 1 and pos == "LEFT":
-        diag_0[0], diag_0[-1] = mcf, 1.0
-        diag_p1[0] = -2.0 * coef
+        diag_0[0], diag_0[-1] = mcf, 1
+        diag_p1[0] = -2 * coef
     elif coor == 1 and pos == "RIGHT":
-        diag_0[0], diag_0[-1] = mcf, 0.0
-        diag_p1[0] = -2.0 * coef
+        diag_0[0], diag_0[-1] = mcf, 0
+        diag_p1[0] = -2 * coef
 
     return diag_m1, diag_0, diag_p1
 
@@ -115,40 +115,45 @@ def crank_nicolson_array(n, pos, coor, coef):
 IM_UNIT = 1j
 PI = np.pi
 
+LIGHT_SPEED = 299792458
+PERMITTIVITY = 8.8541878128e-12
+LIN_REF_IND_WATER = 1.334
+
+WAVELENGTH_0 = 800e-9
+WAIST_0 = 9e-3
+PEAK_TIME = 130e-15
+ENERGY = 4e-3
+FOCAL_LENGTH = 10
+
 MEDIA = {
     "WATER": {
-        "LIN_REF_IND": 1.334,
+        "LIN_REF_IND": LIN_REF_IND_WATER,
+        "INT_FACTOR": 0.5 * LIGHT_SPEED * PERMITTIVITY * LIN_REF_IND_WATER,
     },
     "VACUUM": {
-        "LIN_REF_IND": 1,
         "LIGHT_SPEED": 299792458,
         "PERMITTIVITY": 8.8541878128e-12,
     },
 }
-MEDIA["WATER"].update(
-    {
-        "INT_FACTOR": 0.5
-        * MEDIA["VACUUM"]["LIGHT_SPEED"]
-        * MEDIA["VACUUM"]["PERMITTIVITY"]
-        * MEDIA["WATER"]["LIN_REF_IND"],
-    }
-)
+
+WAVENUMBER_0 = 2 * PI / WAVELENGTH_0
+WAVENUMBER = 2 * PI * LIN_REF_IND_WATER / WAVELENGTH_0
+POWER = ENERGY / (PEAK_TIME * np.sqrt(0.5 * PI))
+INTENSITY = 2 * POWER / (PI * WAIST_0**2)
+AMPLITUDE = np.sqrt(INTENSITY / MEDIA["WATER"]["INT_FACTOR"])
+
 BEAM = {
-    "WAVELENGTH_0": 800e-9,
-    "WAIST_0": 9e-3,
-    "PEAK_TIME": 130e-15,
-    "ENERGY": 4e-3,
-    "FOCAL_LENGTH": 10,
+    "WAVELENGTH_0": WAVELENGTH_0,
+    "WAIST_0": WAIST_0,
+    "PEAK_TIME": PEAK_TIME,
+    "ENERGY": ENERGY,
+    "FOCAL_LENGTH": FOCAL_LENGTH,
+    "WAVENUMBER_0": WAVENUMBER_0,
+    "WAVENUMBER": WAVENUMBER,
+    "POWER": POWER,
+    "INTENSITY": INTENSITY,
+    "AMPLITUDE": AMPLITUDE,
 }
-BEAM.update(
-    {
-        "WAVENUMBER_0": 2 * PI / BEAM["WAVELENGTH_0"],
-        "WAVENUMBER": 2 * PI * MEDIA["WATER"]["LIN_REF_IND"] / BEAM["WAVELENGTH_0"],
-        "POWER": BEAM["ENERGY"] / (BEAM["PEAK_TIME"] * np.sqrt(0.5 * PI)),
-    }
-)
-BEAM.update({"INTENSITY": 2 * BEAM["POWER"] / (PI * BEAM["WAIST_0"] ** 2)})
-BEAM.update({"AMPLITUDE": np.sqrt(BEAM["INTENSITY"] / MEDIA["WATER"]["INT_FACTOR"])})
 
 ## Set parameters (grid spacing, propagation step, etc.)
 # Radial (r) grid
