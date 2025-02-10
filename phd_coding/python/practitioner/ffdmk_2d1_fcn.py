@@ -61,13 +61,13 @@ def initial_condition(r, t, imu, bpm):
     """
     ampli = bpm["AMPLITUDE"]
     waist = bpm["WAIST_0"]
-    # wnum = bpm["WAVENUMBER"]
-    # f = bpm["FOCAL_LENGTH"]
+    wnum = bpm["WAVENUMBER"]
+    f = bpm["FOCAL_LENGTH"]
     pkt = bpm["PEAK_TIME"]
     ch = bpm["CHIRP"]
     gauss = ampli * np.exp(
         -((r / waist) ** 2)
-        # - 0.5 * imu * wnum * r**2 / f
+        - 0.5 * imu * wnum * r**2 / f
         - (1 + imu * ch) * (t / pkt) ** 2
     )
 
