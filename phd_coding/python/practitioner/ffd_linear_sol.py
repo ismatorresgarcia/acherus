@@ -13,50 +13,6 @@ import numpy as np
 IM_UNIT = 1j
 PI = np.pi
 
-LIGHT_SPEED = 299792458
-PERMITTIVITY = 8.8541878128e-12
-LIN_REF_IND_WATER = 1.334
-GVD_COEF_WATER = 241e-28
-
-WAVELENGTH_0 = 800e-9
-WAIST_0 = 75e-5
-PEAK_TIME = 130e-15
-ENERGY = 2.2e-6
-FOCAL_LENGTH = 20
-CHIRP = -10
-
-MEDIA = {
-    "WATER": {
-        "LIN_REF_IND": LIN_REF_IND_WATER,
-        "GVD_COEF": GVD_COEF_WATER,
-        "INT_FACTOR": 0.5 * LIGHT_SPEED * PERMITTIVITY * LIN_REF_IND_WATER,
-    },
-    "VACUUM": {
-        "LIGHT_SPEED": 299792458,
-        "PERMITTIVITY": 8.8541878128e-12,
-    },
-}
-
-WAVENUMBER_0 = 2 * PI / WAVELENGTH_0
-WAVENUMBER = 2 * PI * LIN_REF_IND_WATER / WAVELENGTH_0
-POWER = ENERGY / (PEAK_TIME * np.sqrt(0.5 * PI))
-INTENSITY = 2 * POWER / (PI * WAIST_0**2)
-AMPLITUDE = np.sqrt(INTENSITY / MEDIA["WATER"]["INT_FACTOR"])
-
-BEAM = {
-    "WAVELENGTH_0": WAVELENGTH_0,
-    "WAIST_0": WAIST_0,
-    "PEAK_TIME": PEAK_TIME,
-    "ENERGY": ENERGY,
-    "FOCAL_LENGTH": FOCAL_LENGTH,
-    "CHIRP": CHIRP,
-    "WAVENUMBER_0": WAVENUMBER_0,
-    "WAVENUMBER": WAVENUMBER,
-    "POWER": POWER,
-    "INTENSITY": INTENSITY,
-    "AMPLITUDE": AMPLITUDE,
-}
-
 ## Set parameters (grid spacing, propagation step, etc.)
 # Radial (r) grid
 INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES = 0, 75e-5, 500
@@ -75,6 +31,53 @@ time_array = np.linspace(INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES)
 radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij")
 radi_2d_array_2, time_2d_array_2 = np.meshgrid(radi_array, time_array, indexing="ij")
 dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing="ij")
+
+## Set beam and media parameters
+LIGHT_SPEED = 299792458
+PERMITTIVITY = 8.8541878128e-12
+LIN_REF_IND_WATER = 1.334
+GVD_COEF_WATER = 241e-28
+
+WAVELENGTH_0 = 800e-9
+WAIST_0 = 75e-5
+PEAK_TIME = 130e-15
+ENERGY = 2.2e-6
+FOCAL_LENGTH = 20
+CHIRP = -10
+
+## Set dictionaries for better organization
+MEDIA = {
+    "WATER": {
+        "LIN_REF_IND": LIN_REF_IND_WATER,
+        "GVD_COEF": GVD_COEF_WATER,
+        "INT_FACTOR": 0.5 * LIGHT_SPEED * PERMITTIVITY * LIN_REF_IND_WATER,
+    },
+    "VACUUM": {
+        "LIGHT_SPEED": LIGHT_SPEED,
+        "PERMITTIVITY": PERMITTIVITY,
+    },
+}
+
+WAVENUMBER_0 = 2 * PI / WAVELENGTH_0
+WAVENUMBER = 2 * PI * LIN_REF_IND_WATER / WAVELENGTH_0
+POWER = ENERGY / (PEAK_TIME * np.sqrt(0.5 * PI))
+INTENSITY = 2 * POWER / (PI * WAIST_0**2)
+AMPLITUDE = np.sqrt(INTENSITY / MEDIA["WATER"]["INT_FACTOR"])
+
+## Set dictionaries for better organization
+BEAM = {
+    "WAVELENGTH_0": WAVELENGTH_0,
+    "WAIST_0": WAIST_0,
+    "PEAK_TIME": PEAK_TIME,
+    "ENERGY": ENERGY,
+    "FOCAL_LENGTH": FOCAL_LENGTH,
+    "CHIRP": CHIRP,
+    "WAVENUMBER_0": WAVENUMBER_0,
+    "WAVENUMBER": WAVENUMBER,
+    "POWER": POWER,
+    "INTENSITY": INTENSITY,
+    "AMPLITUDE": AMPLITUDE,
+}
 
 ## Analytical solution for a Gaussian beam
 # Set arrays

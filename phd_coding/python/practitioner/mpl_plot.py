@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 ## Load arrays
-data = np.load("/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/pruebilla_fcn.npz")
+data = np.load("/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/pruebilla_fcn_2.npz")
 INI_RADI_COOR = data["INI_RADI_COOR"]
 FIN_RADI_COOR = data["FIN_RADI_COOR"]
 INI_DIST_COOR = data["INI_DIST_COOR"]
@@ -82,13 +82,14 @@ plt.style.use("dark_background")
 cmap_option = mpl.colormaps["plasma"]
 figsize_option = (13, 7)
 
-# Set up conversion factors
+## Set up conversion factors
 INT_FACTOR = 1
 # INT_FACTOR = 0.5 * LIGHT_SPEED_0 * ELEC_PERMITTIVITY_0 * LIN_REF_IND
 RADI_FACTOR = 1e6
 DIST_FACTOR = 100
 TIME_FACTOR = 1e15
 AREA_FACTOR = 1e-4
+
 # Set up plotting grid (µm, cm and fs)
 new_radi_2d_array_2 = RADI_FACTOR * radi_2d_array_2
 new_dist_2d_array_3 = DIST_FACTOR * dist_2d_array_3
@@ -98,22 +99,22 @@ new_dist_array = new_dist_2d_array_3[:, 0]
 new_time_array = new_time_2d_array_3[0, :]
 
 # Set up intensities (W/cm^2)
-plot_intensity_end = AREA_FACTOR * INT_FACTOR * np.abs(envelope) ** 2
-plot_intensity_axis = AREA_FACTOR * INT_FACTOR * np.abs(envelope_axis) ** 2
+plot_int_fin = AREA_FACTOR * INT_FACTOR * np.abs(envelope) ** 2
+plot_int_axis = AREA_FACTOR * INT_FACTOR * np.abs(envelope_axis) ** 2
 
 ## Set up figure 1
 fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize_option)
 # First subplot
 ax1.plot(
     new_time_array,
-    plot_intensity_axis[0, :],
+    plot_int_axis[0, :],
     color="#32CD32",  # Lime green
     linestyle="--",
     label=r"On-axis numerical solution at beginning $z$ step",
 )
 ax1.plot(
     new_time_array,
-    plot_intensity_axis[-1, :],
+    plot_int_axis[-1, :],
     color="#1E90FF",  # Electric Blue
     linestyle="-",
     label=r"On-axis numerical solution at final $z$ step",
@@ -123,7 +124,7 @@ ax1.legend(facecolor="black", edgecolor="white")
 # Second subplot
 ax2.plot(
     new_dist_array,
-    plot_intensity_axis[:, PEAK_NODE],
+    plot_int_axis[:, PEAK_NODE],
     color="#FFFF00",  # Pure yellow
     linestyle="-",
     label="On-axis peak time numerical solution",
@@ -138,14 +139,14 @@ plt.show()
 fig2, (ax3, ax4) = plt.subplots(1, 2, figsize=figsize_option)
 # First subplot
 fig2_1 = ax3.pcolormesh(
-    new_dist_2d_array_3, new_time_2d_array_3, plot_intensity_axis, cmap=cmap_option
+    new_dist_2d_array_3, new_time_2d_array_3, plot_int_axis, cmap=cmap_option
 )
 fig2.colorbar(fig2_1, ax=ax3)
 ax3.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$t$ ($\mathrm{fs}$)")
 ax3.set_title("On-axis solution in 2D")
 # Second subplot
 fig2_2 = ax4.pcolormesh(
-    new_radi_2d_array_2, new_time_2d_array_2, plot_intensity_end, cmap=cmap_option
+    new_radi_2d_array_2, new_time_2d_array_2, plot_int_fin, cmap=cmap_option
 )
 fig2.colorbar(fig2_2, ax=ax4)
 ax4.set(xlabel=r"$r$ ($\mathrm{\mu m}$)", ylabel=r"$t$ ($\mathrm{fs}$)")
@@ -162,7 +163,7 @@ fig3, (ax5, ax6) = plt.subplots(
 ax5.plot_surface(
     new_dist_2d_array_3,
     new_time_2d_array_3,
-    plot_intensity_axis,
+    plot_int_axis,
     cmap=cmap_option,
     linewidth=0,
     antialiased=False,
@@ -178,7 +179,7 @@ ax5.set_title("On-axis solution in 3D")
 ax6.plot_surface(
     new_radi_2d_array_2,
     new_time_2d_array_2,
-    plot_intensity_end,
+    plot_int_fin,
     cmap=cmap_option,
     linewidth=0,
     antialiased=False,

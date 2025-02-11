@@ -73,14 +73,13 @@ def initial_condition(r, t, imu, bpm):
     return gauss
 
 
-def crank_nicolson_diags_r(n, pos, coor, coef):
+def crank_nicolson_diags_r(n, pos, coef):
     """
     Generate the three diagonals for a Crank-Nicolson radial array with centered differences.
 
     Parameters:
     - n (int): Number of radial nodes
     - pos (str): Position of the Crank-Nicolson array (left or right)
-    - coor (int): Parameter for planar (0) or cylindrical (1) geometry
     - coef (float): Coefficient for the diagonal elements
 
     Returns:
@@ -89,20 +88,16 @@ def crank_nicolson_diags_r(n, pos, coor, coef):
     mcf = 1 + 2 * coef
     ind = np.arange(1, n - 1)
 
-    diag_m1 = -coef * (1 - 0.5 * coor / ind)
+    diag_m1 = -coef * (1 - 0.5 / ind)
     diag_0 = np.full(n, mcf)
-    diag_p1 = -coef * (1 + 0.5 * coor / ind)
+    diag_p1 = -coef * (1 + 0.5 / ind)
 
     diag_m1 = np.append(diag_m1, [0])
     diag_p1 = np.insert(diag_p1, 0, [0])
-    if coor == 0 and pos == "LEFT":
-        diag_0[0], diag_0[-1] = 1, 1
-    elif coor == 0 and pos == "RIGHT":
-        diag_0[0], diag_0[-1] = 0, 0
-    elif coor == 1 and pos == "LEFT":
+    if pos == "LEFT":
         diag_0[0], diag_0[-1] = mcf, 1
         diag_p1[0] = -2 * coef
-    elif coor == 1 and pos == "RIGHT":
+    elif pos == "RIGHT":
         diag_0[0], diag_0[-1] = mcf, 0
         diag_p1[0] = -2 * coef
 
@@ -130,26 +125,25 @@ def crank_nicolson_diags_t(n, pos, coef):
     diag_p1[0], diag_m1[-1] = 0, 0
     if pos == "LEFT":
         diag_0[0], diag_0[-1] = 1, 1
-    elif pos == "RIGHT":
+    else:
         diag_0[0], diag_0[-1] = 0, 0
 
     return diag_m1, diag_0, diag_p1
 
 
-def crank_nicolson_array_r(n, pos, coor, coef):
+def crank_nicolson_array_r(n, pos, coef):
     """
     Generate a Crank-Nicolson radial sparse array in CSR format using the diagonals.
 
     Parameters:
     - n (int): Number of radial nodes
     - pos (str): Position of the Crank-Nicolson array (left or right)
-    - coor (int): Parameter for planar (0) or cylindrical (1) geometry
     - coef (float): Coefficient for the diagonal elements
 
     Returns:
     - array: Containing the Crank-Nicolson sparse array in CSR format
     """
-    diag_m1, diag_0, diag_p1 = crank_nicolson_diags_r(n, pos, coor, coef)
+    diag_m1, diag_0, diag_p1 = crank_nicolson_diags_r(n, pos, coef)
 
     diags = [diag_m1, diag_0, diag_p1]
     offset = [-1, 0, 1]
@@ -182,6 +176,28 @@ def crank_nicolson_array_t(n, pos, coef):
 IM_UNIT = 1j
 PI = np.pi
 
+## Set parameters (grid spacing, propagation step, etc.)
+# Radial (r) grid
+INI_RADI_COOR, FIN_RADI_COOR, I_RADI_NODES = 0, 75e-4, 200
+N_RADI_NODES = I_RADI_NODES + 2
+RADI_STEP_LEN = (FIN_RADI_COOR - INI_RADI_COOR) / (N_RADI_NODES - 1)
+AXIS_NODE = int(-INI_RADI_COOR / RADI_STEP_LEN)  # On-axis node
+# Propagation (z) grid
+INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 6e-2, 300
+DIST_STEP_LEN = FIN_DIST_COOR / N_STEPS
+# Time (t) grid
+INI_TIME_COOR, FIN_TIME_COOR, I_TIME_NODES = -300e-15, 300e-15, 1024
+N_TIME_NODES = I_TIME_NODES + 2
+TIME_STEP_LEN = (FIN_TIME_COOR - INI_TIME_COOR) / (N_TIME_NODES - 1)
+PEAK_NODE = N_TIME_NODES // 2  # Peak intensity node
+radi_array = np.linspace(INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES)
+dist_array = np.linspace(INI_DIST_COOR, FIN_DIST_COOR, N_STEPS + 1)
+time_array = np.linspace(INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES)
+radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij")
+radi_2d_array_2, time_2d_array_2 = np.meshgrid(radi_array, time_array, indexing="ij")
+dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing="ij")
+
+## Set beam and media parameters
 LIGHT_SPEED = 299792458
 PERMITTIVITY = 8.8541878128e-12
 LIN_REF_IND_WATER = 1.334
@@ -207,9 +223,10 @@ INTENSITY = 2 * POWER / (PI * WAIST_0**2)
 AMPLITUDE = np.sqrt(INTENSITY / INT_FACTOR)
 
 MPA_EXP = 2 * N_PHOTONS_WATER - 2
-KERR_COEF = IM_UNIT * WAVENUMBER_0 * NLIN_REF_IND_WATER * INT_FACTOR
-MPA_COEF = -0.5 * BETA_COEF_WATER * INT_FACTOR ** (N_PHOTONS_WATER - 1)
+KERR_COEF = IM_UNIT * WAVENUMBER_0 * NLIN_REF_IND_WATER * DIST_STEP_LEN * INT_FACTOR
+MPA_COEF = -0.5 * BETA_COEF_WATER * DIST_STEP_LEN * INT_FACTOR ** (N_PHOTONS_WATER - 1)
 
+## Set dictionaries for better organization
 MEDIA = {
     "WATER": {
         "LIN_REF_IND": LIN_REF_IND_WATER,
@@ -223,11 +240,12 @@ MEDIA = {
         "INT_FACTOR": INT_FACTOR,
     },
     "VACUUM": {
-        "LIGHT_SPEED": 299792458,
-        "PERMITTIVITY": 8.8541878128e-12,
+        "LIGHT_SPEED": LIGHT_SPEED,
+        "PERMITTIVITY": PERMITTIVITY,
     },
 }
 
+## Set dictionaries for better organization
 BEAM = {
     "WAVELENGTH_0": WAVELENGTH_0,
     "WAIST_0": WAIST_0,
@@ -243,29 +261,7 @@ BEAM = {
     "AMPLITUDE": AMPLITUDE,
 }
 
-## Set parameters (grid spacing, propagation step, etc.)
-# Radial (r) grid
-INI_RADI_COOR, FIN_RADI_COOR, I_RADI_NODES = 0, 75e-4, 200
-N_RADI_NODES = I_RADI_NODES + 2
-RADI_STEP_LEN = (FIN_RADI_COOR - INI_RADI_COOR) / (N_RADI_NODES - 1)
-AXIS_NODE = int(-INI_RADI_COOR / RADI_STEP_LEN)  # On-axis node
-# Propagation (z) grid
-INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 6e-2, 300
-DIST_STEP_LEN = FIN_DIST_COOR / N_STEPS
-# Time (t) grid
-INI_TIME_COOR, FIN_TIME_COOR, I_TIME_NODES = -300e-15, 300e-15, 1024
-N_TIME_NODES = I_TIME_NODES + 2
-TIME_STEP_LEN = (FIN_TIME_COOR - INI_TIME_COOR) / (N_TIME_NODES - 1)
-PEAK_NODE = N_TIME_NODES // 2  # Peak intensity node
-radi_array = np.linspace(INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES)
-dist_array = np.linspace(INI_DIST_COOR, FIN_DIST_COOR, N_STEPS + 1)
-time_array = np.linspace(INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES)
-radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij")
-radi_2d_array_2, time_2d_array_2 = np.meshgrid(radi_array, time_array, indexing="ij")
-dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing="ij")
-
 ## Set loop variables
-EU_CYL = 1  # Parameter for planar (0) or cylindrical (1) geometry
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
 envelope = np.empty_like(radi_2d_array_2, dtype=complex)
@@ -279,8 +275,8 @@ w_array = np.empty([N_RADI_NODES, N_TIME_NODES, 2], dtype=complex)
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MAT_CNT_1R = IM_UNIT * DELTA_R
 MAT_CNT_1T = IM_UNIT * DELTA_T
-left_cn_matrix_r = crank_nicolson_array_r(N_RADI_NODES, "LEFT", EU_CYL, MAT_CNT_1R)
-right_cn_matrix_r = crank_nicolson_array_r(N_RADI_NODES, "RIGHT", EU_CYL, -MAT_CNT_1R)
+left_cn_matrix_r = crank_nicolson_array_r(N_RADI_NODES, "LEFT", MAT_CNT_1R)
+right_cn_matrix_r = crank_nicolson_array_r(N_RADI_NODES, "RIGHT", -MAT_CNT_1R)
 left_cn_matrix_t = crank_nicolson_array_t(N_TIME_NODES, "LEFT", MAT_CNT_1T)
 right_cn_matrix_t = crank_nicolson_array_t(N_TIME_NODES, "RIGHT", -MAT_CNT_1T)
 
@@ -316,35 +312,23 @@ for k in tqdm(range(N_STEPS - 1)):
         d_array[:, l, 2] = np.abs(d_array[:, l, 0]) ** MEDIA["WATER"]["MPA_EXP"]
         if k == 0:  # I'm guessing a value for starting the AB2 method
             w_array[:, l, 0] = (
-                DIST_STEP_LEN
-                * (
-                    MEDIA["WATER"]["KERR_COEF"] * d_array[:, l, 1]
-                    + MEDIA["WATER"]["MPA_COEF"] * d_array[:, l, 2]
-                )
-                * d_array[:, l, 0]
-            )
-            G = 1.0
+                MEDIA["WATER"]["KERR_COEF"] * d_array[:, l, 1]
+                + MEDIA["WATER"]["MPA_COEF"] * d_array[:, l, 2]
+            ) * d_array[:, l, 0]
+            G = 1
             d_array[:, l, 0] = G * d_array[:, l, 0]
             d_array[:, l, 1] = np.abs(d_array[:, l, 0]) ** 2
             d_array[:, l, 2] = np.abs(d_array[:, l, 0]) ** MEDIA["WATER"]["MPA_EXP"]
             w_array[:, l, 1] = (
-                DIST_STEP_LEN
-                * (
-                    MEDIA["WATER"]["KERR_COEF"] * d_array[:, l, 1]
-                    + MEDIA["WATER"]["MPA_COEF"] * d_array[:, l, 2]
-                )
-                * d_array[:, l, 0]
-            )
+                MEDIA["WATER"]["KERR_COEF"] * d_array[:, l, 1]
+                + MEDIA["WATER"]["MPA_COEF"] * d_array[:, l, 2]
+            ) * d_array[:, l, 0]
             envelope_axis[k + 1, l] = d_array[AXIS_NODE, l, 0]
         else:
             w_array[:, l, 1] = (
-                DIST_STEP_LEN
-                * (
-                    MEDIA["WATER"]["KERR_COEF"] * d_array[:, l, 1]
-                    + MEDIA["WATER"]["MPA_COEF"] * d_array[:, l, 2]
-                )
-                * d_array[:, l, 0]
-            )
+                MEDIA["WATER"]["KERR_COEF"] * d_array[:, l, 1]
+                + MEDIA["WATER"]["MPA_COEF"] * d_array[:, l, 2]
+            ) * d_array[:, l, 0]
 
         # Compute second step solution
         envelope_store[:, l] = d_array[:, l, 0] + 0.5 * (
