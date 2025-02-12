@@ -6,9 +6,9 @@ This program includes:
     - Second order group velocity dispersion (GVD).
 
 Numerical discretization: Finite Differences Method (FDM).
-    - Method: Alternating Direction Implicit (ADI) scheme.
+    - Method: Split-step Fourier Crank-Nicolson (FCN) scheme.
     - Initial condition: Gaussian.
-    - Boundary conditions: Neumann-Dirichlet (radial) and homogeneous Dirichlet (temporal).
+    - Boundary conditions: Neumann-Dirichlet (radial) and Periodic (temporal).
 
 UPPE:           ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t²
 
@@ -26,6 +26,7 @@ k: wavenumber (in the interacting media).
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.fft import fft, ifft
 from scipy.sparse import diags_array
 from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
@@ -62,9 +63,9 @@ def initial_condition(radius, time, im_unit, beam_parameters):
     return gaussian_envelope
 
 
-def crank_nicolson_diags_r(nodes, position, coefficient):
+def crank_nicolson_diags(nodes, position, coefficient):
     """
-    Generate the three diagonals for a Crank-Nicolson radial array with centered differences.
+    Set the three diagonals for the Crank-Nicolson array with centered differences.
 
     Parameters:
     - nodes (int): number of radial nodes
@@ -93,36 +94,9 @@ def crank_nicolson_diags_r(nodes, position, coefficient):
     return diag_m1, diag_0, diag_p1
 
 
-def crank_nicolson_diags_t(nodes, position, coefficient):
+def crank_nicolson_array(nodes, position, coefficient):
     """
-    Set the three diagonals for a Crank-Nicolson time array with centered differences.
-
-    Parameters:
-    - nodes (int): number of time nodes
-    - position (str): position of the Crank-Nicolson array (left or right)
-    - coefficient (float): coefficient for the diagonal elements
-
-    Returns:
-    - tuple: upper, main, and lower diagonals
-    """
-    main_coefficient = 1 + 2 * coefficient
-
-    diag_m1 = np.full(nodes - 1, -coefficient)
-    diag_0 = np.full(nodes, main_coefficient)
-    diag_p1 = np.full(nodes - 1, -coefficient)
-
-    diag_p1[0], diag_m1[-1] = 0, 0
-    if position == "LEFT":
-        diag_0[0], diag_0[-1] = 1, 1
-    else:
-        diag_0[0], diag_0[-1] = 0, 0
-
-    return diag_m1, diag_0, diag_p1
-
-
-def crank_nicolson_array_r(nodes, position, coefficient):
-    """
-    Generate a Crank-Nicolson radial sparse array in CSR format using the diagonals.
+    Set the Crank-Nicolson sparse array in CSR format using the diagonals.
 
     Parameters:
     - nodes (int): number of radial nodes
@@ -132,76 +106,45 @@ def crank_nicolson_array_r(nodes, position, coefficient):
     Returns:
     - array: Crank-Nicolson sparse array in CSR format
     """
-    diag_m1, diag_0, diag_p1 = crank_nicolson_diags_r(nodes, position, coefficient)
+    diag_m1, diag_0, diag_p1 = crank_nicolson_diags(nodes, position, coefficient)
 
     diags = [diag_m1, diag_0, diag_p1]
     offset = [-1, 0, 1]
-    radial_output = diags_array(diags, offsets=offset, format="csr")
+    crank_nicolson_output = diags_array(diags, offsets=offset, format="csr")
 
-    return radial_output
+    return crank_nicolson_output
 
 
-def crank_nicolson_array_t(nodes, position, coefficient):
+def fft_step(fourier_coefficient, current_envelope, inter_array):
     """
-    Set a Crank-Nicolson sparse time array in CSR format using the diagonals.
+    Compute one step of the FFT propagation scheme.
 
     Parameters:
-    - nodes (int): number of time nodes
-    - position (str): position of the Crank-Nicolson array (left or right)
-    - coefficient (float): coefficient for the diagonal elements
-
-    Returns:
-    - array: Crank-Nicolson sparse array in CSR format
+    - fourier_coefficient: precomputed Fourier coefficient
+    - current_envelope: envelope at step k
+    - inter_array: pre-allocated array for envelope at step k + 1
     """
-    diag_m1, diag_0, diag_p1 = crank_nicolson_diags_t(nodes, position, coefficient)
-
-    diags = [diag_m1, diag_0, diag_p1]
-    offset = [-1, 0, 1]
-    time_output = diags_array(diags, offsets=offset, format="csr")
-
-    return time_output
+    for i in range(current_envelope.shape[0]):
+        envelope_fourier = fourier_coefficient * fft(current_envelope[i, :])
+        inter_array[i, :] = ifft(envelope_fourier)
 
 
-def adi_radial_step(
-    left_array_r, right_array_t, current_envelope, inter_array, semi_array
+def crank_nicolson_step(
+    left_array, right_array, fourier_envelope, inter_array, next_envelope
 ):
     """
-    Compute first half-step (ADI radial direction).
+    Compute one step of the Crank-Nicolson propagation scheme.
 
     Parameters:
-    - left_array_r: sparse array for left-hand side (radial)
-    - right_array_t: sparse array for right-hand side (time)
-    - current_envelope: envelope at step k
+    - left_array: sparse array for left-hand side
+    - right_array: sparse array for right-hand side
+    - fourier_envelope: pre-allocated array for intermediate solution
     - inter_array: pre-allocated array for intermediate results
-    - semi_array: envelope at step k + 1/2
+    - next_envelope: pre-allocated array for envelope at step k + 1
     """
-    # Compute right-hand side matrix product row by row
-    for i in range(current_envelope.shape[0]):
-        inter_array[i, :] = right_array_t @ current_envelope[i, :]
-
-    # Compute first half-step solution
-    for l in range(current_envelope.shape[1]):
-        semi_array[:, l] = spsolve(left_array_r, inter_array[:, l])
-
-
-def adi_time_step(left_array_t, right_array_r, inter_array, semi_array, next_envelope):
-    """
-    Compute second half-step (ADI time direction).
-
-    Parameters:
-    - right_array_r: sparse array for right-hand side (radial)
-    - left_array_t: sparse array for left-hand side (time)
-    - inter_array: envelope at step k + 1/2
-    - semi_array: preallocated array for intermediate results
-    - next_envelope: envelope at step k + 1
-    """
-    # Compute right-hand side matrix product column by column
-    for l in range(inter_array.shape[1]):
-        semi_array[:, l] = right_array_r @ inter_array[:, l]
-
-    # Compute second half-step solution
-    for i in range(inter_array.shape[0]):
-        next_envelope[i, :] = spsolve(left_array_t, semi_array[i, :])
+    for l in range(inter_array.shape[0]):
+        inter_array = right_array @ fourier_envelope[:, l]
+        next_envelope[:, l] = spsolve(left_array, inter_array)
 
 
 IM_UNIT = 1j
@@ -217,13 +160,21 @@ AXIS_NODE = int(-INI_RADI_COOR / RADI_STEP_LEN)  # On-axis node
 INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 6e-2, 100
 DIST_STEP_LEN = FIN_DIST_COOR / N_STEPS
 # Time (t) grid
-INI_TIME_COOR, FIN_TIME_COOR, I_TIME_NODES = -300e-15, 300e-15, 1024
-N_TIME_NODES = I_TIME_NODES + 2
+INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES = -300e-15, 300e-15, 1024
 TIME_STEP_LEN = (FIN_TIME_COOR - INI_TIME_COOR) / (N_TIME_NODES - 1)
 PEAK_NODE = N_TIME_NODES // 2  # Peak intensity node
+# Angular frequency (ω) grid
+FRQ_STEP_LEN = 2 * PI / (N_TIME_NODES * TIME_STEP_LEN)
+INI_FRQ_COOR_W1 = 0
+FIN_FRQ_COOR_W1 = PI / TIME_STEP_LEN - FRQ_STEP_LEN
+INI_FRQ_COOR_W2 = -PI / TIME_STEP_LEN
+FIN_FRQ_COOR_W2 = -FRQ_STEP_LEN
+w1 = np.linspace(INI_FRQ_COOR_W1, FIN_FRQ_COOR_W1, N_TIME_NODES // 2)
+w2 = np.linspace(INI_FRQ_COOR_W2, FIN_FRQ_COOR_W2, N_TIME_NODES // 2)
 radi_array = np.linspace(INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES)
 dist_array = np.linspace(INI_DIST_COOR, FIN_DIST_COOR, N_STEPS + 1)
 time_array = np.linspace(INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES)
+frq_array = np.append(w1, w2)
 radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij")
 radi_2d_array_2, time_2d_array_2 = np.meshgrid(radi_array, time_array, indexing="ij")
 dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing="ij")
@@ -281,16 +232,14 @@ DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
 envelope = np.empty_like(radi_2d_array_2, dtype=complex)
 envelope_axis = np.empty_like(dist_2d_array_3, dtype=complex)
 envelope_store = np.empty_like(envelope)
+fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_T * (frq_array * TIME_STEP_LEN) ** 2)
 b_array = np.empty_like(envelope)
-c_array = np.empty_like(envelope)
+c_array = np.empty_like(radi_array, dtype=complex)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
-MAT_CNT_1R = IM_UNIT * DELTA_R
-MAT_CNT_1T = IM_UNIT * DELTA_T
-left_operator_r = crank_nicolson_array_r(N_RADI_NODES, "LEFT", MAT_CNT_1R)
-right_operator_r = crank_nicolson_array_r(N_RADI_NODES, "RIGHT", -MAT_CNT_1R)
-left_operator_t = crank_nicolson_array_t(N_TIME_NODES, "LEFT", MAT_CNT_1T)
-right_operator_t = crank_nicolson_array_t(N_TIME_NODES, "RIGHT", -MAT_CNT_1T)
+MATRIX_CNT_1 = IM_UNIT * DELTA_R
+left_operator = crank_nicolson_array(N_RADI_NODES, "LEFT", MATRIX_CNT_1)
+right_operator = crank_nicolson_array(N_RADI_NODES, "RIGHT", -MATRIX_CNT_1)
 
 ## Set initial electric field wave packet
 envelope = initial_condition(radi_2d_array_2, time_2d_array_2, IM_UNIT, BEAM)
@@ -299,13 +248,10 @@ envelope_axis[0, :] = envelope[AXIS_NODE, :]
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):
-    # First half-step (radial direction)
-    adi_radial_step(left_operator_r, right_operator_t, envelope, b_array, c_array)
+    fft_step(fourier_coeff, envelope, b_array)
+    crank_nicolson_step(left_operator, right_operator, b_array, c_array, envelope_store)
 
-    # Second half-step (time direction)
-    adi_time_step(left_operator_t, right_operator_r, c_array, b_array, envelope_store)
-
-    # Update arrays for the next step
+    # Update arrays for next step
     envelope = envelope_store
     envelope_axis[k + 1, :] = envelope_store[AXIS_NODE, :]
 

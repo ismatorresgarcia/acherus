@@ -4,10 +4,10 @@ and ultra-short laser pulse.
 This program includes:
     - Second order group velocity dispersion (GVD).
 
-Numerical discretization: Finite Differences Method (FDM)
-    - Method: Crank-Nicolson (CN) scheme.
+Numerical discretization: Finite Differences Method (FDM).
+    - Method: Fast Fourier Transform (FFT).
     - Initial condition: Gaussian.
-    - Boundary conditions: homogeneous Dirichlet.
+    - Boundary conditions: Periodic.
 
 UPPE:           ∂ℰ/∂z = -ik''/2 ∂²E/∂t²
 
@@ -22,8 +22,7 @@ k'': GVD coefficient of 2nd order.
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.sparse import diags_array
-from scipy.sparse.linalg import spsolve
+from numpy.fft import fft, ifft
 from tqdm import tqdm
 
 
@@ -52,70 +51,16 @@ def initial_condition(time, im_unit, beam_parameters):
     return gaussian_envelope
 
 
-def crank_nicolson_diags(nodes, position, coefficient):
+def fft_step(fourier_coefficient, current_envelope, next_envelope):
     """
-    Set the three diagonals for a Crank-Nicolson array with centered differences.
+    Compute one step of the FFT propagation scheme.
 
     Parameters:
-    - nodes (int): number of time nodes
-    - position (str): position of the Crank-Nicolson array (left or right)
-    - coefficient (float): coefficient for the diagonal elements
-
-    Returns:
-    - tuple: upper, main, and lower Crank-Nicolson diagonals
-    """
-    main_coefficient = 1 + 2 * coefficient
-
-    diag_m1 = np.full(nodes - 1, -coefficient)
-    diag_0 = np.full(nodes, main_coefficient)
-    diag_p1 = np.full(nodes - 1, -coefficient)
-
-    diag_p1[0], diag_m1[-1] = 0, 0
-    if position == "LEFT":
-        diag_0[0], diag_0[-1] = 1, 1
-    elif position == "RIGHT":
-        diag_0[0], diag_0[-1] = 0, 0
-
-    return diag_m1, diag_0, diag_p1
-
-
-def crank_nicolson_array(nodes, position, coefficient):
-    """
-    Set a Crank-Nicolson sparse array in CSR format using the diagonals.
-
-    Parameters:
-    - nodes (int): number of time nodes
-    - position (str): position of the Crank-Nicolson array (left or right)
-    - coefficient (float): coefficient for the diagonal elements
-
-    Returns:
-    - array: Crank-Nicolson sparse array in CSR format
-    """
-    diag_m1, diag_0, diag_p1 = crank_nicolson_diags(nodes, position, coefficient)
-
-    diags = [diag_m1, diag_0, diag_p1]
-    offset = [-1, 0, 1]
-    crank_nicolson_output = diags_array(diags, offsets=offset, format="csr")
-
-    return crank_nicolson_output
-
-
-def crank_nicolson_step(left_array, right_array, current_envelope):
-    """
-    Compute one step of the Crank-Nicolson propagation scheme.
-
-    Parameters:
-    - left_array: sparse array for left-hand side
-    - right_array: sparse array for right-hand side
+    - fourier_coefficient: precomputed Fourier coefficient
     - current_envelope: envelope at step k
-
-    Returns:
-    - next_envelope: envelope at step k + 1
+    - next_envelope: pre-allocated array for envelope at step k + 1
     """
-    b_array = right_array @ current_envelope
-    next_envelope = spsolve(left_array, b_array)
-
-    return next_envelope
+    next_envelope[:] = ifft(fourier_coefficient * fft(current_envelope))
 
 
 IM_UNIT = 1j
@@ -126,8 +71,7 @@ PI = np.pi
 INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 5e-2, 1000
 DIST_STEP_LEN = (FIN_DIST_COOR - INI_DIST_COOR) / N_STEPS
 # Time (t) grid
-INI_TIME_COOR, FIN_TIME_COOR, I_TIME_NODES = -300e-15, 300e-15, 2048
-N_TIME_NODES = I_TIME_NODES + 2
+INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES = -300e-15, 300e-15, 2048
 TIME_STEP_LEN = (FIN_TIME_COOR - INI_TIME_COOR) / (N_TIME_NODES - 1)
 PEAK_NODE = N_TIME_NODES // 2
 # Angular frequency (ω) grid
@@ -136,8 +80,11 @@ INI_FRQ_COOR_W1 = 0
 FIN_FRQ_COOR_W1 = PI / TIME_STEP_LEN - FRQ_STEP_LEN
 INI_FRQ_COOR_W2 = -PI / TIME_STEP_LEN
 FIN_FRQ_COOR_W2 = -FRQ_STEP_LEN
+w1 = np.linspace(INI_FRQ_COOR_W1, FIN_FRQ_COOR_W1, N_TIME_NODES // 2)
+w2 = np.linspace(INI_FRQ_COOR_W2, FIN_FRQ_COOR_W2, N_TIME_NODES // 2)
 dist_array = np.linspace(INI_DIST_COOR, FIN_DIST_COOR, N_STEPS + 1)
 time_array = np.linspace(INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES)
+frq_array = np.append(w1, w2)
 dist_2d_array, time_2d_array = np.meshgrid(dist_array, time_array, indexing="ij")
 
 ## Set beam and media parameters
@@ -188,21 +135,16 @@ BEAM = {
 ## Set loop variables
 DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
 envelope = np.empty_like(dist_2d_array, dtype=complex)
-envelope_store = np.empty_like(envelope)
-
-## Set tridiagonal Crank-Nicolson matrices in csr_array format
-MATRIX_CNT_1 = IM_UNIT * DELTA_T
-left_operator = crank_nicolson_array(N_TIME_NODES, "LEFT", MATRIX_CNT_1)
-right_operator = crank_nicolson_array(N_TIME_NODES, "RIGHT", -MATRIX_CNT_1)
+envelope_store = np.empty_like(time_array, dtype=complex)
+fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_T * (frq_array * TIME_STEP_LEN) ** 2)
 
 ## Set initial electric field wave packet
 envelope[0, :] = initial_condition(time_array, IM_UNIT, BEAM)
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):
-    envelope[k + 1, :] = crank_nicolson_step(
-        left_operator, right_operator, envelope[k, :]
-    )
+    fft_step(fourier_coeff, envelope[k, :], envelope_store)
+    envelope[k + 1, :] = envelope_store
 
 ## Analytical solution for a Gaussian beam
 # Set arrays
@@ -236,7 +178,7 @@ plt.style.use("dark_background")
 cmap_option = mpl.colormaps["plasma"]
 figsize_option = (13, 7)
 
-## Set up conversion factors
+# Set up conversion factors
 DIST_FACTOR = 100
 TIME_FACTOR = 1e15
 AREA_FACTOR = 1e-4
@@ -274,7 +216,7 @@ intensity_list = [
     ),
     (
         plot_int[-1, :],
-        "#1E90FF",  # Electric blue
+        "#1E90FF",  # Electric Blue
         "--",
         r"Numerical solution at final $z$ step",
     ),

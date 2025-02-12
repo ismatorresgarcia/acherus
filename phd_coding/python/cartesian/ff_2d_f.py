@@ -2,7 +2,7 @@
 This program solves the Unidirectional Pulse Propagation Equation (UPPE) of an ultra-intense
 and ultra-short laser pulse.
 This program includes:
-    - Diffraction (for the transverse direction).
+    - Diffraction (for one transverse direction).
 
 Numerical discretization: Finite Differences Method (FDM)
     - Method: Fast Fourier Transform (FFT).
@@ -56,19 +56,16 @@ def initial_condition(radius, im_unit, beam_parameters):
     return gaussian_envelope
 
 
-def fft_step(fourier_coefficient, current_envelope):
+def fft_step(fourier_coefficient, current_envelope, next_envelope):
     """
     Compute one step of the FFT propagation scheme.
 
     Parameters:
-    - current_envelope: envelope at step k
     - fourier_coefficient: precomputed Fourier coefficient
-
-    Returns:
-    - next_envelope: envelope at step k + 1
+    - current_envelope: envelope at step k
+    - next_envelope: pre-allocated array for envelope at step k + 1
     """
-
-    return ifft(fourier_coefficient * fft(current_envelope))
+    next_envelope[:] = ifft(fourier_coefficient * fft(current_envelope))
 
 
 IM_UNIT = 1j
@@ -141,6 +138,7 @@ BEAM = {
 ## Set loop variables
 DELTA_X = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 envelope = np.empty_like(radi_2d_array, dtype=complex)
+envelope_store = np.empty_like(radi_array, dtype=complex)
 fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_X * (kx_array * RADI_STEP_LEN) ** 2)
 
 ## Set initial electric field wave packet
@@ -148,7 +146,8 @@ envelope[:, 0] = initial_condition(radi_array, IM_UNIT, BEAM)
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):
-    envelope[:, k + 1] = fft_step(fourier_coeff, envelope[:, k])
+    fft_step(fourier_coeff, envelope[:, k], envelope_store)
+    envelope[:, k + 1] = envelope_store
 
 ## Analytical solution for a Gaussian beam
 # Set arrays

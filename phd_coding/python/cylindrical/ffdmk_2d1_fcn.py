@@ -8,7 +8,9 @@ This program includes:
     - Multiphotonic ionization by multiphoton absorption (MPA).
 
 Numerical discretization: Finite Differences Method (FDM).
-    - Method: Spectral (in frequency) Crank-Nicolson (CN) scheme.
+    - Method: Split-step Fourier Crank-Nicolson (FCN) scheme.
+        *- Fast Fourier Transform (FFT) scheme (for diffraction).
+        *- Extended Crank-Nicolson (CN) scheme (for diffraction, Kerr and MPA).
     - Initial condition: Gaussian.
     - Boundary conditions: Neumann-Dirichlet (radial) and Periodic (temporal).
 
@@ -74,7 +76,7 @@ def initial_condition(radius, time, im_unit, beam_parameters):
 
 def crank_nicolson_diags(nodes, position, coefficient):
     """
-    Generate the three diagonals for a Crank-Nicolson array with centered differences.
+    Set the three diagonals for the Crank-Nicolson array with centered differences.
 
     Parameters:
     - nodes (int): number of radial nodes
@@ -84,17 +86,20 @@ def crank_nicolson_diags(nodes, position, coefficient):
     Returns:
     - tuple: upper, main, and lower diagonals
     """
+    main_coefficient = 1 + 2 * coefficient
     indices = np.arange(1, nodes - 1)
 
     diag_m1 = -coefficient * (1 - 0.5 / indices)
-    diag_0 = np.ones(nodes)
+    diag_0 = np.full(nodes, main_coefficient)
     diag_p1 = -coefficient * (1 + 0.5 / indices)
 
     diag_m1 = np.append(diag_m1, [0])
     diag_p1 = np.insert(diag_p1, 0, [0])
     if position == "LEFT":
+        diag_0[0], diag_0[-1] = main_coefficient, 1
         diag_p1[0] = -2 * coefficient
     else:
+        diag_0[0], diag_0[-1] = main_coefficient, 0
         diag_p1[0] = -2 * coefficient
 
     return diag_m1, diag_0, diag_p1
@@ -102,7 +107,7 @@ def crank_nicolson_diags(nodes, position, coefficient):
 
 def crank_nicolson_array(nodes, position, coefficient):
     """
-    Generate a Crank-Nicolson sparse array in CSR format using the diagonals.
+    Set the Crank-Nicolson sparse array in CSR format using the diagonals.
 
     Parameters:
     - nodes (int): number of radial nodes
@@ -110,7 +115,7 @@ def crank_nicolson_array(nodes, position, coefficient):
     - coefficient (float): coefficient for the diagonal elements
 
     Returns:
-    - array: Containing the Crank-Nicolson sparse array in CSR format
+    - array: Crank-Nicolson sparse array in CSR format
     """
     diag_m1, diag_0, diag_p1 = crank_nicolson_diags(nodes, position, coefficient)
 
@@ -121,13 +126,27 @@ def crank_nicolson_array(nodes, position, coefficient):
     return crank_nicolson_output
 
 
-def compute_nonlinear_terms(current_envelope, inter_array, media_params):
+def fft_step(fourier_coefficient, current_envelope, inter_array):
     """
-    Compute nonlinear terms for Kerr and MPA effects.
+    Compute one step of the FFT propagation scheme.
 
     Parameters:
+    - fourier_coefficient: precomputed Fourier coefficient
     - current_envelope: envelope at step k
-    - inter_array: pre-allocated array for nonlinear terms
+    - inter_array: pre-allocated array for envelope at step k + 1
+    """
+    for i in range(current_envelope.shape[0]):
+        envelope_fourier = fourier_coefficient * fft(current_envelope[i, :])
+        inter_array[i, :] = ifft(envelope_fourier)
+
+
+def nonlinear_terms(current_envelope, inter_array, media_params):
+    """
+    Set the terms for nonlinear contributions.
+
+    Parameters:
+    - current_envelope: pre-allocated array for envelope at step k
+    - inter_array: pre-allocated array for intermediate results
     - media_params: dictionary with media parameters
     """
     inter_array[:, :, 0] = current_envelope
@@ -135,12 +154,12 @@ def compute_nonlinear_terms(current_envelope, inter_array, media_params):
     inter_array[:, :, 2] = np.abs(current_envelope) ** media_params["MPA_EXP"]
 
 
-def initial_adam_bashforth_step(inter_array, adam_bash_array, media_params):
+def ini_adam_bashforth_step(inter_array, adam_bash_array, media_params):
     """
-    Update nonlinear contribution terms.
+    Compute the first two steps of the Adam-Bashforth scheme for the nonlinear terms.
 
     Parameters:
-    - inter_array: pre-allocated array for nonlinear terms
+    - inter_array: pre-allocated array for intermediate results
     - adam_bash_array: pre-allocated array for Adam-Bashforth terms
     - media_params: dictionary with media parameters
     """
@@ -161,10 +180,10 @@ def initial_adam_bashforth_step(inter_array, adam_bash_array, media_params):
 
 def adam_bashforth_step(inter_array, adam_bash_array, media_params):
     """
-    Update nonlinear contribution terms.
+    Compute one step of the Adam-Bashforth scheme for the nonlinear terms.
 
     Parameters:
-    - inter_array: pre-allocated array for nonlinear terms
+    - inter_array: pre-allocated array for intermediate results
     - adam_bash_array: pre-allocated array for Adam-Bashforth terms
     - media_params: dictionary with media parameters
     """
@@ -174,65 +193,27 @@ def adam_bashforth_step(inter_array, adam_bash_array, media_params):
     ) * inter_array[:, :, 0]
 
 
-def fft_step(current_envelope, fourier_envelope, adam_bash_array, fourier_adam_array):
+def crank_nicolson_step(
+    left_array, right_array, inter_array, adam_bash_array, next_envelope
+):
     """
-    Compute FFT half-step of the FCN scheme.
+    Compute one step of the Crank-Nicolson propagation scheme.
 
     Parameters:
-    - current_envelope: envelope at step k
-    - fourier_envelope: pre-allocated array for Fourier envelope
+    - left_array: sparse array for left-hand side
+    - right_array: sparse array for right-hand side
+    - inter_array: pre-allocated array for intermediate results
     - adam_bash_array: pre-allocated array for Adam-Bashforth terms
-    - fourier_adam_bash_array: pre-allocated array for fourier Adam-Bashforth terms
+    - next_envelope: pre-allocated array for envelope at step k + 1
     """
-    for i in range(current_envelope.shape[0]):
-        fourier_envelope[i, :] = fft(current_envelope[i, :])
-        fourier_adam_array[i, :, 0] = fft(adam_bash_array[i, :, 0])
-        fourier_adam_array[i, :, 1] = fft(adam_bash_array[i, :, 1])
-
-
-def update_crank_nicolson_step(sparse_arrays, arrays, coefficients):
-    """
-    Compute spectral domain operations for all frequency components.
-
-    Parameters:
-    - sparse_arrays: dict containing sparse arrays
-        - right: right-hand side array
-        - left: left-hand side array
-    - arrays: dict containing envelope arrays
-        - fourier: envelope in Fourier domain at step k
-        - inter: pre-allocated array for intermediate results
-        - next_fourier: envelope in Fourier domain at step k + 1
-    - coefficients: dict containing array coefficients
-        - left: diagonal terms for left array
-        - right: diagonal terms for right array
-    """
-    for l in range(arrays["fourier"].shape[1]):
-        # Update matrices for current frequency
-        sparse_arrays["left"].setdiag(coefficients["left"][l])
-        sparse_arrays["right"].setdiag(coefficients["right"][l])
-        # Set boundary conditions
-        sparse_arrays["left"].data[-1] = 1
-        sparse_arrays["right"].data[-1] = 0
-        # Solve with Crank-Nicolson for current frequency
-        arrays["inter_array_1"] = sparse_arrays["right"] @ arrays["fourier"][:, l]
-        arrays["inter_array_2"] = arrays["inter_array_1"] + 0.5 * (
-            3 * arrays["inter_array_3"][:, l, 1] - arrays["inter_array_3"][:, l, 0]
+    for l in range(inter_array.shape[1]):
+        # Compute intermediate arrays
+        d_array = right_array @ inter_array[:, l, 0]
+        f_array = d_array + 0.5 * (
+            3 * adam_bash_array[:, l, 1] - adam_bash_array[:, l, 0]
         )
-        arrays["next_fourier"][:, l] = spsolve(
-            sparse_arrays["left"], arrays["inter_array_2"]
-        )
-
-
-def ifft_step(next_fourier, next_envelope):
-    """
-    Compute IFFT step of the SCN scheme.
-
-    Parameters:
-    - next_fourier: envelope in Fourier domain at step k + 1
-    - next_envelope: envelope at step k + 1
-    """
-    for i in range(next_fourier.shape[0]):
-        next_envelope[i, :] = ifft(next_fourier[i, :])
+        # Solve system for current time slice
+        next_envelope[:, l] = spsolve(left_array, f_array)
 
 
 IM_UNIT = 1j
@@ -336,20 +317,14 @@ DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
 envelope = np.empty_like(radi_2d_array_2, dtype=complex)
 envelope_axis = np.empty_like(dist_2d_array_3, dtype=complex)
-envelope_fourier = np.empty_like(envelope)
 envelope_store = np.empty_like(envelope)
-fourier_coeff = IM_UNIT * DELTA_T * frq_array**2
-b_array = np.empty([N_RADI_NODES, N_TIME_NODES, 3], dtype=complex)
-c_array = np.empty_like(radi_array)
-d_array = np.empty_like(radi_array)
-f_array = np.empty_like(envelope)
+fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_T * (frq_array * TIME_STEP_LEN) ** 2)
+b_array = np.empty_like(envelope)
+c_array = np.empty([N_RADI_NODES, N_TIME_NODES, 3], dtype=complex)
 w_array = np.empty([N_RADI_NODES, N_TIME_NODES, 2], dtype=complex)
-w_fourier_array = np.empty_like(w_array)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1 = IM_UNIT * DELTA_R
-matrix_cnt_2 = 1 - 2 * MATRIX_CNT_1 + fourier_coeff
-matrix_cnt_3 = 1 + 2 * MATRIX_CNT_1 - fourier_coeff
 left_operator = crank_nicolson_array(N_RADI_NODES, "LEFT", MATRIX_CNT_1)
 right_operator = crank_nicolson_array(N_RADI_NODES, "RIGHT", -MATRIX_CNT_1)
 
@@ -358,43 +333,25 @@ envelope = initial_condition(radi_2d_array_2, time_2d_array_2, IM_UNIT, BEAM)
 # Save on-axis envelope initial state
 envelope_axis[0, :] = envelope[AXIS_NODE, :]
 
-## Set dictionaries for better organization
-operators = {"left": left_operator, "right": right_operator}
-vectors = {
-    "fourier": envelope_fourier,
-    "inter_array_1": c_array,
-    "inter_array_2": d_array,
-    "inter_array_3": w_array,
-    "next_fourier": f_array,
-}
-coeffs = {"left": matrix_cnt_3, "right": matrix_cnt_2}
-
-## Propagation loop over desired number of steps (Spectral domain)
+## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS - 1)):
-    ## Calculate quantities for nonlinearities
-    compute_nonlinear_terms(envelope, b_array, MEDIA["WATER"])
+    fft_step(fourier_coeff, envelope, b_array)
+    nonlinear_terms(b_array, c_array, MEDIA["WATER"])
     if k == 0:
-        initial_adam_bashforth_step(b_array, w_array, MEDIA["WATER"])
-        envelope_axis[k + 1, :] = envelope[AXIS_NODE, :]
+        ini_adam_bashforth_step(c_array, w_array, MEDIA["WATER"])
+        envelope_axis[k + 1, :] = c_array[AXIS_NODE, :, 0]
     else:
-        adam_bashforth_step(b_array, w_array, MEDIA["WATER"])
+        adam_bashforth_step(c_array, w_array, MEDIA["WATER"])
 
-    ## Compute Direct Fast Fourier Transforms (DFFT)
-    fft_step(b_array[:, :, 0], envelope_fourier, w_array, w_fourier_array)
+    crank_nicolson_step(left_operator, right_operator, c_array, w_array, envelope_store)
 
-    ## Compute terms in the Spectral domain
-    update_crank_nicolson_step(operators, vectors, coeffs)
-
-    ## Compute Inverse Fast Fourier Transform (IFFT)
-    ifft_step(f_array, envelope_store)
-
-    ## Update arrays for the next step
+    # Update arrays for the next step
     w_array[:, :, 0] = w_array[:, :, 1]
     envelope = envelope_store
     envelope_axis[k + 2, :] = envelope_store[AXIS_NODE, :]
 
 np.savez(
-    "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdmk_scn_1",
+    "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdmk_fcn_1",
     INI_RADI_COOR=INI_RADI_COOR,
     FIN_RADI_COOR=FIN_RADI_COOR,
     INI_DIST_COOR=INI_DIST_COOR,

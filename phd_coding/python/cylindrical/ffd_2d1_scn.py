@@ -6,7 +6,7 @@ This program includes:
     - Second order group velocity dispersion (GVD).
 
 Numerical discretization: Finite Differences Method (FDM).
-    - Method: Split-step Fourier Crank-Nicolson (FCN) scheme.
+    - Method: Spectral (in frequency) Crank-Nicolson (CN) scheme.
     - Initial condition: Gaussian.
     - Boundary conditions: Neumann-Dirichlet (radial) and Periodic (temporal).
 
@@ -65,7 +65,7 @@ def initial_condition(radius, time, im_unit, beam_parameters):
 
 def crank_nicolson_diags(nodes, position, coefficient):
     """
-    Generate the three diagonals for a Crank-Nicolson array with centered differences.
+    Set the three diagonals for the Crank-Nicolson array with centered differences.
 
     Parameters:
     - nodes (int): number of radial nodes
@@ -75,20 +75,17 @@ def crank_nicolson_diags(nodes, position, coefficient):
     Returns:
     - tuple: upper, main, and lower diagonals
     """
-    main_coefficient = 1 + 2 * coefficient
     indices = np.arange(1, nodes - 1)
 
     diag_m1 = -coefficient * (1 - 0.5 / indices)
-    diag_0 = np.full(nodes, main_coefficient)
+    diag_0 = np.ones(nodes)
     diag_p1 = -coefficient * (1 + 0.5 / indices)
 
     diag_m1 = np.append(diag_m1, [0])
     diag_p1 = np.insert(diag_p1, 0, [0])
     if position == "LEFT":
-        diag_0[0], diag_0[-1] = main_coefficient, 1
         diag_p1[0] = -2 * coefficient
     else:
-        diag_0[0], diag_0[-1] = main_coefficient, 0
         diag_p1[0] = -2 * coefficient
 
     return diag_m1, diag_0, diag_p1
@@ -96,7 +93,7 @@ def crank_nicolson_diags(nodes, position, coefficient):
 
 def crank_nicolson_array(nodes, position, coefficient):
     """
-    Generate a Crank-Nicolson sparse array in CSR format using the diagonals.
+    Set the Crank-Nicolson sparse array in CSR format using the diagonals.
 
     Parameters:
     - nodes (int): number of radial nodes
@@ -104,7 +101,7 @@ def crank_nicolson_array(nodes, position, coefficient):
     - coefficient (float): coefficient for the diagonal elements
 
     Returns:
-    - array: Crank-Nicolson sparse array in CSR format
+    - array: Containing the Crank-Nicolson sparse array in CSR format
     """
     diag_m1, diag_0, diag_p1 = crank_nicolson_diags(nodes, position, coefficient)
 
@@ -115,36 +112,61 @@ def crank_nicolson_array(nodes, position, coefficient):
     return crank_nicolson_output
 
 
-def fft_step(current_envelope, fourier_coefficient, inter_array):
+def fft_algorithm(current_envelope, fourier_envelope):
     """
-    Compute FFT half-step of the FCN scheme.
+    Compute the FFT of the envelope at step k.
 
     Parameters:
     - current_envelope: envelope at step k
-    - fourier_coefficient: precomputed Fourier coefficient
-    - inter_array: pre-allocated array for intermediate results
+    - fourier_envelope: pre-allocated array for envelope in Fourier domain at step k
     """
     for i in range(current_envelope.shape[0]):
-        envelope_fourier = fourier_coefficient * fft(current_envelope[i, :])
-        inter_array[i, :] = ifft(envelope_fourier)
+        fourier_envelope[i, :] = fft(current_envelope[i, :])
 
 
-def crank_nicolson_step(
-    right_array, left_array, fourier_envelope, inter_array, next_envelope
-):
+def crank_nicolson_step(sparse_arrays, arrays, coefficients):
     """
-    Compute Crank-Nicolson half-step of the FCN scheme.
+    Update Crank-Nicolson arrays for one frquency step.
+    Compute one step of the Crank-Nicolson propagation scheme.
 
     Parameters:
-    - right_matrix: sparse array for right-hand side
-    - left_matrix: sparse array for left-hand side
-    - fourier_envelope: intermediate solution from FFT step
-    - inter_array: pre-allocated array for intermediate calculations
-    - next_envelope: envelope at step k + 1
+    - sparse_arrays: dict containing sparse arrays
+        - left_array: sparse array for left-hand side
+        - right_array: sparse array for right-hand side
+    - arrays: dict containing envelope arrays
+        - current_envelope: pre-allocated array for envelope in Fourier domain at step k
+        - inter_array: pre-allocated array for intermediate results
+        - next_envelope: envelope in Fourier domain at step k + 1
+    - coefficients: dict containing sparse array new coefficients
+        - left_elements: main diagonal terms for left-hand side array
+        - right_elements: main diagonal terms for right-hand side array
     """
-    for l in range(inter_array.shape[0]):
-        inter_array = right_array @ fourier_envelope[:, l]
-        next_envelope[:, l] = spsolve(left_array, inter_array)
+    for l in range(arrays["current_envelope"].shape[1]):
+        # Update matrices for current frequency
+        sparse_arrays["left_array"].setdiag(coefficients["left_elements"][l])
+        sparse_arrays["right_array"].setdiag(coefficients["right_elements"][l])
+        # Set boundary conditions
+        sparse_arrays["left_array"].data[-1] = 1
+        sparse_arrays["right_array"].data[-1] = 0
+        # Solve with Crank-Nicolson for current frequency
+        arrays["inter_array"] = (
+            sparse_arrays["right_array"] @ arrays["current_envelope"][:, l]
+        )
+        arrays["next_envelope"][:, l] = spsolve(
+            sparse_arrays["left_array"], arrays["inter_array"]
+        )
+
+
+def ifft_algorithm(fourier_envelope, current_envelope):
+    """
+    Compute the IFFT of the Fourier envelope at step k.
+
+    Parameters:
+    - fourier_envelope: pre-allocated array for envelope in Fourier domain at step k
+    - current_envelope: pre-allocated array for envelope at step k
+    """
+    for i in range(fourier_envelope.shape[0]):
+        current_envelope[i, :] = ifft(fourier_envelope[i, :])
 
 
 IM_UNIT = 1j
@@ -228,16 +250,19 @@ BEAM = {
 
 ## Set loop variables
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
-DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
+DELTA_T = 0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"]
 envelope = np.empty_like(radi_2d_array_2, dtype=complex)
 envelope_axis = np.empty_like(dist_2d_array_3, dtype=complex)
+envelope_fourier = np.empty_like(envelope)
 envelope_store = np.empty_like(envelope)
-fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_T * (frq_array * TIME_STEP_LEN) ** 2)
-b_array = np.empty_like(envelope)
-c_array = np.empty_like(radi_array, dtype=complex)
+fourier_coeff = IM_UNIT * DELTA_T * frq_array**2
+b_array = np.empty_like(radi_array, dtype=complex)
+c_array = np.empty_like(envelope)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1 = IM_UNIT * DELTA_R
+matrix_cnt_2 = 1 - 2 * MATRIX_CNT_1 + fourier_coeff
+matrix_cnt_3 = 1 + 2 * MATRIX_CNT_1 - fourier_coeff
 left_operator = crank_nicolson_array(N_RADI_NODES, "LEFT", MATRIX_CNT_1)
 right_operator = crank_nicolson_array(N_RADI_NODES, "RIGHT", -MATRIX_CNT_1)
 
@@ -246,13 +271,20 @@ envelope = initial_condition(radi_2d_array_2, time_2d_array_2, IM_UNIT, BEAM)
 # Save on-axis envelope initial state
 envelope_axis[0, :] = envelope[AXIS_NODE, :]
 
-## Propagation loop over desired number of steps
-for k in tqdm(range(N_STEPS)):
-    # First half-step (Spectral domain)
-    fft_step(envelope, fourier_coeff, b_array)
+## Set dictionaries for better organization
+operators = {"left_array": left_operator, "right_array": right_operator}
+arrays_set = {
+    "current_envelope": envelope_fourier,
+    "inter_array": b_array,
+    "next_envelope": c_array,
+}
+coeffs = {"left_elements": matrix_cnt_3, "right_elements": matrix_cnt_2}
 
-    # Second half-step (Time domain)
-    crank_nicolson_step(right_operator, left_operator, b_array, c_array, envelope_store)
+## Propagation loop over desired number of steps (Spectral domain)
+for k in tqdm(range(N_STEPS)):
+    fft_algorithm(envelope, envelope_fourier)
+    crank_nicolson_step(operators, arrays_set, coeffs)
+    ifft_algorithm(c_array, envelope_store)
 
     # Update arrays for next step
     envelope = envelope_store
@@ -446,7 +478,7 @@ fig3_2 = ax6.pcolormesh(
     cmap=cmap_option,
 )
 fig3.colorbar(fig3_2, ax=ax6)
-ax6.set(xlabel=r"$r$ ($\mathrm{mm}$)", ylabel=r"$t$ ($\mathrm{s}$)")
+ax6.set(xlabel=r"$t$ ($\mathrm{mm}$)", ylabel=r"$r$ ($\mathrm{s}$)")
 ax6.set_title("Final step analytical solution in 2D")
 
 # fig3.tight_layout()

@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 ## Load arrays
-data = np.load("/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/pruebilla_fcn_2.npz")
+data = np.load(
+    "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/pruebilla_scn_1.npz"
+)
 INI_RADI_COOR = data["INI_RADI_COOR"]
 FIN_RADI_COOR = data["FIN_RADI_COOR"]
 INI_DIST_COOR = data["INI_DIST_COOR"]
@@ -132,7 +134,7 @@ ax2.plot(
 ax2.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$I(z)$ ($\mathrm{W/{cm}^2}$)")
 ax2.legend(facecolor="black", edgecolor="white")
 
-# fig1.tight_layout()
+fig1.tight_layout()
 plt.show()
 
 ## Set up figure 2
@@ -152,7 +154,7 @@ fig2.colorbar(fig2_2, ax=ax4)
 ax4.set(xlabel=r"$r$ ($\mathrm{\mu m}$)", ylabel=r"$t$ ($\mathrm{fs}$)")
 ax4.set_title(r"Final step solution in 2D")
 
-# fig2.tight_layout()
+fig2.tight_layout()
 plt.show()
 
 ## Set up figure 3

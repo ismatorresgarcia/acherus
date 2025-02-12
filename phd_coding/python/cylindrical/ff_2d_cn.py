@@ -59,7 +59,7 @@ def initial_condition(radius, im_unit, beam_parameters):
 
 def crank_nicolson_diags(nodes, position, coefficient):
     """
-    Generate the three diagonals for a Crank-Nicolson array with centered differences.
+    Set the three diagonals for the Crank-Nicolson array with centered differences.
 
     Parameters:
     - nodes (int): number of radial nodes
@@ -90,7 +90,7 @@ def crank_nicolson_diags(nodes, position, coefficient):
 
 def crank_nicolson_array(nodes, position, coefficient):
     """
-    Generate a Crank-Nicolson sparse array in CSR format using the diagonals.
+    Set the Crank-Nicolson sparse array in CSR format using the diagonals.
 
     Parameters:
     - nodes (int): number of radial nodes
@@ -109,7 +109,7 @@ def crank_nicolson_array(nodes, position, coefficient):
     return crank_nicolson_output
 
 
-def crank_nicolson_step(left_array, right_array, current_envelope):
+def crank_nicolson_step(left_array, right_array, current_envelope, next_envelope):
     """
     Compute one step of the Crank-Nicolson propagation scheme.
 
@@ -117,14 +117,10 @@ def crank_nicolson_step(left_array, right_array, current_envelope):
     - left_array: sparse array for left-hand side
     - right_array: sparse array for right-hand side
     - current_envelope: envelope at step k
-
-    Returns:
-    - next_array: envelope at step k + 1
+    - next_envelope: pre-allocated array for envelope at step k + 1
     """
     b_array = right_array @ current_envelope
-    next_envelope = spsolve(left_array, b_array)
-
-    return next_envelope
+    next_envelope[:] = spsolve(left_array, b_array)
 
 
 IM_UNIT = 1j
@@ -189,6 +185,7 @@ BEAM = {
 ## Set loop variables
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 envelope = np.empty_like(radi_2d_array, dtype=complex)
+envelope_store = np.empty_like(radi_array, dtype=complex)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1 = IM_UNIT * DELTA_R
@@ -200,9 +197,8 @@ envelope[:, 0] = initial_condition(radi_array, IM_UNIT, BEAM)
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):
-    envelope[:, k + 1] = crank_nicolson_step(
-        left_operator, right_operator, envelope[:, k]
-    )
+    crank_nicolson_step(left_operator, right_operator, envelope[:, k], envelope_store)
+    envelope[:, k + 1] = envelope_store
 
 ## Analytical solution for a Gaussian beam
 # Set arrays

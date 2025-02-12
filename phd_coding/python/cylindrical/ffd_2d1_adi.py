@@ -6,9 +6,9 @@ This program includes:
     - Second order group velocity dispersion (GVD).
 
 Numerical discretization: Finite Differences Method (FDM).
-    - Method: Spectral (in frequency) Crank-Nicolson (CN) scheme.
+    - Method: Alternating Direction Implicit (ADI) scheme.
     - Initial condition: Gaussian.
-    - Boundary conditions: Neumann-Dirichlet (radial) and Periodic (temporal).
+    - Boundary conditions: Neumann-Dirichlet (radial) and homogeneous Dirichlet (temporal).
 
 UPPE:           ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t²
 
@@ -26,7 +26,6 @@ k: wavenumber (in the interacting media).
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy.fft import fft, ifft
 from scipy.sparse import diags_array
 from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
@@ -63,9 +62,9 @@ def initial_condition(radius, time, im_unit, beam_parameters):
     return gaussian_envelope
 
 
-def crank_nicolson_diags(nodes, position, coefficient):
+def crank_nicolson_radial_diags(nodes, position, coefficient):
     """
-    Generate the three diagonals for a Crank-Nicolson array with centered differences.
+    Set the three diagonals for the Crank-Nicolson radial array with centered differences.
 
     Parameters:
     - nodes (int): number of radial nodes
@@ -75,25 +74,55 @@ def crank_nicolson_diags(nodes, position, coefficient):
     Returns:
     - tuple: upper, main, and lower diagonals
     """
+    main_coefficient = 1 + 2 * coefficient
     indices = np.arange(1, nodes - 1)
 
     diag_m1 = -coefficient * (1 - 0.5 / indices)
-    diag_0 = np.ones(nodes)
+    diag_0 = np.full(nodes, main_coefficient)
     diag_p1 = -coefficient * (1 + 0.5 / indices)
 
     diag_m1 = np.append(diag_m1, [0])
     diag_p1 = np.insert(diag_p1, 0, [0])
     if position == "LEFT":
+        diag_0[0], diag_0[-1] = main_coefficient, 1
         diag_p1[0] = -2 * coefficient
     else:
+        diag_0[0], diag_0[-1] = main_coefficient, 0
         diag_p1[0] = -2 * coefficient
 
     return diag_m1, diag_0, diag_p1
 
 
-def crank_nicolson_array(nodes, position, coefficient):
+def crank_nicolson_time_diags(nodes, position, coefficient):
     """
-    Generate a Crank-Nicolson sparse array in CSR format using the diagonals.
+    Set the three diagonals for a Crank-Nicolson time array with centered differences.
+
+    Parameters:
+    - nodes (int): number of time nodes
+    - position (str): position of the Crank-Nicolson array (left or right)
+    - coefficient (float): coefficient for the diagonal elements
+
+    Returns:
+    - tuple: upper, main, and lower diagonals
+    """
+    main_coefficient = 1 + 2 * coefficient
+
+    diag_m1 = np.full(nodes - 1, -coefficient)
+    diag_0 = np.full(nodes, main_coefficient)
+    diag_p1 = np.full(nodes - 1, -coefficient)
+
+    diag_p1[0], diag_m1[-1] = 0, 0
+    if position == "LEFT":
+        diag_0[0], diag_0[-1] = 1, 1
+    else:
+        diag_0[0], diag_0[-1] = 0, 0
+
+    return diag_m1, diag_0, diag_p1
+
+
+def crank_nicolson_radial_array(nodes, position, coefficient):
+    """
+    Set the Crank-Nicolson radial sparse array in CSR format using the diagonals.
 
     Parameters:
     - nodes (int): number of radial nodes
@@ -101,69 +130,78 @@ def crank_nicolson_array(nodes, position, coefficient):
     - coefficient (float): coefficient for the diagonal elements
 
     Returns:
-    - array: Containing the Crank-Nicolson sparse array in CSR format
+    - array: Crank-Nicolson sparse array in CSR format
     """
-    diag_m1, diag_0, diag_p1 = crank_nicolson_diags(nodes, position, coefficient)
+    diag_m1, diag_0, diag_p1 = crank_nicolson_radial_diags(nodes, position, coefficient)
 
     diags = [diag_m1, diag_0, diag_p1]
     offset = [-1, 0, 1]
-    crank_nicolson_output = diags_array(diags, offsets=offset, format="csr")
+    radial_output = diags_array(diags, offsets=offset, format="csr")
 
-    return crank_nicolson_output
+    return radial_output
 
 
-def fft_step(current_envelope, fourier_envelope):
+def crank_nicolson_time_array(nodes, position, coefficient):
     """
-    Compute FFT step of the SCN scheme.
+    Set the Crank-Nicolson sparse time array in CSR format using the diagonals.
 
     Parameters:
+    - nodes (int): number of time nodes
+    - position (str): position of the Crank-Nicolson array (left or right)
+    - coefficient (float): coefficient for the diagonal elements
+
+    Returns:
+    - array: Crank-Nicolson sparse array in CSR format
+    """
+    diag_m1, diag_0, diag_p1 = crank_nicolson_time_diags(nodes, position, coefficient)
+
+    diags = [diag_m1, diag_0, diag_p1]
+    offset = [-1, 0, 1]
+    time_output = diags_array(diags, offsets=offset, format="csr")
+
+    return time_output
+
+
+def adi_radial_step(
+    left_array_r, right_array_t, current_envelope, inter_array, semi_array
+):
+    """
+    Compute first half-step (ADI radial direction).
+
+    Parameters:
+    - left_array_r: sparse array for left-hand side (radial)
+    - right_array_t: sparse array for right-hand side (time)
     - current_envelope: envelope at step k
-    - fourier_envelope: pre-allocated array for Fourier transform
+    - inter_array: pre-allocated array for intermediate results
+    - semi_array: pre-allocated array for envelope at step k + 1
     """
+    # Compute right-hand side matrix product row by row
     for i in range(current_envelope.shape[0]):
-        fourier_envelope[i, :] = fft(current_envelope[i, :])
+        inter_array[i, :] = right_array_t @ current_envelope[i, :]
+
+    # Compute first half-step solution
+    for l in range(current_envelope.shape[1]):
+        semi_array[:, l] = spsolve(left_array_r, inter_array[:, l])
 
 
-def update_crank_nicolson_step(sparse_arrays, arrays, coefficients):
+def adi_time_step(left_array_t, right_array_r, inter_array, semi_array, next_envelope):
     """
-    Compute spectral domain operations for all frequency components.
+    Compute second half-step (ADI time direction).
 
     Parameters:
-    - sparse_arrays: dict containing sparse arrays
-        - right: right-hand side array
-        - left: left-hand side array
-    - arrays: dict containing envelope arrays
-        - fourier: envelope in Fourier domain at step k
-        - inter: pre-allocated array for intermediate results
-        - next_fourier: envelope in Fourier domain at step k + 1
-    - coefficients: dict containing array coefficients
-        - left: diagonal terms for left array
-        - right: diagonal terms for right array
+    - left_array_t: sparse array for left-hand side (time)
+    - right_array_r: sparse array for right-hand side (radial)
+    - inter_array: envelope at step k
+    - semi_array: preallocated array for intermediate results
+    - next_envelope: pre-allocated array for envelope at step k + 1
     """
-    for l in range(arrays["fourier"].shape[1]):
-        # Update matrices for current frequency
-        sparse_arrays["left"].setdiag(coefficients["left"][l])
-        sparse_arrays["right"].setdiag(coefficients["right"][l])
-        # Set boundary conditions
-        sparse_arrays["left"].data[-1] = 1
-        sparse_arrays["right"].data[-1] = 0
-        # Solve with Crank-Nicolson for current frequency
-        arrays["inter_array"] = sparse_arrays["right"] @ arrays["fourier"][:, l]
-        arrays["next_fourier"][:, l] = spsolve(
-            sparse_arrays["left"], arrays["inter_array"]
-        )
+    # Compute right-hand side matrix product column by column
+    for l in range(inter_array.shape[1]):
+        semi_array[:, l] = right_array_r @ inter_array[:, l]
 
-
-def ifft_step(next_fourier, next_envelope):
-    """
-    Compute IFFT step of the SCN scheme.
-
-    Parameters:
-    - next_fourier: envelope in Fourier domain at step k + 1
-    - next_envelope: envelope at step k + 1
-    """
-    for i in range(next_fourier.shape[0]):
-        next_envelope[i, :] = ifft(next_fourier[i, :])
+    # Compute second half-step solution
+    for i in range(inter_array.shape[0]):
+        next_envelope[i, :] = spsolve(left_array_t, semi_array[i, :])
 
 
 IM_UNIT = 1j
@@ -179,21 +217,13 @@ AXIS_NODE = int(-INI_RADI_COOR / RADI_STEP_LEN)  # On-axis node
 INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 6e-2, 100
 DIST_STEP_LEN = FIN_DIST_COOR / N_STEPS
 # Time (t) grid
-INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES = -300e-15, 300e-15, 1024
+INI_TIME_COOR, FIN_TIME_COOR, I_TIME_NODES = -300e-15, 300e-15, 1024
+N_TIME_NODES = I_TIME_NODES + 2
 TIME_STEP_LEN = (FIN_TIME_COOR - INI_TIME_COOR) / (N_TIME_NODES - 1)
 PEAK_NODE = N_TIME_NODES // 2  # Peak intensity node
-# Angular frequency (ω) grid
-FRQ_STEP_LEN = 2 * PI / (N_TIME_NODES * TIME_STEP_LEN)
-INI_FRQ_COOR_W1 = 0
-FIN_FRQ_COOR_W1 = PI / TIME_STEP_LEN - FRQ_STEP_LEN
-INI_FRQ_COOR_W2 = -PI / TIME_STEP_LEN
-FIN_FRQ_COOR_W2 = -FRQ_STEP_LEN
-w1 = np.linspace(INI_FRQ_COOR_W1, FIN_FRQ_COOR_W1, N_TIME_NODES // 2)
-w2 = np.linspace(INI_FRQ_COOR_W2, FIN_FRQ_COOR_W2, N_TIME_NODES // 2)
 radi_array = np.linspace(INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES)
 dist_array = np.linspace(INI_DIST_COOR, FIN_DIST_COOR, N_STEPS + 1)
 time_array = np.linspace(INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES)
-frq_array = np.append(w1, w2)
 radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij")
 radi_2d_array_2, time_2d_array_2 = np.meshgrid(radi_array, time_array, indexing="ij")
 dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing="ij")
@@ -247,43 +277,32 @@ BEAM = {
 
 ## Set loop variables
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
-DELTA_T = 0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"]
+DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
 envelope = np.empty_like(radi_2d_array_2, dtype=complex)
 envelope_axis = np.empty_like(dist_2d_array_3, dtype=complex)
-envelope_fourier = np.empty_like(envelope)
 envelope_store = np.empty_like(envelope)
-fourier_coeff = IM_UNIT * DELTA_T * frq_array**2
-b_array = np.empty_like(radi_array, dtype=complex)
+b_array = np.empty_like(envelope)
 c_array = np.empty_like(envelope)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
-MATRIX_CNT_1 = IM_UNIT * DELTA_R
-matrix_cnt_2 = 1 - 2 * MATRIX_CNT_1 + fourier_coeff
-matrix_cnt_3 = 1 + 2 * MATRIX_CNT_1 - fourier_coeff
-left_operator = crank_nicolson_array(N_RADI_NODES, "LEFT", MATRIX_CNT_1)
-right_operator = crank_nicolson_array(N_RADI_NODES, "RIGHT", -MATRIX_CNT_1)
+MAT_CNT_1R = IM_UNIT * DELTA_R
+MAT_CNT_1T = IM_UNIT * DELTA_T
+left_operator_r = crank_nicolson_radial_array(N_RADI_NODES, "LEFT", MAT_CNT_1R)
+right_operator_r = crank_nicolson_radial_array(N_RADI_NODES, "RIGHT", -MAT_CNT_1R)
+left_operator_t = crank_nicolson_time_array(N_TIME_NODES, "LEFT", MAT_CNT_1T)
+right_operator_t = crank_nicolson_time_array(N_TIME_NODES, "RIGHT", -MAT_CNT_1T)
 
 ## Set initial electric field wave packet
 envelope = initial_condition(radi_2d_array_2, time_2d_array_2, IM_UNIT, BEAM)
 # Save on-axis envelope initial state
 envelope_axis[0, :] = envelope[AXIS_NODE, :]
 
-## Set dictionaries for better organization
-operators = {"left": left_operator, "right": right_operator}
-vectors = {
-    "fourier": envelope_fourier,
-    "inter_array": b_array,
-    "next_fourier": c_array,
-}
-coeffs = {"left": matrix_cnt_3, "right": matrix_cnt_2}
-
-## Propagation loop over desired number of steps (Spectral domain)
+## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):
-    fft_step(envelope, envelope_fourier)
-    update_crank_nicolson_step(operators, vectors, coeffs)
-    ifft_step(c_array, envelope_store)
+    adi_radial_step(left_operator_r, right_operator_t, envelope, b_array, c_array)
+    adi_time_step(left_operator_t, right_operator_r, c_array, b_array, envelope_store)
 
-    # Update arrays for next step
+    # Update arrays for the next step
     envelope = envelope_store
     envelope_axis[k + 1, :] = envelope_store[AXIS_NODE, :]
 
@@ -475,7 +494,7 @@ fig3_2 = ax6.pcolormesh(
     cmap=cmap_option,
 )
 fig3.colorbar(fig3_2, ax=ax6)
-ax6.set(xlabel=r"$t$ ($\mathrm{mm}$)", ylabel=r"$r$ ($\mathrm{s}$)")
+ax6.set(xlabel=r"$r$ ($\mathrm{mm}$)", ylabel=r"$t$ ($\mathrm{s}$)")
 ax6.set_title("Final step analytical solution in 2D")
 
 # fig3.tight_layout()
