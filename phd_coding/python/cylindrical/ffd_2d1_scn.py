@@ -1,6 +1,6 @@
 """
 This program solves the Unidirectional Pulse Propagation Equation (UPPE) of an ultra-intense
-and ultra-short laser pulse.
+and ultra-short laser pulse in cylindrical coordinates with radial symmetry.
 This program includes:
     - Diffraction (for the transverse direction).
     - Second order group velocity dispersion (GVD).
@@ -10,7 +10,7 @@ Numerical discretization: Finite Differences Method (FDM).
     - Initial condition: Gaussian.
     - Boundary conditions: Neumann-Dirichlet (radial) and Periodic (temporal).
 
-UPPE:           ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t²
+UPPE:          ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t²
 
 
 E: envelope.
@@ -19,7 +19,7 @@ r: radial coordinate.
 z: distance coordinate.
 t: time coordinate.
 k: wavenumber (in the interacting media).
-∇: nabla operator (for the tranverse direction).
+k'': GVD coefficient of 2nd order.
 ∇²: laplace operator (for the transverse direction).
 """
 

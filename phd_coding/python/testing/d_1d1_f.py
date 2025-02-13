@@ -1,8 +1,6 @@
 """
-This program solves the Unidirectional Pulse Propagation Equation (UPPE) of an ultra-intense
-and ultra-short laser pulse.
-This program includes:
-    - Second order group velocity dispersion (GVD).
+This program solves the 1D propagation equation of a laser pulse
+due to second order group velocity dispersion (GVD).
 
 Numerical discretization: Finite Differences Method (FDM).
     - Method: Fast Fourier Transform (FFT).

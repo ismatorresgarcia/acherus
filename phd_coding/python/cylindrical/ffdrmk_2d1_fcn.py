@@ -4,6 +4,7 @@ and ultra-short laser pulse in cylindrical coordinates with radial symmetry.
 This program includes:
     - Diffraction (for the transverse direction).
     - Second order group velocity dispersion (GVD).
+    - Absorption and defocusing due to the electron plasma. 
     - Multiphotonic ionization by multiphoton absorption (MPA).
     - Nonlinear optical Kerr effect (for a third-order centrosymmetric medium).
 
@@ -11,10 +12,13 @@ Numerical discretization: Finite Differences Method (FDM).
     - Method: Split-step Fourier Crank-Nicolson (FCN) scheme.
         *- Fast Fourier Transform (FFT) scheme (for GVD).
         *- Extended Crank-Nicolson (CN) scheme (for diffraction, Kerr and MPA).
-    - Initial condition: Gaussian.
-    - Boundary conditions: Neumann-Dirichlet (radial) and Periodic (temporal).
+    - Initial condition: 
+        *- Gaussian envelope at initial z coordinate.
+        *- Constant electron density at initial t coordinate.
+    - Boundary conditions: Neumann-Dirichlet (radial) and Periodic (temporal) for the envelope.
 
-UPPE:          ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t² - iB_K|E|^(2K-2)E + ik_0n_2|E|^2 E 
+UPPE:          ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t² - i(k_0/2n_0)(N/N_c)E - iB_K|E|^(2K-2)E 
+                                  + ik_0n_2|E|^2 E 
 
 DISCLAIMER: UPPE uses "god-like" units, where envelope intensity and its square module are the same.
             This is equivalent to setting 0.5*c*e_0*n_0 = 1 in the UPPE when using the SI system.
@@ -24,6 +28,7 @@ DISCLAIMER: UPPE uses "god-like" units, where envelope intensity and its square 
             factor can be changed at will between the two unit systems.
 
 E: envelope.
+N: electron density (in the interacting media).
 i: imaginary unit.
 r: radial coordinate.
 z: distance coordinate.
@@ -31,6 +36,7 @@ t: time coordinate.
 k: wavenumber (in the interacting media).
 k'': GVD coefficient of 2nd order.
 k_0: wavenumber (in vacuum).
+N_c: critical density (of the interacting media).
 n_2: nonlinear refractive index (for a third-order centrosymmetric medium).
 B_K: nonlinear multiphoton absorption coefficient.
 ∇²: laplace operator (for the transverse direction).
@@ -152,6 +158,7 @@ def nonlinear_terms(current_envelope, inter_array, media_params):
     inter_array[:, :, 0] = current_envelope
     inter_array[:, :, 1] = np.abs(current_envelope) ** 2
     inter_array[:, :, 2] = np.abs(current_envelope) ** media_params["MPA_EXP"]
+    inter_array[:, :, 3] = np.abs(current_envelope) ** media_params["MPI_EXP"]
 
 
 def ini_adam_bashforth_step(inter_array, adam_bash_array, media_params):
@@ -216,6 +223,18 @@ def crank_nicolson_step(
         next_envelope[:, l] = spsolve(left_array, f_array)
 
 
+def density_step():
+    """
+    Compute one step of the electron density evolution.
+
+    Parameters:
+    - inter_array: pre-allocated array for intermediate results
+    - adam_bash_array: pre-allocated array for Adam-Bashforth terms
+    - next_envelope: pre-allocated array for envelope at step k + 1
+    """
+    a_array = 
+
+
 IM_UNIT = 1j
 PI = np.pi
 
@@ -250,12 +269,16 @@ dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing=
 
 ## Set beam and media parameters
 LIGHT_SPEED = 299792458
+ELECTRON_MASS = 9.1093837139e-31
+ELECTRON_CHARGE = 1.602176634e-19
 PERMITTIVITY = 8.8541878128e-12
 LIN_REF_IND_WATER = 1.328
 NLIN_REF_IND_WATER = 1.6e-20
 GVD_COEF_WATER = 241e-28
 N_PHOTONS_WATER = 5
 BETA_COEF_WATER = 8e-64
+SIGMA_COEF_WATER = 1.2e-72
+NEUTRAL_DENS = 6.68e-28
 
 WAVELENGTH_0 = 800e-9
 WAIST_0 = 100e-6
@@ -268,14 +291,21 @@ CHIRP = -1
 INT_FACTOR = 1
 WAVENUMBER_0 = 2 * PI / WAVELENGTH_0
 WAVENUMBER = 2 * PI * LIN_REF_IND_WATER / WAVELENGTH_0
+ANGULAR_FRQ = WAVENUMBER_0 * LIGHT_SPEED
 POWER = ENERGY / (PEAK_TIME * np.sqrt(0.5 * PI))
 CR_POWER = 3.77 * WAVELENGTH_0**2 / (8 * PI * LIN_REF_IND_WATER * NLIN_REF_IND_WATER)
 INTENSITY = 2 * POWER / (PI * WAIST_0**2)
 AMPLITUDE = np.sqrt(INTENSITY / INT_FACTOR)
 
-MPA_EXP = 2 * N_PHOTONS_WATER - 2
-KERR_COEF = IM_UNIT * WAVENUMBER_0 * NLIN_REF_IND_WATER * DIST_STEP_LEN * INT_FACTOR
+CRITICAL_DENS = PERMITTIVITY * ELECTRON_MASS * (ANGULAR_FRQ / ELECTRON_CHARGE) ** 2
+MPI_EXP = 2 * N_PHOTONS_WATER
+MPA_EXP = MPI_EXP - 2
 MPA_COEF = -0.5 * BETA_COEF_WATER * DIST_STEP_LEN * INT_FACTOR ** (N_PHOTONS_WATER - 1)
+REF_COEF = (
+    -0.5 * IM_UNIT * WAVENUMBER_0 * DIST_STEP_LEN / (LIN_REF_IND_WATER * CRITICAL_DENS)
+)
+KERR_COEF = IM_UNIT * WAVENUMBER_0 * NLIN_REF_IND_WATER * DIST_STEP_LEN * INT_FACTOR
+MPI_COEF = SIGMA_COEF_WATER * INT_FACTOR**N_PHOTONS_WATER
 
 ## Set dictionaries for better organization
 MEDIA = {
@@ -283,16 +313,23 @@ MEDIA = {
         "LIN_REF_IND": LIN_REF_IND_WATER,
         "NLIN_REF_IND": NLIN_REF_IND_WATER,
         "GVD_COEF": GVD_COEF_WATER,
+        "NEUTRAL_DENS": NEUTRAL_DENS,
+        "CRITICAL_DENS": CRITICAL_DENS,
         "N_PHOTONS": N_PHOTONS_WATER,  # Number of photons absorbed [-]
         "BETA_COEF": BETA_COEF_WATER,  # MPA coefficient [m(2K-3) / W-(K-1)]
+        "MPI_EXP": MPI_EXP,  # MPI exponent [-]
         "MPA_EXP": MPA_EXP,  # MPA exponent [-]
-        "KERR_COEF": KERR_COEF,  # Kerr coefficient [m^2 / W]
+        "REF_COEF": REF_COEF,  # Refraction coefficient [m-1]
+        "MPI_COEF": MPI_COEF,  # MPI coefficient [s-1 - m2K / W-K]
         "MPA_COEF": MPA_COEF,  # MPA coefficient [m^2 / W]
+        "KERR_COEF": KERR_COEF,  # Kerr coefficient [m^2 / W]
         "INT_FACTOR": INT_FACTOR,
     },
     "VACUUM": {
         "LIGHT_SPEED": LIGHT_SPEED,
         "PERMITTIVITY": PERMITTIVITY,
+        "ELECTRON_MASS": ELECTRON_MASS,
+        "ELECTRON_CHARGE": ELECTRON_CHARGE,
     },
 }
 
@@ -315,13 +352,19 @@ BEAM = {
 ## Set loop variables
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
+DENS_CNT_1 = -0.5 * TIME_STEP_LEN * MEDIA["WATER"]["MPI_COEF"]
+DENS_CNT_2 = 0.5 * TIME_STEP_LEN * MEDIA["WATER"]["NEUTRAL_DENS"]
+DENS_CNT_3 = DENS_CNT_2 * MEDIA["WATER"]["MPI_COEF"]
 envelope = np.empty_like(radi_2d_array_2, dtype=complex)
 envelope_axis = np.empty_like(dist_2d_array_3, dtype=complex)
 envelope_store = np.empty_like(envelope)
 fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_T * (frq_array * TIME_STEP_LEN) ** 2)
+electron_dens = np.empty_like(radi_2d_array, dtype=complex)
+electron_dens_axis = np.empty_like(envelope_axis, dtype=complex)
+electron_dens_store = np.empty_like(electron_dens)
 b_array = np.empty_like(envelope)
-c_array = np.empty([N_RADI_NODES, N_TIME_NODES, 3], dtype=complex)
-w_array = np.empty([N_RADI_NODES, N_TIME_NODES, 2], dtype=complex)
+c_array = np.empty([N_RADI_NODES, N_TIME_NODES, 4], dtype=complex)
+w_array = np.empty([N_RADI_NODES, N_TIME_NODES, 3], dtype=complex)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1 = IM_UNIT * DELTA_R
@@ -332,6 +375,11 @@ right_operator = crank_nicolson_array(N_RADI_NODES, "RIGHT", -MATRIX_CNT_1)
 envelope = initial_condition(radi_2d_array_2, time_2d_array_2, IM_UNIT, BEAM)
 # Save on-axis envelope initial state
 envelope_axis[0, :] = envelope[AXIS_NODE, :]
+
+# Set initial electron density
+electron_dens[:, :] = 0
+# Save on-axis electron density initial state
+electron_dens_axis[:, 0] = electron_dens[AXIS_NODE, :]
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS - 1)):
@@ -351,7 +399,7 @@ for k in tqdm(range(N_STEPS - 1)):
     envelope_axis[k + 2, :] = envelope_store[AXIS_NODE, :]
 
 np.savez(
-    "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdmk_fcn_1",
+    "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdrmk_fcn_1",
     INI_RADI_COOR=INI_RADI_COOR,
     FIN_RADI_COOR=FIN_RADI_COOR,
     INI_DIST_COOR=INI_DIST_COOR,
@@ -364,3 +412,82 @@ np.savez(
     e=envelope,
     e_axis=envelope_axis,
 )
+
+#    # Compute electron density (Time domain)
+#    for n in range(N_TIME_NODES - 1):
+#            a_array = np.exp(
+#                DENS_CNT_1
+#                * (
+#                    np.abs(e[:, n + 1]) ** MPI_EXP
+#                    + np.abs(e[:, n]) ** MPI_EXP
+#                )
+#            )
+#            rho[:, n + 1] = (
+#                a_array
+#                * (rho[:, n] + RHO_CONSTANT_3 * np.abs(e[:, n]) ** MPI_EXPONENT)
+#                + RHO_CONSTANT_3 * np.abs(e[:, n + 1]) ** MPI_EXPONENT
+#            )
+#
+#    # Compute first half-step (Spectral domain)
+#    for i in range(N_RADIAL_NODES + 2):
+#        e_fourier = fourier_coeff * fft(e[i, :])
+#        # Compute first half-step solution
+#        b_arr[i, :] = ifft(e_fourier)
+#
+#    # Compute second half-step (Time domain)
+#    for n in range(N_TIME_NODES):
+#        c_arr[:, n, 0] = b_arr[:, n]
+#        c_arr[:, n, 1] = rho[:, n]
+#        c_arr[:, n, 2] = np.abs(c_arr[:, n, 0]) ** 2
+#        c_arr[:, n, 3] = np.abs(c_arr[:, n, 0]) ** MPA_EXPONENT
+#        if k == 0:  # I'm guessing a value for starting the AB2 method
+#            w_arr[:, n, 0] = (
+#                PROPAGATION_STEP_LENGTH
+#                * (
+#                    REFF_COEFF * c_arr[:, n, 1]
+#                    + KERR_COEFF * c_arr[:, n, 2]
+#                    + MPA_COEFF * c_arr[:, n, 3]
+#                )
+#                * c_arr[:, n, 0]
+#            )
+#            G = 1.0
+#            c_arr[:, n, 0] = G * c_arr[:, n, 0]
+#            c_arr[:, n, 1] = G * rho[:, n]
+#            c_arr[:, n, 2] = np.abs(c_arr[:, n, 0]) ** 2
+#            c_arr[:, n, 3] = np.abs(c_arr[:, n, 0]) ** MPA_EXPONENT
+#            w_arr[:, n, 1] = (
+#                PROPAGATION_STEP_LENGTH
+#                * (
+#                    REFF_COEFF * c_arr[:, n, 1]
+#                    + KERR_COEFF * c_arr[:, n, 2]
+#                    + MPA_COEFF * c_arr[:, n, 3]
+#                )
+#                * c_arr[:, n, 0]
+#            )
+#            e_axis[k + 1, n] = c_arr[AXIS_NODE, n, 0]  # Save on-axis envelope 1-step
+#            # rho_axis[k + 2, n] = c_arr[
+#            # AXIS_NODE, n, 1
+#            # ]  # Save on-axis electron density 2-step
+#        else:
+#            w_arr[:, n, 1] = (
+#                PROPAGATION_STEP_LENGTH
+#                * (
+#                    REFF_COEFF * c_arr[:, n, 1]
+#                    + KERR_COEFF * c_arr[:, n, 2]
+#                    + MPA_COEFF * c_arr[:, n, 3]
+#                )
+#                * c_arr[:, n, 0]
+#            )
+#
+#        # Compute intermediate arrays
+#        d_arr = lp @ c_arr[:, n, 0]
+#        f_arr = d_arr + 0.5 * (3 * w_arr[:, n, 1] - w_arr[:, n, 0])
+#
+#        # Compute second half-step solution
+#        e_store[:, n] = spsolve(lm, f_arr)
+#
+#    # Update arrays for the next step
+#    w_arr[:, :, 0] = w_arr[:, :, 1]
+#    e = e_store
+#    e_axis[k + 2, :] = e_store[AXIS_NODE, :]  # Save on-axis envelope k-step
+#    # rho_axis[k + 2, :] = rho[AXIS_NODE, :]  # Save on-axis electron density k-step

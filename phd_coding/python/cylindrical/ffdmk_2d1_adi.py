@@ -1,11 +1,11 @@
 """
 This program solves the Unidirectional Pulse Propagation Equation (UPPE) of an ultra-intense
-and ultra-short laser pulse.
+and ultra-short laser pulse in cylindrical coordinates with radial symmetry.
 This program includes:
     - Diffraction (for the transverse direction).
     - Second order group velocity dispersion (GVD).
-    - Nonlinear optical Kerr effect (for a third-order centrosymmetric medium).
     - Multiphotonic ionization by multiphoton absorption (MPA).
+    - Nonlinear optical Kerr effect (for a third-order centrosymmetric medium).
 
 Numerical discretization: Finite Differences Method (FDM)
     - Method: Split-step Alternate Direction Implicit Adam-Bashforth (ADIAB) scheme
@@ -14,7 +14,7 @@ Numerical discretization: Finite Differences Method (FDM)
     - Initial condition: Gaussian
     - Boundary conditions: Neumann-Dirichlet (radial) and homogeneous Dirichlet (temporal)
 
-UPPE:           ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t² + ik_0n_2|E|^2 E - iB_K|E|^(2K-2)E
+UPPE:          ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t² - iB_K|E|^(2K-2)E + ik_0n_2|E|^2 E 
 
 DISCLAIMER: UPPE uses "god-like" units, where envelope intensity and its square module are the same.
             This is equivalent to setting 0.5*c*e_0*n_0 = 1 in the UPPE when using the SI system.
@@ -23,17 +23,17 @@ DISCLAIMER: UPPE uses "god-like" units, where envelope intensity and its square 
             However, the dictionary "MEDIA" has an entry "INT_FACTOR" where the conversion 
             factor can be changed at will between the two unit systems.
 
-E: envelope
-i: imaginary unit
-r: radial coordinate
-z: distance coordinate
-t: time coordinate
-k: wavenumber (in the interacting media)
-k_0: wavenumber (in vacuum)
-n_2: nonlinear refractive index (for a third-order centrosymmetric medium)
-B_K: nonlinear multiphoton absorption coefficient
-∇: nabla operator (for the tranverse direction)
-∇²: laplace operator (for the transverse direction)
+E: envelope.
+i: imaginary unit.
+r: radial coordinate.
+z: distance coordinate.
+t: time coordinate.
+k: wavenumber (in the interacting media).
+k'': GVD coefficient of 2nd order.
+k_0: wavenumber (in vacuum).
+n_2: nonlinear refractive index (for a third-order centrosymmetric medium).
+B_K: nonlinear multiphoton absorption coefficient.
+∇²: laplace operator (for the transverse direction).
 """
 
 import numpy as np

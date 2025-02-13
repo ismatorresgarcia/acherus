@@ -1,6 +1,6 @@
 """
 This program solves the Unidirectional Pulse Propagation Equation (UPPE) of an ultra-intense
-and ultra-short laser pulse.
+and ultra-short laser pulse in cartesian coordinates.
 This program includes:
     - Diffraction (for two transverse directions).
 
@@ -9,17 +9,15 @@ Numerical discretization: Finite Differences Method (FDM)
     - Initial condition: Gaussian.
     - Boundary conditions: Periodic.
 
-UPPE:           ∂E/∂z = i/(2k) (∂²E/∂x² + ∂²E/∂y²)
+UPPE:          ∂E/∂z = i/(2k) (∂²E/∂x² + ∂²E/∂y²)
 
 
 E: envelope.
 i: imaginary unit.
-x: first transverse coordinate.
-y: second transverse coordinate.
+x: independent transverse coordinate.
+y: independent transverse coordinate.
 z: distance coordinate.
 k: wavenumber (in the interacting media).
-∇: nabla operator (for the tranverse direction).
-∇²: laplace operator (for the transverse direction).
 """
 
 import matplotlib as mpl

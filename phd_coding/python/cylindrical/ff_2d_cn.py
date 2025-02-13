@@ -1,15 +1,15 @@
 """
 This program solves the Unidirectional Pulse Propagation Equation (UPPE) of an ultra-intense
-and ultra-short laser pulse.
+and ultra-short laser pulse in cylindrical coordinates with radial symmetry.
 This program includes:
-    - Diffraction (for the transverse direction).
+    - Diffraction (for the radial direction).
 
 Numerical discretization: Finite Differences Method (FDM)
     - Method: Crank-Nicolson (CN) scheme.
     - Initial condition: Gaussian.
     - Boundary conditions: Neumann-Dirichlet.
 
-UPPE:           ∂E/∂z = i/(2k) ∇²E
+UPPE:          ∂E/∂z = i/(2k) ∇²E
 
 
 E: envelope.
@@ -17,8 +17,7 @@ i: imaginary unit.
 r: radial coordinate.
 z: distance coordinate.
 k: wavenumber (in the interacting media).
-∇: nabla operator (for the tranverse direction).
-∇²: laplace operator (for the transverse direction).
+∇²: laplace operator (for the radial direction).
 """
 
 import matplotlib as mpl

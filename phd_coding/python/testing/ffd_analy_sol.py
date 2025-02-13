@@ -1,9 +1,17 @@
 """
-This program represents graphically the linear solution for the Unidirectional 
-Pulse Propagation Equation (UPPE) of an ultra-intense and ultra-short laser pulse.
+This program represents graphically the 2D propagation equation of a laser pulse
+due to diffraction and second order group velocity dispersion (GVD) with cylindrical
+coordinates and radial symmetry.
 
-Since it's the linear solution, only diffraction in the transverse direction and
-second order group velocity dispersion (GVD) are considered.
+UPPE:           ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t²
+
+E: envelope.
+i: imaginary unit.
+r: radial coordinate.
+z: distance coordinate.
+t: time coordinate.
+k: wavenumber (in the interacting media).
+∇²: laplace operator (for the transverse direction).
 """
 
 import matplotlib as mpl

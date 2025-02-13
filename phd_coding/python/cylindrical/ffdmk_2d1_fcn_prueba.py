@@ -247,6 +247,9 @@ frq_array = np.append(w1, w2)
 radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij")
 radi_2d_array_2, time_2d_array_2 = np.meshgrid(radi_array, time_array, indexing="ij")
 dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing="ij")
+radi_3d_array, dist_3d_array, time_3d_array = np.meshgrid(
+    radi_array, dist_array, time_array, indexing="ij"
+)
 
 ## Set beam and media parameters
 LIGHT_SPEED = 299792458
@@ -315,11 +318,9 @@ BEAM = {
 ## Set loop variables
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
-envelope = np.empty_like(radi_2d_array_2, dtype=complex)
-envelope_axis = np.empty_like(dist_2d_array_3, dtype=complex)
-envelope_store = np.empty_like(envelope)
+envelope = np.empty_like(radi_3d_array, dtype=complex)
 fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_T * (frq_array * TIME_STEP_LEN) ** 2)
-b_array = np.empty_like(envelope)
+b_array = np.empty_like(envelope[:, 0, :])
 c_array = np.empty([N_RADI_NODES, N_TIME_NODES, 3], dtype=complex)
 w_array = np.empty([N_RADI_NODES, N_TIME_NODES, 2], dtype=complex)
 
@@ -329,26 +330,24 @@ left_operator = crank_nicolson_array(N_RADI_NODES, "LEFT", MATRIX_CNT_1)
 right_operator = crank_nicolson_array(N_RADI_NODES, "RIGHT", -MATRIX_CNT_1)
 
 ## Set initial electric field wave packet
-envelope = initial_condition(radi_2d_array_2, time_2d_array_2, IM_UNIT, BEAM)
-# Save on-axis envelope initial state
-envelope_axis[0, :] = envelope[AXIS_NODE, :]
+envelope[:, 0, :] = initial_condition(radi_2d_array_2, time_2d_array_2, IM_UNIT, BEAM)
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS - 1)):
-    fft_step(fourier_coeff, envelope, b_array)
+    fft_step(fourier_coeff, envelope[:, k, :], b_array)
     nonlinear_terms(b_array, c_array, MEDIA["WATER"])
     if k == 0:
         ini_adam_bashforth_step(c_array, w_array, MEDIA["WATER"])
-        envelope_axis[k + 1, :] = c_array[AXIS_NODE, :, 0]
+        envelope[:, k + 1, :] = c_array[:, :, 0]
     else:
         adam_bashforth_step(c_array, w_array, MEDIA["WATER"])
 
-    crank_nicolson_step(left_operator, right_operator, c_array, w_array, envelope_store)
+    crank_nicolson_step(
+        left_operator, right_operator, c_array, w_array, envelope[:, k + 1, :]
+    )
 
     # Update arrays for the next step
     w_array[:, :, 0] = w_array[:, :, 1]
-    envelope = envelope_store
-    envelope_axis[k + 2, :] = envelope_store[AXIS_NODE, :]
 
 np.savez(
     "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdmk_fcn_1",
@@ -362,5 +361,4 @@ np.savez(
     PEAK_NODE=PEAK_NODE,
     LIN_REF_IND=MEDIA["WATER"]["LIN_REF_IND"],
     e=envelope,
-    e_axis=envelope_axis,
 )
