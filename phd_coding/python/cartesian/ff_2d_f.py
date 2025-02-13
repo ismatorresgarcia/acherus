@@ -172,7 +172,7 @@ ratio_term = BEAM["WAIST_0"] / beam_waist[np.newaxis, :]
 decay_exp_term = (radi_array[:, np.newaxis] / beam_waist) ** 2
 prop_exp_term = (
     0.5 * IM_UNIT * BEAM["WAVENUMBER"] * radi_array[:, np.newaxis] ** 2 / beam_radius
-)  # (1002, 1001)
+)
 gouy_exp_term = IM_UNIT * gouy_phase[np.newaxis, :]
 
 # Compute solution

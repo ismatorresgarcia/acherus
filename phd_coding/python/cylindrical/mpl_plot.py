@@ -9,7 +9,7 @@ import numpy as np
 
 ## Load arrays
 data = np.load(
-    "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/pruebilla_scn_1.npz"
+    "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/pruebilla_scn_2.npz"
 )
 INI_RADI_COOR = data["INI_RADI_COOR"]
 FIN_RADI_COOR = data["FIN_RADI_COOR"]

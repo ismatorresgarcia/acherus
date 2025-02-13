@@ -51,7 +51,7 @@ def initial_condition(x, y, im_unit, beam_parameters):
     wave_number = beam_parameters["WAVENUMBER"]
     focal_length = beam_parameters["FOCAL_LENGTH"]
     gaussian_envelope = amplitude * np.exp(
-        -(x**2 + y**2) / waist
+        -(x**2 + y**2) / waist**2
         - 0.5 * im_unit * wave_number * (x**2 + y**2) / focal_length
     )
 
@@ -75,11 +75,11 @@ PI = np.pi
 
 ## Set parameters (grid spacing, propagation step, etc.)
 # Transverse (x) grid
-INI_X_COOR, FIN_X_COOR, N_X_NODES = -2e-2, 2e-2, 1000
+INI_X_COOR, FIN_X_COOR, N_X_NODES = -1e-2, 1e-2, 128
 X_STEP_LEN = (FIN_X_COOR - INI_X_COOR) / (N_X_NODES - 1)
 AXIS_X_NODE = int(-INI_X_COOR / X_STEP_LEN)  # On-axis x node
 # Transverse (y) grid
-INI_Y_COOR, FIN_Y_COOR, N_Y_NODES = -2e-2, 2e-2, 1000
+INI_Y_COOR, FIN_Y_COOR, N_Y_NODES = -2e-2, 2e-2, 512
 Y_STEP_LEN = (FIN_Y_COOR - INI_Y_COOR) / (N_Y_NODES - 1)
 AXIS_Y_NODE = int(-INI_Y_COOR / Y_STEP_LEN)  # On-axis y node
 # Propagation (z) grid
@@ -107,6 +107,9 @@ dist_array = np.linspace(INI_DIST_COOR, FIN_DIST_COOR, N_STEPS + 1)
 kx_array = np.append(kx1, kx2)
 ky_array = np.append(ky1, ky2)
 x_2d_array, y_2d_array = np.meshgrid(x_array, y_array, indexing="ij")
+x_3d_array, y_3d_array, dist_3d_array = np.meshgrid(
+    x_array, y_array, dist_array, indexing="ij"
+)
 
 ## Set beam and media parameters
 LIGHT_SPEED = 299792458
@@ -155,186 +158,287 @@ BEAM = {
 DELTA_X = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * X_STEP_LEN**2)
 DELTA_Y = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * Y_STEP_LEN**2)
 envelope = np.empty_like(x_2d_array, dtype=complex)
+envelope_ini = np.empty_like(envelope)
 envelope_store = np.empty_like(envelope)
+envelope_axis = np.empty_like(dist_array, dtype=complex)
 fourier_coeff = np.exp(
     -2
     * IM_UNIT
     * (
         DELTA_X * (kx_array[:, np.newaxis] * X_STEP_LEN) ** 2
-        + DELTA_Y * (ky_array[np.newaxis, :] * Y_STEP_LEN) ** 2
+        + DELTA_Y * (ky_array * Y_STEP_LEN) ** 2
     )
 )
 
 ## Set initial electric field wave packet
 envelope = initial_condition(x_2d_array, y_2d_array, IM_UNIT, BEAM)
+envelope_ini = envelope
+# Save on-axis envelope initial state
+envelope_axis[0] = envelope[AXIS_X_NODE, AXIS_Y_NODE]
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):
     fft_step(fourier_coeff, envelope, envelope_store)
     envelope = envelope_store
+    envelope_axis[k + 1] = envelope_store[AXIS_X_NODE, AXIS_Y_NODE]
 
-### Analytical solution for a Gaussian beam
-## Set arrays
-# envelope_s = np.empty_like(envelope)
+## Analytical solution for a Gaussian beam
+# Set arrays
+envelope_s = np.empty_like(x_3d_array, dtype=complex)
 
-## Set variables
-# RAYLEIGH_LEN = 0.5 * BEAM["WAVENUMBER"] * BEAM["WAIST_0"] ** 2
-# LENS_DIST = BEAM["FOCAL_LENGTH"] / (1 + (BEAM["FOCAL_LENGTH"] / RAYLEIGH_LEN) ** 2)
-# beam_waist = BEAM["WAIST_0"] * np.sqrt(
-# (1 - dist_array / BEAM["FOCAL_LENGTH"]) ** 2 + (dist_array / RAYLEIGH_LEN) ** 2
-# )
-# beam_radius = (
-# dist_array
-# - LENS_DIST
-# + (LENS_DIST * (BEAM["FOCAL_LENGTH"] - LENS_DIST)) / (dist_array - LENS_DIST)
-# )
-# gouy_phase = np.atan(
-# (dist_array - LENS_DIST) / np.sqrt(BEAM["FOCAL_LENGTH"] * LENS_DIST - LENS_DIST**2)
-# )
-##
-# ratio_term = BEAM["WAIST_0"] / beam_waist[np.newaxis, :]
-# decay_exp_term = (radi_array[:, np.newaxis] / beam_waist) ** 2
-# prop_exp_term = (
-# 0.5 * IM_UNIT * BEAM["WAVENUMBER"] * radi_array[:, np.newaxis] ** 2 / beam_radius
-# )  # (1002, 1001)
-# gouy_exp_term = IM_UNIT * gouy_phase[np.newaxis, :]
+# Set variables
+RAYLEIGH_LEN = 0.5 * BEAM["WAVENUMBER"] * BEAM["WAIST_0"] ** 2
+LENS_DIST = BEAM["FOCAL_LENGTH"] / (1 + (BEAM["FOCAL_LENGTH"] / RAYLEIGH_LEN) ** 2)
+beam_waist = BEAM["WAIST_0"] * np.sqrt(
+    (1 - dist_array / BEAM["FOCAL_LENGTH"]) ** 2 + (dist_array / RAYLEIGH_LEN) ** 2
+)
+beam_radius = (
+    dist_array
+    - LENS_DIST
+    + (LENS_DIST * (BEAM["FOCAL_LENGTH"] - LENS_DIST)) / (dist_array - LENS_DIST)
+)
+gouy_phase = np.atan(
+    (dist_array - LENS_DIST) / np.sqrt(BEAM["FOCAL_LENGTH"] * LENS_DIST - LENS_DIST**2)
+)
+#
+ratio_term = BEAM["WAIST_0"] / beam_waist[np.newaxis, np.newaxis, :]
+decay_exp_term = (
+    x_array[:, np.newaxis, np.newaxis] ** 2 + y_array[np.newaxis, :, np.newaxis] ** 2
+) / beam_waist[np.newaxis, np.newaxis, :] ** 2
+prop_exp_term = (
+    0.5
+    * IM_UNIT
+    * BEAM["WAVENUMBER"]
+    * (
+        x_array[:, np.newaxis, np.newaxis] ** 2
+        + y_array[np.newaxis, :, np.newaxis] ** 2
+    )
+    / beam_radius[np.newaxis, np.newaxis, :]
+)
+gouy_exp_term = IM_UNIT * gouy_phase[np.newaxis, np.newaxis, :]
 
-## Compute solution
-# envelope_s = (
-# BEAM["AMPLITUDE"]
-# * np.sqrt(ratio_term)
-# * np.exp(-decay_exp_term + prop_exp_term - gouy_exp_term)
-# )
+# Compute solution
+envelope_s = (
+    BEAM["AMPLITUDE"]
+    * ratio_term
+    * np.exp(-decay_exp_term + prop_exp_term - gouy_exp_term)
+)
 
-#### Plots
-# plt.style.use("dark_background")
-# cmap_option = mpl.colormaps["plasma"]
-# figsize_option = (13, 7)
+## Plots
+plt.style.use("dark_background")
+cmap_option = mpl.colormaps["plasma"]
+figsize_option = (13, 7)
 
-## Set up conversion factors
-# RADI_FACTOR = 1000
-# DIST_FACTOR = 100
-# AREA_FACTOR = 1e-4
-## Set up plotting grid (mm, cm)
-# new_radi_2d_array = RADI_FACTOR * radi_2d_array
-# new_dist_2d_array = DIST_FACTOR * dist_2d_array
-# new_radi_array = new_radi_2d_array[:, 0]
-# new_dist_array = new_dist_2d_array[0, :]
+# Set up conversion factors
+X_FACTOR = 1000
+Y_FACTOR = 1000
+DIST_FACTOR = 100
+AREA_FACTOR = 1e-4
+# Set up plotting grid (mm, mm, cm)
+new_x_2d_array = X_FACTOR * x_2d_array
+new_y_2d_array = Y_FACTOR * y_2d_array
+new_dist_array = DIST_FACTOR * dist_array
+new_x_array = new_x_2d_array[:, 0]
+new_y_array = new_y_2d_array[0, :]
 
-## Set up intensities (W/cm^2)
-# plot_int = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope) ** 2
-# plot_int_s = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_s) ** 2
+# Set up intensities (W/cm^2)
+plot_int_s = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_s) ** 2
+plot_int_ini = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_ini) ** 2
+plot_int_fin = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope) ** 2
+plot_int_axis = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_axis) ** 2
 
-### Set up figure 1
-# fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize_option)
-## Subplot 1
-# intensity_list = [
-# (
-# plot_int_s[:, 0],
-# "#FF00FF",  # Magenta
-# "-",
-# r"Analytical solution at beginning $z$ step",
-# ),
-# (
-# plot_int_s[:, -1],
-# "#FFFF00",  # Pure yellow
-# "-",
-# r"Analytical solution at final $z$ step",
-# ),
-# (
-# plot_int[:, 0],
-# "#32CD32",  # Lime green
-# "--",
-# r"Numerical solution at beginning $z$ step",
-# ),
-# (
-# plot_int[:, -1],
-# "#1E90FF",  # Electric Blue
-# "--",
-# r"Numerical solution at final $z$ step",
-# ),
-# ]
-# for data, color, style, label in intensity_list:
-# ax1.plot(new_radi_array, data, color, linestyle=style, linewidth=2, label=label)
-# ax1.set(xlabel=r"$x$ ($\mathrm{mm}$)", ylabel=r"$I(x)$ ($\mathrm{W/{cm}^2}$)")
-# ax1.legend(facecolor="black", edgecolor="white")
-## Subplot 2
-# ax2.plot(
-# new_dist_array,
-# plot_int_s[AXIS_NODE, :],
-# "#FF00FF",  # Magenta
-# linestyle="-",
-# linewidth=2,
-# label="On-axis analytical solution",
-# )
-# ax2.plot(
-# new_dist_array,
-# plot_int[AXIS_NODE, :],
-# "#32CD32",  # Lime green
-# linestyle="--",
-# linewidth=2,
-# label="On-axis numerical solution",
-# )
-# ax2.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$I(z)$ ($\mathrm{W/{cm}^2}$)")
-# ax2.legend(facecolor="black", edgecolor="white")
+## Set up figure 1
+fig1, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=figsize_option)
+# Subplot 1
+fig1_2 = ax1.pcolormesh(new_x_2d_array, new_y_2d_array, plot_int_ini, cmap=cmap_option)
+fig1.colorbar(fig1_2, ax=ax1)
+ax1.set(xlabel=r"$x$ ($\mathrm{mm}$)", ylabel=r"$y$ ($\mathrm{mm}$)")
+ax1.set_title("Initial numerical solution in 2D")
+# Subplot 2
+fig1_2 = ax2.pcolormesh(
+    new_x_2d_array, new_y_2d_array, plot_int_s[:, :, 0], cmap=cmap_option
+)
+fig1.colorbar(fig1_2, ax=ax2)
+ax2.set(xlabel=r"$x$ ($\mathrm{mm}$)", ylabel=r"$y$ ($\mathrm{mm}$)")
+ax2.set_title("Initial analytical solution in 2D")
+# Subplot 3
+fig1_3 = ax3.pcolormesh(new_x_2d_array, new_y_2d_array, plot_int_fin, cmap=cmap_option)
+fig1.colorbar(fig1_3, ax=ax3)
+ax3.set(xlabel=r"$x$ ($\mathrm{mm}$)", ylabel=r"$y$ ($\mathrm{mm}$)")
+ax3.set_title("Final numerical solution in 2D")
+# Subplot 4
+fig1_4 = ax4.pcolormesh(
+    new_x_2d_array, new_y_2d_array, plot_int_s[:, :, -1], cmap=cmap_option
+)
+fig1.colorbar(fig1_4, ax=ax4)
+ax4.set(xlabel=r"$x$ ($\mathrm{mm}$)", ylabel=r"$y$ ($\mathrm{mm}$)")
+ax4.set_title("Final analytical solution in 2D")
 
-## fig1.tight_layout()
-# plt.show()
+fig1.tight_layout()
+plt.show()
 
-### Set up figure 2
-# fig2, (ax3, ax4) = plt.subplots(1, 2, figsize=figsize_option)
-## Subplot 1
-# fig2_1 = ax3.pcolormesh(
-# new_radi_2d_array, new_dist_2d_array, plot_int, cmap=cmap_option
-# )
-# fig2.colorbar(fig2_1, ax=ax3)
-# ax3.set(xlabel=r"$x$ ($\mathrm{mm}$)", ylabel=r"$z$ ($\mathrm{cm}$)")
-# ax3.set_title("Numerical solution in 2D")
-## Subplot 2
-# fig2_2 = ax4.pcolormesh(
-# new_radi_2d_array, new_dist_2d_array, plot_int_s, cmap=cmap_option
-# )
-# fig2.colorbar(fig2_2, ax=ax4)
-# ax4.set(xlabel=r"$x$ ($\mathrm{mm}$)", ylabel=r"$z$ ($\mathrm{cm}$)")
-# ax4.set_title("Analytical solution in 2D")
+## Set up figure 2
+fig2, (ax5, ax6) = plt.subplots(
+    1, 2, figsize=figsize_option, subplot_kw={"projection": "3d"}
+)
+# Subplot 1
+ax5.plot_surface(
+    new_x_2d_array,
+    new_y_2d_array,
+    plot_int_ini,
+    cmap=cmap_option,
+    linewidth=0,
+    antialiased=False,
+)
+ax5.set(
+    xlabel=r"$x$ ($\mathrm{mm}$)",
+    ylabel=r"$y$ ($\mathrm{mm}$)",
+    zlabel=r"$I(x,y)$ ($\mathrm{W/{cm}^2}$)",
+)
+ax5.set_title("Initial numerical solution in 3D")
+# Subplot 2
+ax6.plot_surface(
+    new_x_2d_array,
+    new_y_2d_array,
+    plot_int_s[:, :, 0],
+    cmap=cmap_option,
+    linewidth=0,
+    antialiased=False,
+)
+ax6.set(
+    xlabel=r"$x$ ($\mathrm{mm}$)",
+    ylabel=r"$y$ ($\mathrm{mm}$)",
+    zlabel=r"$I(x,y)$ ($\mathrm{W/{cm}^2}$)",
+)
+ax6.set_title("Initial analytical solution in 3D")
 
-## fig2.tight_layout()
-# plt.show()
+# fig2.tight_layout()
+plt.show()
 
-### Set up figure 3
-# fig3, (ax5, ax6) = plt.subplots(
-# 1, 2, figsize=figsize_option, subplot_kw={"projection": "3d"}
-# )
-## Subplot 1
-# ax5.plot_surface(
-# new_radi_2d_array,
-# new_dist_2d_array,
-# plot_int,
-# cmap=cmap_option,
-# linewidth=0,
-# antialiased=False,
-# )
-# ax5.set(
-# xlabel=r"$x$ ($\mathrm{mm}$)",
-# ylabel=r"$z$ ($\mathrm{cm}$)",
-# zlabel=r"$I(x,z)$ ($\mathrm{W/{cm}^2}$)",
-# )
-# ax5.set_title("Numerical solution")
-## Subplot 2
-# ax6.plot_surface(
-# new_radi_2d_array,
-# new_dist_2d_array,
-# plot_int_s,
-# cmap=cmap_option,
-# linewidth=0,
-# antialiased=False,
-# )
-# ax6.set(
-# xlabel=r"$x$ ($\mathrm{mm}$)",
-# ylabel=r"$z$ ($\mathrm{cm}$)",
-# zlabel=r"$I(x,z)$ ($\mathrm{W/{cm}^2}$)",
-# )
-# ax6.set_title("Analytical solution")
+## Set up figure 2
+fig3, (ax7, ax8) = plt.subplots(
+    1, 2, figsize=figsize_option, subplot_kw={"projection": "3d"}
+)
+# Subplot 1
+ax7.plot_surface(
+    new_x_2d_array,
+    new_y_2d_array,
+    plot_int_fin,
+    cmap=cmap_option,
+    linewidth=0,
+    antialiased=False,
+)
+ax7.set(
+    xlabel=r"$x$ ($\mathrm{mm}$)",
+    ylabel=r"$y$ ($\mathrm{mm}$)",
+    zlabel=r"$I(x,y)$ ($\mathrm{W/{cm}^2}$)",
+)
+ax7.set_title("Final numerical solution in 3D")
+# Subplot 2
+ax8.plot_surface(
+    new_x_2d_array,
+    new_y_2d_array,
+    plot_int_s[:, :, -1],
+    cmap=cmap_option,
+    linewidth=0,
+    antialiased=False,
+)
+ax8.set(
+    xlabel=r"$x$ ($\mathrm{mm}$)",
+    ylabel=r"$y$ ($\mathrm{mm}$)",
+    zlabel=r"$I(x,y)$ ($\mathrm{W/{cm}^2}$)",
+)
+ax8.set_title("Final analytical solution in 3D")
 
-## fig3.tight_layout()
-# plt.show()
+# fig3.tight_layout()
+plt.show()
+
+# Set up figure 4
+fig4, (ax9, ax10) = plt.subplots(1, 2, figsize=figsize_option)
+# Subplot 1
+ax9.plot(
+    new_x_array,
+    plot_int_s[:, AXIS_Y_NODE, 0],
+    color="#FFFF00",
+    linestyle="-",
+    label=r"Initial analytical solution at $y=0$",
+)
+ax9.plot(
+    new_x_array,
+    plot_int_s[:, AXIS_Y_NODE, -1],
+    color="#1E90FF",
+    linestyle="-",
+    label=r"Final analytical solution at $y=0$",
+)
+ax9.plot(
+    new_x_array,
+    plot_int_ini[:, AXIS_Y_NODE],
+    color="#32CD32",
+    linestyle="--",
+    label=r"Initial numerical solution at $y=0$",
+)
+ax9.plot(
+    new_x_array,
+    plot_int_fin[:, AXIS_Y_NODE],
+    color="#FF00FF",
+    linestyle="--",
+    label=r"Final numerical solution at $y=0$",
+)
+ax9.set(xlabel=r"$x$ ($\mathrm{mm}$)", ylabel=r"$I(x)$ ($\mathrm{W/{cm}^2}$)")
+ax9.legend(facecolor="black", edgecolor="white")
+# Subplot 2
+ax10.plot(
+    new_y_array,
+    plot_int_s[AXIS_X_NODE, :, 0],
+    color="#FFFF00",
+    linestyle="-",
+    label=r"Initial analytical solution at $x=0$",
+)
+ax10.plot(
+    new_y_array,
+    plot_int_s[AXIS_X_NODE, :, -1],
+    color="#1E90FF",
+    linestyle="-",
+    label=r"Final analytical solution at $x=0$",
+)
+ax10.plot(
+    new_y_array,
+    plot_int_ini[AXIS_X_NODE, :],
+    color="#32CD32",
+    linestyle="--",
+    label=r"Initial numerical solution at $x=0$",
+)
+ax10.plot(
+    new_y_array,
+    plot_int_fin[AXIS_X_NODE, :],
+    color="#FF00FF",
+    linestyle="--",
+    label=r"Final numerical solution at $x=0$",
+)
+ax10.set(xlabel=r"$y$ ($\mathrm{mm}$)", ylabel=r"$I(y)$ ($\mathrm{W/{cm}^2}$)")
+ax10.legend(facecolor="black", edgecolor="white")
+
+fig4.tight_layout()
+plt.show()
+
+# Set up figure 5
+fig5, ax11 = plt.subplots(figsize=figsize_option)
+ax11.plot(
+    new_dist_array,
+    plot_int_s[AXIS_X_NODE, AXIS_Y_NODE, :],
+    color="#32CD32",
+    linestyle="-",
+    label=r"On-axis analytical solution",
+)
+ax11.plot(
+    new_dist_array,
+    plot_int_axis,
+    color="#FF00FF",
+    linestyle="--",
+    label=r"On-axis numerical solution",
+)
+ax11.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$I(z)$ ($\mathrm{W/{cm}^2}$)")
+ax11.legend(facecolor="black", edgecolor="white")
+
+fig5.tight_layout()
+plt.show()
