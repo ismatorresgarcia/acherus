@@ -36,9 +36,8 @@ PEAK_NODE = N_TIME_NODES // 2
 radi_array = np.linspace(INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES)
 dist_array = np.linspace(INI_DISTANCE_COOR, FIN_DISTANCE_COOR, N_STEPS + 1)
 time_array = np.linspace(INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES)
-radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij")
-radi_2d_array_2, time_2d_array_2 = np.meshgrid(radi_array, time_array, indexing="ij")
-dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing="ij")
+radi_2d_array, time_2d_array = np.meshgrid(radi_array, time_array, indexing="ij")
+dist_2d_array_2, time_2d_array_2 = np.meshgrid(dist_array, time_array, indexing="ij")
 
 ## Set beam and media parameters
 LIGHT_SPEED = 299792458
@@ -89,10 +88,10 @@ BEAM = {
 
 ## Analytical solution for a Gaussian beam
 # Set arrays
-envelope_radial_s = np.empty_like(radi_2d_array, dtype=complex)
-envelope_time_s = np.empty_like(dist_2d_array_3, dtype=complex)
+envelope_radial_s = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
+envelope_time_s = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
+envelope_fin_s = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
 envelope_axis_s = np.empty_like(envelope_time_s)
-envelope_end_s = np.empty_like(radi_2d_array_2, dtype=complex)
 
 # Set variables
 RAYLEIGH_LEN = 0.5 * BEAM["WAVENUMBER"] * BEAM["WAIST_0"] ** 2
@@ -140,7 +139,7 @@ envelope_radial_s = ratio_term * np.exp(
 envelope_time_s = sqrt_term * np.exp(
     -decay_time_exp_term * prop_time_exp_term - gouy_time_exp_term
 )
-envelope_end_s = BEAM["AMPLITUDE"] * (
+envelope_fin_s = BEAM["AMPLITUDE"] * (
     envelope_radial_s[:, -1, np.newaxis] * envelope_time_s[-1, :]
 )
 envelope_axis_s = BEAM["AMPLITUDE"] * (
@@ -153,17 +152,17 @@ cmap_option = mpl.colormaps["plasma"]
 figsize_option = (13, 7)
 
 # Set up conversion factors
-RADI_FACTOR = 1000.0
-DIST_FACTOR = 100.0
-TIME_FACTOR = 1.0e15
-AREA_FACTOR = 1.0e-4
+RADI_FACTOR = 1000
+DIST_FACTOR = 100
+TIME_FACTOR = 1e15
+AREA_FACTOR = 1e-4
 # Set up plotting grid (mm, cm and s)
-new_radi_2d_array_2 = RADI_FACTOR * radi_2d_array_2
-new_dist_2d_array_3 = DIST_FACTOR * dist_2d_array_3
-new_time_2d_array_2 = TIME_FACTOR * time_2d_array_2
-new_time_2d_array_3 = TIME_FACTOR * time_2d_array_3
-new_dist_array = new_dist_2d_array_3[:, 0]
-new_time_array = new_time_2d_array_3[0, :]
+radi_2d_array = RADI_FACTOR * radi_2d_array
+dist_2d_array_2 = DIST_FACTOR * dist_2d_array_2
+time_2d_array = TIME_FACTOR * time_2d_array
+time_2d_array_2 = TIME_FACTOR * time_2d_array_2
+dist_array = dist_2d_array_2[:, 0]
+time_array = time_2d_array_2[0, :]
 
 # Set up intensities (W/cm^2)
 plot_beam_waist = RADI_FACTOR * beam_waist
@@ -171,21 +170,21 @@ plot_beam_duration = TIME_FACTOR * beam_duration
 plot_intensity_axis_s = (
     AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_axis_s) ** 2
 )
-plot_intensity_end_s = (
-    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_end_s) ** 2
+plot_intensity_fin_s = (
+    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_fin_s) ** 2
 )
 
 ## Set up figure 1
 fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize_option)
 # Subplot 1
 ax1.plot(
-    new_dist_array, plot_beam_waist, color="#FF00FF", linestyle="-", label="Beam waist"
+    dist_array, plot_beam_waist, color="#FF00FF", linestyle="-", label="Beam waist"
 )
 ax1.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$w(z)$ ($\mathrm{\mu m}$)")
 ax1.legend(facecolor="black", edgecolor="white")
 # Subplot 2
 ax2.plot(
-    new_dist_array,
+    dist_array,
     plot_beam_duration,
     color="#FFFF00",
     linestyle="-",
@@ -201,14 +200,14 @@ plt.show()
 fig2, (ax3, ax4) = plt.subplots(2, 1, figsize=figsize_option)
 # Subplot 1
 ax3.plot(
-    new_time_array,
+    time_array,
     plot_intensity_axis_s[0, :],
     color="#32CD32",  # Lime green
     linestyle="-",
     label=r"On-axis analytical solution at beginning $z$ step",
 )
 ax3.plot(
-    new_time_array,
+    time_array,
     plot_intensity_axis_s[-1, :],
     color="#1E90FF",  # Electric Blue
     linestyle="-",
@@ -218,7 +217,7 @@ ax3.set(xlabel=r"$t$ ($\mathrm{fs}$)", ylabel=r"$I(t)$ ($\mathrm{W/{cm}^2}$)")
 ax3.legend(facecolor="black", edgecolor="white")
 # Subplot 2
 ax4.plot(
-    new_dist_array,
+    dist_array,
     plot_intensity_axis_s[:, PEAK_NODE],
     color="#FFFF00",  # Pure yellow
     linestyle="-",
@@ -234,8 +233,8 @@ plt.show()
 fig3, (ax5, ax6) = plt.subplots(1, 2, figsize=figsize_option)
 # Subplot 1
 fig3_1 = ax5.pcolormesh(
-    new_dist_2d_array_3,
-    new_time_2d_array_3,
+    dist_2d_array_2,
+    time_2d_array_2,
     plot_intensity_axis_s,
     cmap=cmap_option,
 )
@@ -244,7 +243,7 @@ ax5.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$t$ ($\mathrm{fs}$)")
 ax5.set_title("On-axis analytical solution in 2D")
 # Subplot 2
 fig3_1 = ax6.pcolormesh(
-    new_radi_2d_array_2, new_time_2d_array_2, plot_intensity_end_s, cmap=cmap_option
+    radi_2d_array, time_2d_array, plot_intensity_fin_s, cmap=cmap_option
 )
 fig3.colorbar(fig3_1, ax=ax6)
 ax6.set(xlabel=r"$r$ ($\mathrm{\mu m}$)", ylabel=r"$t$ ($\mathrm{fs}$)")
@@ -259,8 +258,8 @@ fig4, (ax7, ax8) = plt.subplots(
 )
 # Subplot 1
 ax7.plot_surface(
-    new_dist_2d_array_3,
-    new_time_2d_array_3,
+    dist_2d_array_2,
+    time_2d_array_2,
     plot_intensity_axis_s,
     cmap=cmap_option,
     linewidth=0,
@@ -274,9 +273,9 @@ ax7.set(
 ax7.set_title("On-axis analytical solution in 3D")
 # Subplot 2
 ax8.plot_surface(
-    new_radi_2d_array_2,
-    new_time_2d_array_2,
-    plot_intensity_end_s,
+    radi_2d_array,
+    time_2d_array,
+    plot_intensity_fin_s,
     cmap=cmap_option,
     linewidth=0,
     antialiased=True,

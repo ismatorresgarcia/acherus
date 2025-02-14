@@ -124,9 +124,7 @@ def fft_step(fourier_coefficient, current_envelope, inter_array):
     - current_envelope: envelope at step k
     - inter_array: pre-allocated array for envelope at step k + 1
     """
-    for i in range(current_envelope.shape[0]):
-        envelope_fourier = fourier_coefficient * fft(current_envelope[i, :])
-        inter_array[i, :] = ifft(envelope_fourier)
+    inter_array[:] = ifft(fourier_coefficient * fft(current_envelope, axis=1), axis=1)
 
 
 def crank_nicolson_step(
@@ -175,9 +173,8 @@ radi_array = np.linspace(INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES)
 dist_array = np.linspace(INI_DIST_COOR, FIN_DIST_COOR, N_STEPS + 1)
 time_array = np.linspace(INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES)
 frq_array = np.append(w1, w2)
-radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij")
-radi_2d_array_2, time_2d_array_2 = np.meshgrid(radi_array, time_array, indexing="ij")
-dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing="ij")
+radi_2d_array, time_2d_array = np.meshgrid(radi_array, time_array, indexing="ij")
+dist_2d_array_2, time_2d_array_2 = np.meshgrid(dist_array, time_array, indexing="ij")
 
 ## Set beam and media parameters
 LIGHT_SPEED = 299792458
@@ -229,12 +226,12 @@ BEAM = {
 ## Set loop variables
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
-envelope = np.empty_like(radi_2d_array_2, dtype=complex)
-envelope_axis = np.empty_like(dist_2d_array_3, dtype=complex)
-envelope_store = np.empty_like(envelope)
 fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_T * (frq_array * TIME_STEP_LEN) ** 2)
-b_array = np.empty_like(envelope)
-c_array = np.empty_like(radi_array, dtype=complex)
+envelope_current = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
+envelope_next = np.empty_like(envelope_current)
+envelope_axis = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
+b_array = np.empty_like(envelope_current)
+c_array = np.empty(N_RADI_NODES, dtype=complex)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1 = IM_UNIT * DELTA_R
@@ -242,25 +239,26 @@ left_operator = crank_nicolson_array(N_RADI_NODES, "LEFT", MATRIX_CNT_1)
 right_operator = crank_nicolson_array(N_RADI_NODES, "RIGHT", -MATRIX_CNT_1)
 
 ## Set initial electric field wave packet
-envelope = initial_condition(radi_2d_array_2, time_2d_array_2, IM_UNIT, BEAM)
-# Save on-axis envelope initial state
-envelope_axis[0, :] = envelope[AXIS_NODE, :]
+envelope_current = initial_condition(radi_2d_array, time_2d_array, IM_UNIT, BEAM)
+envelope_axis[0, :] = envelope_current[AXIS_NODE, :]
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):
-    fft_step(fourier_coeff, envelope, b_array)
-    crank_nicolson_step(left_operator, right_operator, b_array, c_array, envelope_store)
+    fft_step(fourier_coeff, envelope_current, b_array)
+    crank_nicolson_step(left_operator, right_operator, b_array, c_array, envelope_next)
 
-    # Update arrays for next step
-    envelope = envelope_store
-    envelope_axis[k + 1, :] = envelope_store[AXIS_NODE, :]
+    # Update arrays for the next step
+    envelope_current, envelope_next = envelope_next, envelope_current
+
+    # Store axis data
+    envelope_axis[k + 1, :] = envelope_current[AXIS_NODE, :]
 
 ## Analytical solution for a Gaussian beam
 # Set arrays
-envelope_radial_s = np.empty_like(radi_2d_array, dtype=complex)
-envelope_time_s = np.empty_like(envelope_axis)
-envelope_axis_s = np.empty_like(envelope_axis)
-envelope_fin_s = np.empty_like(envelope)
+envelope_radial_s = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
+envelope_time_s = np.empty([N_TIME_NODES, N_STEPS + 1], dtype=complex)
+envelope_fin_s = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
+envelope_axis_s = np.empty_like(envelope_time_s)
 
 # Set variables
 RAYLEIGH_LEN = 0.5 * BEAM["WAVENUMBER"] * BEAM["WAIST_0"] ** 2
@@ -324,16 +322,18 @@ DIST_FACTOR = 100
 TIME_FACTOR = 1e15
 AREA_FACTOR = 1e-4
 # Set up plotting grid (mm, cm and s)
-new_radi_2d_array_2 = RADI_FACTOR * radi_2d_array_2
-new_dist_2d_array_3 = DIST_FACTOR * dist_2d_array_3
-new_time_2d_array_2 = TIME_FACTOR * time_2d_array_2
-new_time_2d_array_3 = TIME_FACTOR * time_2d_array_3
-new_dist_array = new_dist_2d_array_3[:, 0]
-new_time_array = new_time_2d_array_3[0, :]
+radi_2d_array = RADI_FACTOR * radi_2d_array
+dist_2d_array_2 = DIST_FACTOR * dist_2d_array_2
+time_2d_array = TIME_FACTOR * time_2d_array
+time_2d_array_2 = TIME_FACTOR * time_2d_array_2
+dist_array = dist_2d_array_2[:, 0]
+time_array = time_2d_array_2[0, :]
 
 # Set up intensities (W/cm^2)
 plot_int_axis = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_axis) ** 2
-plot_int_fin = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope) ** 2
+plot_int_fin = (
+    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_current) ** 2
+)
 plot_int_axis_s = (
     AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_axis_s) ** 2
 )
@@ -371,12 +371,12 @@ intensity_list = [
     ),
 ]
 for data, color, style, label in intensity_list:
-    ax1.plot(new_time_array, data, color, linestyle=style, linewidth=2, label=label)
+    ax1.plot(time_array, data, color, linestyle=style, linewidth=2, label=label)
 ax1.set(xlabel=r"$t$ ($\mathrm{s}$)", ylabel=r"$I(t)$ ($\mathrm{W/{cm}^2}$)")
 ax1.legend(facecolor="black", edgecolor="white")
 # Subplot 2
 ax2.plot(
-    new_dist_array,
+    dist_array,
     plot_int_axis_s[:, PEAK_NODE],
     "#FF00FF",  # Magenta
     linestyle="-",
@@ -384,7 +384,7 @@ ax2.plot(
     label="On-axis peak time analytical solution",
 )
 ax2.plot(
-    new_dist_array,
+    dist_array,
     plot_int_axis[:, PEAK_NODE],
     "#32CD32",  # Lime green
     linestyle="--",
@@ -401,8 +401,8 @@ plt.show()
 fig2, (ax3, ax4) = plt.subplots(1, 2, figsize=figsize_option)
 # First subplot
 fig2_1 = ax3.pcolormesh(
-    new_dist_2d_array_3,
-    new_time_2d_array_3,
+    dist_2d_array_2,
+    time_2d_array_2,
     plot_int_axis,
     cmap=cmap_option,
 )
@@ -411,8 +411,8 @@ ax3.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$t$ ($\mathrm{s}$)")
 ax3.set_title("On-axis numerical solution in 2D")
 # Second subplot
 fig2_2 = ax4.pcolormesh(
-    new_dist_2d_array_3,
-    new_time_2d_array_3,
+    dist_2d_array_2,
+    time_2d_array_2,
     plot_int_axis_s,
     cmap=cmap_option,
 )
@@ -427,8 +427,8 @@ plt.show()
 fig3, (ax5, ax6) = plt.subplots(1, 2, figsize=figsize_option)
 # First subplot
 fig3_1 = ax5.pcolormesh(
-    new_radi_2d_array_2,
-    new_time_2d_array_2,
+    radi_2d_array,
+    time_2d_array,
     plot_int_fin,
     cmap=cmap_option,
 )
@@ -437,8 +437,8 @@ ax5.set(xlabel=r"$r$ ($\mathrm{mm}$)", ylabel=r"$t$ ($\mathrm{s}$)")
 ax5.set_title("Final step numerical solution in 2D")
 # Second subplot
 fig3_2 = ax6.pcolormesh(
-    new_radi_2d_array_2,
-    new_time_2d_array_2,
+    radi_2d_array,
+    time_2d_array,
     plot_int_fin_s,
     cmap=cmap_option,
 )
@@ -455,8 +455,8 @@ fig4, (ax7, ax8) = plt.subplots(
 )
 # First subplot
 ax7.plot_surface(
-    new_dist_2d_array_3,
-    new_time_2d_array_3,
+    dist_2d_array_2,
+    time_2d_array_2,
     plot_int_axis,
     cmap=cmap_option,
     linewidth=0,
@@ -470,8 +470,8 @@ ax7.set(
 ax7.set_title("On-axis numerical solution in 3D")
 # Second subplot
 ax8.plot_surface(
-    new_dist_2d_array_3,
-    new_time_2d_array_3,
+    dist_2d_array_2,
+    time_2d_array_2,
     plot_int_axis_s,
     cmap=cmap_option,
     linewidth=0,
@@ -493,8 +493,8 @@ fig5, (ax9, ax10) = plt.subplots(
 )
 # First subplot
 ax9.plot_surface(
-    new_radi_2d_array_2,
-    new_time_2d_array_2,
+    radi_2d_array,
+    time_2d_array,
     plot_int_fin,
     cmap=cmap_option,
     linewidth=0,
@@ -508,8 +508,8 @@ ax9.set(
 ax9.set_title("Final step numerical solution in 3D")
 ## Second subplot
 ax10.plot_surface(
-    new_radi_2d_array_2,
-    new_time_2d_array_2,
+    radi_2d_array,
+    time_2d_array,
     plot_int_fin_s,
     cmap=cmap_option,
     linewidth=0,

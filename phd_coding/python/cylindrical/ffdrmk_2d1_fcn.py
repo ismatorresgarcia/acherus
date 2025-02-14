@@ -132,109 +132,6 @@ def crank_nicolson_array(nodes, position, coefficient):
     return crank_nicolson_output
 
 
-def fft_step(fourier_coefficient, current_envelope, inter_array):
-    """
-    Compute one step of the FFT propagation scheme.
-
-    Parameters:
-    - fourier_coefficient: precomputed Fourier coefficient
-    - current_envelope: envelope at step k
-    - inter_array: pre-allocated array for envelope at step k + 1
-    """
-    for i in range(current_envelope.shape[0]):
-        envelope_fourier = fourier_coefficient * fft(current_envelope[i, :])
-        inter_array[i, :] = ifft(envelope_fourier)
-
-
-def nonlinear_terms(current_envelope, inter_array, media_params):
-    """
-    Set the terms for nonlinear contributions.
-
-    Parameters:
-    - current_envelope: pre-allocated array for envelope at step k
-    - inter_array: pre-allocated array for intermediate results
-    - media_params: dictionary with media parameters
-    """
-    inter_array[:, :, 0] = current_envelope
-    inter_array[:, :, 1] = np.abs(current_envelope) ** 2
-    inter_array[:, :, 2] = np.abs(current_envelope) ** media_params["MPA_EXP"]
-    inter_array[:, :, 3] = np.abs(current_envelope) ** media_params["MPI_EXP"]
-
-
-def ini_adam_bashforth_step(inter_array, adam_bash_array, media_params):
-    """
-    Compute the first two steps of the Adam-Bashforth scheme for the nonlinear terms.
-
-    Parameters:
-    - inter_array: pre-allocated array for intermediate results
-    - adam_bash_array: pre-allocated array for Adam-Bashforth terms
-    - media_params: dictionary with media parameters
-    """
-    adam_bash_array[:, :, 0] = (
-        media_params["KERR_COEF"] * inter_array[:, :, 1]
-        + media_params["MPA_COEF"] * inter_array[:, :, 2]
-    ) * inter_array[:, :, 0]
-
-    inter_array[:, :, 0] *= 1
-    inter_array[:, :, 1] = np.abs(inter_array[:, :, 0]) ** 2
-    inter_array[:, :, 2] = np.abs(inter_array[:, :, 0]) ** media_params["MPA_EXP"]
-
-    adam_bash_array[:, :, 1] = (
-        media_params["KERR_COEF"] * inter_array[:, :, 1]
-        + media_params["MPA_COEF"] * inter_array[:, :, 2]
-    ) * inter_array[:, :, 0]
-
-
-def adam_bashforth_step(inter_array, adam_bash_array, media_params):
-    """
-    Compute one step of the Adam-Bashforth scheme for the nonlinear terms.
-
-    Parameters:
-    - inter_array: pre-allocated array for intermediate results
-    - adam_bash_array: pre-allocated array for Adam-Bashforth terms
-    - media_params: dictionary with media parameters
-    """
-    adam_bash_array[:, :, 1] = (
-        media_params["KERR_COEF"] * inter_array[:, :, 1]
-        + media_params["MPA_COEF"] * inter_array[:, :, 2]
-    ) * inter_array[:, :, 0]
-
-
-def crank_nicolson_step(
-    left_array, right_array, inter_array, adam_bash_array, next_envelope
-):
-    """
-    Compute one step of the Crank-Nicolson propagation scheme.
-
-    Parameters:
-    - left_array: sparse array for left-hand side
-    - right_array: sparse array for right-hand side
-    - inter_array: pre-allocated array for intermediate results
-    - adam_bash_array: pre-allocated array for Adam-Bashforth terms
-    - next_envelope: pre-allocated array for envelope at step k + 1
-    """
-    for l in range(inter_array.shape[1]):
-        # Compute intermediate arrays
-        d_array = right_array @ inter_array[:, l, 0]
-        f_array = d_array + 0.5 * (
-            3 * adam_bash_array[:, l, 1] - adam_bash_array[:, l, 0]
-        )
-        # Solve system for current time slice
-        next_envelope[:, l] = spsolve(left_array, f_array)
-
-
-def density_step():
-    """
-    Compute one step of the electron density evolution.
-
-    Parameters:
-    - inter_array: pre-allocated array for intermediate results
-    - adam_bash_array: pre-allocated array for Adam-Bashforth terms
-    - next_envelope: pre-allocated array for envelope at step k + 1
-    """
-    a_array = 
-
-
 IM_UNIT = 1j
 PI = np.pi
 
@@ -263,21 +160,20 @@ radi_array = np.linspace(INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES)
 dist_array = np.linspace(INI_DIST_COOR, FIN_DIST_COOR, N_STEPS + 1)
 time_array = np.linspace(INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES)
 frq_array = np.append(w1, w2)
-radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij")
-radi_2d_array_2, time_2d_array_2 = np.meshgrid(radi_array, time_array, indexing="ij")
-dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing="ij")
+radi_2d_array, time_2d_array = np.meshgrid(radi_array, time_array, indexing="ij")
 
 ## Set beam and media parameters
 LIGHT_SPEED = 299792458
 ELECTRON_MASS = 9.1093837139e-31
 ELECTRON_CHARGE = 1.602176634e-19
 PERMITTIVITY = 8.8541878128e-12
+PLANCK = 1.05457182e-34
 LIN_REF_IND_WATER = 1.328
 NLIN_REF_IND_WATER = 1.6e-20
 GVD_COEF_WATER = 241e-28
 N_PHOTONS_WATER = 5
 BETA_COEF_WATER = 8e-64
-SIGMA_COEF_WATER = 1.2e-72
+SIGMA_COEF_WATER = 9.6e-75
 NEUTRAL_DENS = 6.68e-28
 
 WAVELENGTH_0 = 800e-9
@@ -350,56 +246,123 @@ BEAM = {
 }
 
 ## Set loop variables
+DIST_INDEX = 0
+DIST_LIMIT = 5
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
 DENS_CNT_1 = -0.5 * TIME_STEP_LEN * MEDIA["WATER"]["MPI_COEF"]
 DENS_CNT_2 = 0.5 * TIME_STEP_LEN * MEDIA["WATER"]["NEUTRAL_DENS"]
 DENS_CNT_3 = DENS_CNT_2 * MEDIA["WATER"]["MPI_COEF"]
-envelope = np.empty_like(radi_2d_array_2, dtype=complex)
-envelope_axis = np.empty_like(dist_2d_array_3, dtype=complex)
-envelope_store = np.empty_like(envelope)
 fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_T * (frq_array * TIME_STEP_LEN) ** 2)
-electron_dens = np.empty_like(radi_2d_array, dtype=complex)
-electron_dens_axis = np.empty_like(envelope_axis, dtype=complex)
-electron_dens_store = np.empty_like(electron_dens)
-b_array = np.empty_like(envelope)
+
+envelope_current = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
+envelope_next = np.empty_like(envelope_current)
+electron_dens_current = np.empty_like(envelope_current)
+electron_dens_next = np.empty_like(envelope_current)
+
+envelope_dist = np.empty([N_RADI_NODES, DIST_LIMIT, N_TIME_NODES], dtype=complex)
+envelope_axis = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
+envelope_peak = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
+electron_dens_dist = np.empty_like(envelope_dist)
+electron_dens_axis = np.empty_like(envelope_axis)
+electron_dens_peak = np.empty_like(envelope_peak)
+
+b_array = np.empty_like(envelope_current)
 c_array = np.empty([N_RADI_NODES, N_TIME_NODES, 4], dtype=complex)
-w_array = np.empty([N_RADI_NODES, N_TIME_NODES, 3], dtype=complex)
+w_array_current = np.empty_like(envelope_current)
+w_array_next = np.empty_like(envelope_current)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1 = IM_UNIT * DELTA_R
 left_operator = crank_nicolson_array(N_RADI_NODES, "LEFT", MATRIX_CNT_1)
 right_operator = crank_nicolson_array(N_RADI_NODES, "RIGHT", -MATRIX_CNT_1)
 
-## Set initial electric field wave packet
-envelope = initial_condition(radi_2d_array_2, time_2d_array_2, IM_UNIT, BEAM)
-# Save on-axis envelope initial state
-envelope_axis[0, :] = envelope[AXIS_NODE, :]
-
-# Set initial electron density
-electron_dens[:, :] = 0
-# Save on-axis electron density initial state
-electron_dens_axis[:, 0] = electron_dens[AXIS_NODE, :]
+## Set initial electric field wave packet and electron density
+envelope_current = initial_condition(radi_2d_array, time_2d_array, IM_UNIT, BEAM)
+electron_dens_current[:, 0] = 0
+envelope_axis[0, :] = envelope_current[AXIS_NODE, :]
+envelope_peak[:, 0] = envelope_current[:, PEAK_NODE]
+electron_dens_axis[0, :] = electron_dens_current[AXIS_NODE, :]
+electron_dens_peak[:, 0] = electron_dens_current[:, PEAK_NODE]
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS - 1)):
-    fft_step(fourier_coeff, envelope, b_array)
-    nonlinear_terms(b_array, c_array, MEDIA["WATER"])
-    if k == 0:
-        ini_adam_bashforth_step(c_array, w_array, MEDIA["WATER"])
-        envelope_axis[k + 1, :] = c_array[AXIS_NODE, :, 0]
-    else:
-        adam_bashforth_step(c_array, w_array, MEDIA["WATER"])
+    # Electron density evolution update
+    for l in range(N_TIME_NODES - 1):
+        A_CNT = np.exp(
+            DENS_CNT_1
+            * (
+                np.abs(envelope_current[:, l + 1]) ** MPI_EXP
+                + np.abs(envelope_current[:, l]) ** MPI_EXP
+            )
+        )
+        electron_dens_current[:, l + 1] = (
+            A_CNT
+            * (
+                electron_dens_current[:, l]
+                + DENS_CNT_3 * np.abs(envelope_current[:, l]) ** MPI_EXP
+            )
+            + DENS_CNT_3 * np.abs(envelope_current[:, l + 1]) ** MPI_EXP
+        )
 
-    crank_nicolson_step(left_operator, right_operator, c_array, w_array, envelope_store)
+    # FFT step in vectorized form
+    b_array = ifft(fourier_coeff * fft(envelope_current, axis=1), axis=1)
+
+    # Nonlinear terms calculation
+    c_array[:, :, 0] = b_array
+    c_array[:, :, 1] = np.abs(c_array[:, :, 0]) ** 2
+    c_array[:, :, 2] = np.abs(c_array[:, :, 0]) ** MEDIA["WATER"]["MPA_EXP"]
+    c_array[:, :, 3] = electron_dens_current
+
+    # Calculate Adam-Bashforth term for current step
+    w_array_current = (
+        MEDIA["WATER"]["KERR_COEF"] * c_array[:, :, 1]
+        + MEDIA["WATER"]["MPA_COEF"] * c_array[:, :, 2]
+        + MEDIA["WATER"]["REF_COEF"] * c_array[:, :, 3]
+    ) * c_array[:, :, 0]
+
+    # For k = 0, initialize Adam_Bashforth second condition
+    if k == 0:
+        w_array_next = w_array_current.copy()
+        envelope_axis[1, :] = envelope_current[AXIS_NODE, :]
+        electron_dens_axis[1, :] = electron_dens_current[AXIS_NODE, :]
+
+    # Solve propagation equation for all time slices
+    for l in range(N_TIME_NODES):
+        d_array = right_operator @ b_array[:, l]
+        f_array = d_array + 1.5 * w_array_current[:, l] - 0.5 * w_array_next[:, l]
+        envelope_next[:, l] = spsolve(left_operator, f_array)
 
     # Update arrays for the next step
-    w_array[:, :, 0] = w_array[:, :, 1]
-    envelope = envelope_store
-    envelope_axis[k + 2, :] = envelope_store[AXIS_NODE, :]
+    envelope_current, envelope_next = envelope_next, envelope_current
+    electron_dens_current, electron_dens_next = (
+        electron_dens_next,
+        electron_dens_current,
+    )
+    w_array_next = w_array_current
 
+    # Store data
+    if k % ((N_STEPS - 1) // DIST_LIMIT) == 0 and DIST_INDEX < DIST_LIMIT:
+        envelope_dist[:, DIST_INDEX, :] = envelope_current
+        electron_dens_dist[:, DIST_INDEX, :] = electron_dens_current
+        DIST_INDEX += 1
+
+    # Store axis data
+    if k > 0:
+        envelope_axis[k + 1, :] = envelope_current[AXIS_NODE, :]
+        envelope_peak[:, k + 1] = envelope_current[:, PEAK_NODE]
+        electron_dens_axis[k + 1, :] = electron_dens_current[AXIS_NODE, :]
+        electron_dens_peak[:, k + 1] = electron_dens_current[:, PEAK_NODE]
+
+# Save to file
 np.savez(
-    "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdrmk_fcn_1",
+    "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdmk_fcn_1",
+    e_dist=envelope_dist,
+    e_axis=envelope_axis,
+    e_peak=envelope_peak,
+    elec_dist=electron_dens_dist,
+    elec_axis=electron_dens_axis,
+    elec_peak=electron_dens_peak,
     INI_RADI_COOR=INI_RADI_COOR,
     FIN_RADI_COOR=FIN_RADI_COOR,
     INI_DIST_COOR=INI_DIST_COOR,
@@ -409,85 +372,4 @@ np.savez(
     AXIS_NODE=AXIS_NODE,
     PEAK_NODE=PEAK_NODE,
     LIN_REF_IND=MEDIA["WATER"]["LIN_REF_IND"],
-    e=envelope,
-    e_axis=envelope_axis,
 )
-
-#    # Compute electron density (Time domain)
-#    for n in range(N_TIME_NODES - 1):
-#            a_array = np.exp(
-#                DENS_CNT_1
-#                * (
-#                    np.abs(e[:, n + 1]) ** MPI_EXP
-#                    + np.abs(e[:, n]) ** MPI_EXP
-#                )
-#            )
-#            rho[:, n + 1] = (
-#                a_array
-#                * (rho[:, n] + RHO_CONSTANT_3 * np.abs(e[:, n]) ** MPI_EXPONENT)
-#                + RHO_CONSTANT_3 * np.abs(e[:, n + 1]) ** MPI_EXPONENT
-#            )
-#
-#    # Compute first half-step (Spectral domain)
-#    for i in range(N_RADIAL_NODES + 2):
-#        e_fourier = fourier_coeff * fft(e[i, :])
-#        # Compute first half-step solution
-#        b_arr[i, :] = ifft(e_fourier)
-#
-#    # Compute second half-step (Time domain)
-#    for n in range(N_TIME_NODES):
-#        c_arr[:, n, 0] = b_arr[:, n]
-#        c_arr[:, n, 1] = rho[:, n]
-#        c_arr[:, n, 2] = np.abs(c_arr[:, n, 0]) ** 2
-#        c_arr[:, n, 3] = np.abs(c_arr[:, n, 0]) ** MPA_EXPONENT
-#        if k == 0:  # I'm guessing a value for starting the AB2 method
-#            w_arr[:, n, 0] = (
-#                PROPAGATION_STEP_LENGTH
-#                * (
-#                    REFF_COEFF * c_arr[:, n, 1]
-#                    + KERR_COEFF * c_arr[:, n, 2]
-#                    + MPA_COEFF * c_arr[:, n, 3]
-#                )
-#                * c_arr[:, n, 0]
-#            )
-#            G = 1.0
-#            c_arr[:, n, 0] = G * c_arr[:, n, 0]
-#            c_arr[:, n, 1] = G * rho[:, n]
-#            c_arr[:, n, 2] = np.abs(c_arr[:, n, 0]) ** 2
-#            c_arr[:, n, 3] = np.abs(c_arr[:, n, 0]) ** MPA_EXPONENT
-#            w_arr[:, n, 1] = (
-#                PROPAGATION_STEP_LENGTH
-#                * (
-#                    REFF_COEFF * c_arr[:, n, 1]
-#                    + KERR_COEFF * c_arr[:, n, 2]
-#                    + MPA_COEFF * c_arr[:, n, 3]
-#                )
-#                * c_arr[:, n, 0]
-#            )
-#            e_axis[k + 1, n] = c_arr[AXIS_NODE, n, 0]  # Save on-axis envelope 1-step
-#            # rho_axis[k + 2, n] = c_arr[
-#            # AXIS_NODE, n, 1
-#            # ]  # Save on-axis electron density 2-step
-#        else:
-#            w_arr[:, n, 1] = (
-#                PROPAGATION_STEP_LENGTH
-#                * (
-#                    REFF_COEFF * c_arr[:, n, 1]
-#                    + KERR_COEFF * c_arr[:, n, 2]
-#                    + MPA_COEFF * c_arr[:, n, 3]
-#                )
-#                * c_arr[:, n, 0]
-#            )
-#
-#        # Compute intermediate arrays
-#        d_arr = lp @ c_arr[:, n, 0]
-#        f_arr = d_arr + 0.5 * (3 * w_arr[:, n, 1] - w_arr[:, n, 0])
-#
-#        # Compute second half-step solution
-#        e_store[:, n] = spsolve(lm, f_arr)
-#
-#    # Update arrays for the next step
-#    w_arr[:, :, 0] = w_arr[:, :, 1]
-#    e = e_store
-#    e_axis[k + 2, :] = e_store[AXIS_NODE, :]  # Save on-axis envelope k-step
-#    # rho_axis[k + 2, :] = rho[AXIS_NODE, :]  # Save on-axis electron density k-step

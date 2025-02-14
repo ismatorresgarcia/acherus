@@ -137,21 +137,21 @@ BEAM = {
 
 ## Set loop variables
 DELTA_X = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
-envelope = np.empty_like(radi_2d_array, dtype=complex)
-envelope_store = np.empty_like(radi_array, dtype=complex)
 fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_X * (kx_array * RADI_STEP_LEN) ** 2)
+envelope_current = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
+envelope_next = np.empty(N_RADI_NODES, dtype=complex)
 
 ## Set initial electric field wave packet
-envelope[:, 0] = initial_condition(radi_array, IM_UNIT, BEAM)
+envelope_current[:, 0] = initial_condition(radi_array, IM_UNIT, BEAM)
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):
-    fft_step(fourier_coeff, envelope[:, k], envelope_store)
-    envelope[:, k + 1] = envelope_store
+    fft_step(fourier_coeff, envelope_current[:, k], envelope_next)
+    envelope_current[:, k + 1] = envelope_next
 
 ## Analytical solution for a Gaussian beam
 # Set arrays
-envelope_s = np.empty_like(envelope)
+envelope_s = np.empty_like(envelope_current)
 
 # Set variables
 RAYLEIGH_LEN = 0.5 * BEAM["WAVENUMBER"] * BEAM["WAIST_0"] ** 2
@@ -198,7 +198,7 @@ new_radi_array = new_radi_2d_array[:, 0]
 new_dist_array = new_dist_2d_array[0, :]
 
 # Set up intensities (W/cm^2)
-plot_int = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope) ** 2
+plot_int = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_current) ** 2
 plot_int_s = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_s) ** 2
 
 ## Set up figure 1

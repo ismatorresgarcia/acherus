@@ -126,21 +126,19 @@ def crank_nicolson_array(nodes, position, coefficient):
     return crank_nicolson_output
 
 
-def fft_step(fourier_coefficient, current_envelope, inter_array):
+def fft_step(fourier_coefficient, current_envelope, array_inter):
     """
     Compute one step of the FFT propagation scheme.
 
     Parameters:
     - fourier_coefficient: precomputed Fourier coefficient
     - current_envelope: envelope at step k
-    - inter_array: pre-allocated array for envelope at step k + 1
+    - array_inter: pre-allocated array for envelope at step k + 1
     """
-    for i in range(current_envelope.shape[0]):
-        envelope_fourier = fourier_coefficient * fft(current_envelope[i, :])
-        inter_array[i, :] = ifft(envelope_fourier)
+    array_inter[:] = ifft(fourier_coefficient * fft(current_envelope, axis=1), axis=1)
 
 
-def nonlinear_terms(current_envelope, inter_array, media_params):
+def nonlinear_terms(current_envelope, array_inter, media_params):
     """
     Set the terms for nonlinear contributions.
 
@@ -149,71 +147,45 @@ def nonlinear_terms(current_envelope, inter_array, media_params):
     - inter_array: pre-allocated array for intermediate results
     - media_params: dictionary with media parameters
     """
-    inter_array[:, :, 0] = current_envelope
-    inter_array[:, :, 1] = np.abs(current_envelope) ** 2
-    inter_array[:, :, 2] = np.abs(current_envelope) ** media_params["MPA_EXP"]
+    abs_envelope = np.abs(current_envelope)
+    array_inter[:, :, 0] = current_envelope
+    array_inter[:, :, 1] = abs_envelope**2
+    array_inter[:, :, 2] = abs_envelope ** media_params["MPA_EXP"]
 
 
-def ini_adam_bashforth_step(inter_array, adam_bash_array, media_params):
-    """
-    Compute the first two steps of the Adam-Bashforth scheme for the nonlinear terms.
-
-    Parameters:
-    - inter_array: pre-allocated array for intermediate results
-    - adam_bash_array: pre-allocated array for Adam-Bashforth terms
-    - media_params: dictionary with media parameters
-    """
-    adam_bash_array[:, :, 0] = (
-        media_params["KERR_COEF"] * inter_array[:, :, 1]
-        + media_params["MPA_COEF"] * inter_array[:, :, 2]
-    ) * inter_array[:, :, 0]
-
-    inter_array[:, :, 0] *= 1
-    inter_array[:, :, 1] = np.abs(inter_array[:, :, 0]) ** 2
-    inter_array[:, :, 2] = np.abs(inter_array[:, :, 0]) ** media_params["MPA_EXP"]
-
-    adam_bash_array[:, :, 1] = (
-        media_params["KERR_COEF"] * inter_array[:, :, 1]
-        + media_params["MPA_COEF"] * inter_array[:, :, 2]
-    ) * inter_array[:, :, 0]
-
-
-def adam_bashforth_step(inter_array, adam_bash_array, media_params):
+def adam_bashforth_step(array_inter, current_w_array, media_params):
     """
     Compute one step of the Adam-Bashforth scheme for the nonlinear terms.
 
     Parameters:
-    - inter_array: pre-allocated array for intermediate results
-    - adam_bash_array: pre-allocated array for Adam-Bashforth terms
+    - array_inter: pre-allocated array for intermediate results
+    - current_w_array: pre-allocated array for Adam-Bashforth terms
     - media_params: dictionary with media parameters
+    Compute one step of the Adam-Bashforth scheme for the nonlinear terms.
     """
-    adam_bash_array[:, :, 1] = (
-        media_params["KERR_COEF"] * inter_array[:, :, 1]
-        + media_params["MPA_COEF"] * inter_array[:, :, 2]
-    ) * inter_array[:, :, 0]
+    current_w_array[:] = (
+        media_params["KERR_COEF"] * array_inter[:, :, 1]
+        + media_params["MPA_COEF"] * array_inter[:, :, 2]
+    ) * array_inter[:, :, 0]
 
 
 def crank_nicolson_step(
-    left_array, right_array, inter_array, adam_bash_array, next_envelope
+    operator, array_inter, current_w_array, next_w_array, next_envelope
 ):
     """
     Compute one step of the Crank-Nicolson propagation scheme.
 
     Parameters:
-    - left_array: sparse array for left-hand side
-    - right_array: sparse array for right-hand side
-    - inter_array: pre-allocated array for intermediate results
-    - adam_bash_array: pre-allocated array for Adam-Bashforth terms
+    - operator: dict containing sparse arrays for left and right operators
+    - array_inter: intermediate array from FFT step
+    - current_w_array: current step nonlinear terms
+    - next_w_array: previous step nonlinear terms
     - next_envelope: pre-allocated array for envelope at step k + 1
     """
-    for l in range(inter_array.shape[1]):
-        # Compute intermediate arrays
-        d_array = right_array @ inter_array[:, l, 0]
-        f_array = d_array + 0.5 * (
-            3 * adam_bash_array[:, l, 1] - adam_bash_array[:, l, 0]
-        )
-        # Solve system for current time slice
-        next_envelope[:, l] = spsolve(left_array, f_array)
+    for l in range(array_inter.shape[1]):
+        d_array = operator["right"] @ array_inter[:, l]
+        f_array = d_array + 1.5 * current_w_array[:, l] - 0.5 * next_w_array[:, l]
+        next_envelope[:, l] = spsolve(operator["left"], f_array)
 
 
 IM_UNIT = 1j
@@ -244,9 +216,7 @@ radi_array = np.linspace(INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES)
 dist_array = np.linspace(INI_DIST_COOR, FIN_DIST_COOR, N_STEPS + 1)
 time_array = np.linspace(INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES)
 frq_array = np.append(w1, w2)
-radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij")
-radi_2d_array_2, time_2d_array_2 = np.meshgrid(radi_array, time_array, indexing="ij")
-dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing="ij")
+radi_2d_array, time_2d_array = np.meshgrid(radi_array, time_array, indexing="ij")
 
 ## Set beam and media parameters
 LIGHT_SPEED = 299792458
@@ -315,13 +285,14 @@ BEAM = {
 ## Set loop variables
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
-envelope = np.empty_like(radi_2d_array_2, dtype=complex)
-envelope_axis = np.empty_like(dist_2d_array_3, dtype=complex)
-envelope_store = np.empty_like(envelope)
 fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_T * (frq_array * TIME_STEP_LEN) ** 2)
-b_array = np.empty_like(envelope)
+envelope_current = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
+envelope_next = np.empty_like(envelope_current)
+envelope_axis = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
+b_array = np.empty_like(envelope_current)
 c_array = np.empty([N_RADI_NODES, N_TIME_NODES, 3], dtype=complex)
-w_array = np.empty([N_RADI_NODES, N_TIME_NODES, 2], dtype=complex)
+w_array_current = np.empty_like(envelope_current)
+w_array_next = np.empty_like(envelope_current)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1 = IM_UNIT * DELTA_R
@@ -329,26 +300,34 @@ left_operator = crank_nicolson_array(N_RADI_NODES, "LEFT", MATRIX_CNT_1)
 right_operator = crank_nicolson_array(N_RADI_NODES, "RIGHT", -MATRIX_CNT_1)
 
 ## Set initial electric field wave packet
-envelope = initial_condition(radi_2d_array_2, time_2d_array_2, IM_UNIT, BEAM)
-# Save on-axis envelope initial state
-envelope_axis[0, :] = envelope[AXIS_NODE, :]
+envelope_current = initial_condition(radi_2d_array, time_2d_array, IM_UNIT, BEAM)
+envelope_axis[0, :] = envelope_current[AXIS_NODE, :]
+
+## Set dictionaries for better organization
+operators = {"left": left_operator, "right": right_operator}
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS - 1)):
-    fft_step(fourier_coeff, envelope, b_array)
+    fft_step(fourier_coeff, envelope_current, b_array)
     nonlinear_terms(b_array, c_array, MEDIA["WATER"])
-    if k == 0:
-        ini_adam_bashforth_step(c_array, w_array, MEDIA["WATER"])
-        envelope_axis[k + 1, :] = c_array[AXIS_NODE, :, 0]
-    else:
-        adam_bashforth_step(c_array, w_array, MEDIA["WATER"])
+    adam_bashforth_step(c_array, w_array_current, MEDIA["WATER"])
 
-    crank_nicolson_step(left_operator, right_operator, c_array, w_array, envelope_store)
+    # For k = 0, initialize Adam_Bashforth second condition
+    if k == 0:
+        w_array_next = w_array_current.copy()
+        envelope_axis[1, :] = envelope_current[AXIS_NODE, :]
+
+    crank_nicolson_step(
+        operators, b_array, w_array_current, w_array_next, envelope_next
+    )
 
     # Update arrays for the next step
-    w_array[:, :, 0] = w_array[:, :, 1]
-    envelope = envelope_store
-    envelope_axis[k + 2, :] = envelope_store[AXIS_NODE, :]
+    envelope_current, envelope_next = envelope_next, envelope_current
+    w_array_next = w_array_current
+
+    # Store axis data
+    if k > 0:
+        envelope_axis[k + 1, :] = envelope_current[AXIS_NODE, :]
 
 np.savez(
     "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdmk_fcn_1",
@@ -361,6 +340,6 @@ np.savez(
     AXIS_NODE=AXIS_NODE,
     PEAK_NODE=PEAK_NODE,
     LIN_REF_IND=MEDIA["WATER"]["LIN_REF_IND"],
-    e=envelope,
+    e=envelope_current,
     e_axis=envelope_axis,
 )

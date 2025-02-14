@@ -183,8 +183,8 @@ BEAM = {
 
 ## Set loop variables
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
-envelope = np.empty_like(radi_2d_array, dtype=complex)
-envelope_store = np.empty_like(radi_array, dtype=complex)
+envelope_current = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
+envelope_next = np.empty(N_RADI_NODES, dtype=complex)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1 = IM_UNIT * DELTA_R
@@ -192,16 +192,18 @@ left_operator = crank_nicolson_array(N_RADI_NODES, "LEFT", MATRIX_CNT_1)
 right_operator = crank_nicolson_array(N_RADI_NODES, "RIGHT", -MATRIX_CNT_1)
 
 ## Set initial electric field wave packet
-envelope[:, 0] = initial_condition(radi_array, IM_UNIT, BEAM)
+envelope_current[:, 0] = initial_condition(radi_array, IM_UNIT, BEAM)
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):
-    crank_nicolson_step(left_operator, right_operator, envelope[:, k], envelope_store)
-    envelope[:, k + 1] = envelope_store
+    crank_nicolson_step(
+        left_operator, right_operator, envelope_current[:, k], envelope_next
+    )
+    envelope_current[:, k + 1] = envelope_next
 
 ## Analytical solution for a Gaussian beam
 # Set arrays
-envelope_s = np.empty_like(envelope)
+envelope_s = np.empty_like(envelope_current)
 
 # Set variables
 RAYLEIGH_LEN = 0.5 * BEAM["WAVENUMBER"] * BEAM["WAIST_0"] ** 2
@@ -242,13 +244,13 @@ RADI_FACTOR = 1000
 DIST_FACTOR = 100
 AREA_FACTOR = 1e-4
 # Set up plotting grid (mm, cm)
-new_radi_2d_array = RADI_FACTOR * radi_2d_array
-new_dist_2d_array = DIST_FACTOR * dist_2d_array
-new_radi_array = new_radi_2d_array[:, 0]
-new_dist_array = new_dist_2d_array[0, :]
+radi_2d_array = RADI_FACTOR * radi_2d_array
+dist_2d_array = DIST_FACTOR * dist_2d_array
+radi_array = radi_2d_array[:, 0]
+dist_array = dist_2d_array[0, :]
 
 # Set up intensities (W/cm^2)
-plot_int = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope) ** 2
+plot_int = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_current) ** 2
 plot_int_s = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_s) ** 2
 
 ## Set up figure 1
@@ -281,12 +283,12 @@ intensity_list = [
     ),
 ]
 for data, color, style, label in intensity_list:
-    ax1.plot(new_radi_array, data, color, linestyle=style, linewidth=2, label=label)
+    ax1.plot(radi_array, data, color, linestyle=style, linewidth=2, label=label)
 ax1.set(xlabel=r"$r$ ($\mathrm{mm}$)", ylabel=r"$I(r)$ ($\mathrm{W/{cm}^2}$)")
 ax1.legend(facecolor="black", edgecolor="white")
 # Subplot 2
 ax2.plot(
-    new_dist_array,
+    dist_array,
     plot_int_s[AXIS_NODE, :],
     "#FF00FF",  # Magenta
     linestyle="-",
@@ -294,7 +296,7 @@ ax2.plot(
     label="On-axis analytical solution",
 )
 ax2.plot(
-    new_dist_array,
+    dist_array,
     plot_int[AXIS_NODE, :],
     "#32CD32",  # Lime green
     linestyle="--",
@@ -304,27 +306,23 @@ ax2.plot(
 ax2.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$I(z)$ ($\mathrm{W/{cm}^2}$)")
 ax2.legend(facecolor="black", edgecolor="white")
 
-# fig1.tight_layout()
+fig1.tight_layout()
 plt.show()
 
 ## Set up figure 2
 fig2, (ax3, ax4) = plt.subplots(1, 2, figsize=figsize_option)
 # Subplot 1
-fig2_1 = ax3.pcolormesh(
-    new_radi_2d_array, new_dist_2d_array, plot_int, cmap=cmap_option
-)
+fig2_1 = ax3.pcolormesh(radi_2d_array, dist_2d_array, plot_int, cmap=cmap_option)
 fig2.colorbar(fig2_1, ax=ax3)
 ax3.set(xlabel=r"$r$ ($\mathrm{mm}$)", ylabel=r"$z$ ($\mathrm{cm}$)")
 ax3.set_title("Numerical solution in 2D")
 # Subplot 2
-fig2_2 = ax4.pcolormesh(
-    new_radi_2d_array, new_dist_2d_array, plot_int_s, cmap=cmap_option
-)
+fig2_2 = ax4.pcolormesh(radi_2d_array, dist_2d_array, plot_int_s, cmap=cmap_option)
 fig2.colorbar(fig2_2, ax=ax4)
 ax4.set(xlabel=r"$r$ ($\mathrm{mm}$)", ylabel=r"$z$ ($\mathrm{cm}$)")
 ax4.set_title("Analytical solution in 2D")
 
-# fig2.tight_layout()
+fig2.tight_layout()
 plt.show()
 
 ## Set up figure 3
@@ -333,8 +331,8 @@ fig3, (ax5, ax6) = plt.subplots(
 )
 # Subplot 1
 ax5.plot_surface(
-    new_radi_2d_array,
-    new_dist_2d_array,
+    radi_2d_array,
+    dist_2d_array,
     plot_int,
     cmap=cmap_option,
     linewidth=0,
@@ -348,8 +346,8 @@ ax5.set(
 ax5.set_title("Numerical solution")
 # Subplot 2
 ax6.plot_surface(
-    new_radi_2d_array,
-    new_dist_2d_array,
+    radi_2d_array,
+    dist_2d_array,
     plot_int_s,
     cmap=cmap_option,
     linewidth=0,

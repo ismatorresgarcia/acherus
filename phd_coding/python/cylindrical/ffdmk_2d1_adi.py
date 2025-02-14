@@ -193,9 +193,8 @@ PEAK_NODE = N_TIME_NODES // 2  # Peak intensity node
 radi_array = np.linspace(INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES)
 dist_array = np.linspace(INI_DIST_COOR, FIN_DIST_COOR, N_STEPS + 1)
 time_array = np.linspace(INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES)
-radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij")
-radi_2d_array_2, time_2d_array_2 = np.meshgrid(radi_array, time_array, indexing="ij")
-dist_2d_array_3, time_2d_array_3 = np.meshgrid(dist_array, time_array, indexing="ij")
+radi_2d_array, time_2d_array = np.meshgrid(radi_array, time_array, indexing="ij")
+dist_2d_array_2, time_2d_array_2 = np.meshgrid(dist_array, time_array, indexing="ij")
 
 ## Set beam and media parameters
 LIGHT_SPEED = 299792458
@@ -204,12 +203,12 @@ LIN_REF_IND_WATER = 1.334
 NLIN_REF_IND_WATER = 1.6e-20
 GVD_COEF_WATER = 241e-28
 N_PHOTONS_WATER = 5
-BETA_COEF_WATER = 8e-61
+BETA_COEF_WATER = 8e-64
 
 WAVELENGTH_0 = 800e-9
 WAIST_0 = 100e-6
-PEAK_TIME = 130e-15
-ENERGY = 2.2e-6
+PEAK_TIME = 50e-15
+ENERGY = 2.83e-6
 FOCAL_LENGTH = 20
 CHIRP = -1
 
@@ -264,11 +263,11 @@ BEAM = {
 ## Set loop variables
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
-envelope = np.empty_like(radi_2d_array_2, dtype=complex)
-envelope_axis = np.empty_like(dist_2d_array_3, dtype=complex)
-envelope_store = np.empty_like(envelope)
-b_array = np.empty_like(envelope)
-c_array = np.empty_like(envelope)
+envelope_current = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
+envelope_next = np.empty_like(envelope_current)
+envelope_axis = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
+b_array = np.empty_like(envelope_current)
+c_array = np.empty_like(envelope_current)
 d_array = np.empty([N_RADI_NODES, N_TIME_NODES, 3], dtype=complex)
 w_array = np.empty([N_RADI_NODES, N_TIME_NODES, 2], dtype=complex)
 
@@ -281,16 +280,15 @@ left_cn_matrix_t = crank_nicolson_array_t(N_TIME_NODES, "LEFT", MAT_CNT_1T)
 right_cn_matrix_t = crank_nicolson_array_t(N_TIME_NODES, "RIGHT", -MAT_CNT_1T)
 
 ## Set initial electric field wave packet
-envelope = initial_condition(radi_2d_array_2, time_2d_array_2, IM_UNIT, BEAM)
-# Save on-axis envelope initial state
-envelope_axis[0, :] = envelope[AXIS_NODE, :]
+envelope_current = initial_condition(radi_2d_array, time_2d_array, IM_UNIT, BEAM)
+envelope_axis[0, :] = envelope_current[AXIS_NODE, :]
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS - 1)):
     ## Compute first half-step (ADI transverse direction)
     # Compute right-hand side matrix product row by row
     for i in range(N_RADI_NODES):
-        b_array[i, :] = right_cn_matrix_t @ envelope[i, :]
+        b_array[i, :] = right_cn_matrix_t @ envelope_current[i, :]
 
     # Compute first half-step solution
     for l in range(N_TIME_NODES):
@@ -331,14 +329,14 @@ for k in tqdm(range(N_STEPS - 1)):
             ) * d_array[:, l, 0]
 
         # Compute second step solution
-        envelope_store[:, l] = d_array[:, l, 0] + 0.5 * (
+        envelope_next[:, l] = d_array[:, l, 0] + 0.5 * (
             3 * w_array[:, l, 1] - w_array[:, l, 0]
         )
 
     # Update arrays for the next step
     w_array[:, :, 0] = w_array[:, :, 1]
-    envelope = envelope_store
-    envelope_axis[k + 2, :] = envelope_store[AXIS_NODE, :]
+    envelope_current = envelope_next
+    envelope_axis[k + 2, :] = envelope_next[AXIS_NODE, :]
 
 np.savez(
     "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdmk_adi_1",
@@ -351,6 +349,6 @@ np.savez(
     AXIS_NODE=AXIS_NODE,
     PEAK_NODE=PEAK_NODE,
     LIN_REF_IND=MEDIA["WATER"]["LIN_REF_IND"],
-    e=envelope,
+    e=envelope_current,
     e_axis=envelope_axis,
 )
