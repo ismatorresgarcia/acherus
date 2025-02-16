@@ -286,7 +286,7 @@ electron_dens_axis[0, :] = electron_dens_current[AXIS_NODE, :]
 electron_dens_peak[:, 0] = electron_dens_current[:, PEAK_NODE]
 
 ## Propagation loop over desired number of steps
-for k in tqdm(range(N_STEPS - 1)):
+for k in tqdm(range(N_STEPS)):
     # Electron density evolution update
     for l in range(N_TIME_NODES - 1):
         A_CNT = np.exp(
@@ -342,7 +342,7 @@ for k in tqdm(range(N_STEPS - 1)):
     w_array_next = w_array_current
 
     # Store data
-    if k % ((N_STEPS - 1) // DIST_LIMIT) == 0 and DIST_INDEX < DIST_LIMIT:
+    if k % (N_STEPS // DIST_LIMIT) == 0 and DIST_INDEX < DIST_LIMIT:
         envelope_dist[:, DIST_INDEX, :] = envelope_current
         electron_dens_dist[:, DIST_INDEX, :] = electron_dens_current
         DIST_INDEX += 1

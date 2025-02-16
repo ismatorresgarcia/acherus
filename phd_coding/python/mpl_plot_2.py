@@ -275,7 +275,7 @@ def main():
     """Main execution function"""
     # Load data
     data = np.load(
-        "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/pruebilla_scn_2.npz"
+        "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/pruebilla_scn_1.npz"
     )
 
     # Initialize classes

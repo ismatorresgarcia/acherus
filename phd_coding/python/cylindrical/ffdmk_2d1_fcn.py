@@ -199,7 +199,7 @@ RADI_STEP_LEN = (FIN_RADI_COOR - INI_RADI_COOR) / (N_RADI_NODES - 1)
 AXIS_NODE = int(-INI_RADI_COOR / RADI_STEP_LEN)  # On-axis node
 # Propagation (z) grid
 INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 2e-2, 1000
-DIST_STEP_LEN = FIN_DIST_COOR / N_STEPS
+DIST_STEP_LEN = (FIN_DIST_COOR - INI_DIST_COOR) / N_STEPS
 # Time (t) grid
 INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES = -200e-15, 200e-15, 4096
 TIME_STEP_LEN = (FIN_TIME_COOR - INI_TIME_COOR) / (N_TIME_NODES - 1)
@@ -307,7 +307,7 @@ envelope_axis[0, :] = envelope_current[AXIS_NODE, :]
 operators = {"left": left_operator, "right": right_operator}
 
 ## Propagation loop over desired number of steps
-for k in tqdm(range(N_STEPS - 1)):
+for k in tqdm(range(N_STEPS)):
     fft_step(fourier_coeff, envelope_current, b_array)
     nonlinear_terms(b_array, c_array, MEDIA["WATER"])
     adam_bashforth_step(c_array, w_array_current, MEDIA["WATER"])

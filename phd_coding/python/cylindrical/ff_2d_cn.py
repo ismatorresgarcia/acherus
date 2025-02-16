@@ -133,7 +133,7 @@ RADI_STEP_LEN = (FIN_RADI_COOR - INI_RADI_COOR) / (N_RADI_NODES - 1)
 AXIS_NODE = int(-INI_RADI_COOR / RADI_STEP_LEN)  # On-axis node
 # Propagation (z) grid
 INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 3, 1000
-DIST_STEP_LEN = FIN_DIST_COOR / N_STEPS
+DIST_STEP_LEN = (FIN_DIST_COOR - INI_DIST_COOR) / N_STEPS
 radi_array = np.linspace(INI_RADI_COOR, FIN_RADI_COOR, N_RADI_NODES)
 dist_array = np.linspace(INI_DIST_COOR, FIN_DIST_COOR, N_STEPS + 1)
 radi_2d_array, dist_2d_array = np.meshgrid(radi_array, dist_array, indexing="ij")

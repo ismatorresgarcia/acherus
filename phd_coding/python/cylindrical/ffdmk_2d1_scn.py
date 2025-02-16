@@ -152,7 +152,9 @@ def adam_bashforth_step(array_inter, current_w_array, media_params):
     ) * array_inter[:, :, 0]
 
 
-def fft_algorithm(current_envelope, fourier_envelope, current_w_array, next_w_array):
+def fft_algorithm(
+    current_envelope, fourier_envelope, current_w_array, next_w_array, array_temp
+):
     """
     Compute the FFT of the envelope and Adam-Bashforth terms.
 
@@ -161,10 +163,13 @@ def fft_algorithm(current_envelope, fourier_envelope, current_w_array, next_w_ar
     - fourier_envelope: pre-allocated array for Fourier envelope at step k
     - current_w_array: current step nonlinear terms
     - next_w_array: previous step nonlinear terms
+    - temp_array: pre-allocated array for temporary results
     """
     fourier_envelope[:] = fft(current_envelope, axis=1)
-    current_w_array[:, :] = fft(current_w_array[:, :], axis=1)
-    next_w_array[:, :] = fft(next_w_array[:, :], axis=1)
+    array_temp = fft(current_w_array[:, :], axis=1)
+    current_w_array[:, :] = array_temp
+    array_temp = fft(next_w_array[:, :], axis=1)
+    next_w_array[:, :] = array_temp
 
 
 def crank_nicolson_step(operator, array_set, coefficient):
@@ -219,8 +224,8 @@ N_RADI_NODES = I_RADI_NODES + 2
 RADI_STEP_LEN = (FIN_RADI_COOR - INI_RADI_COOR) / (N_RADI_NODES - 1)
 AXIS_NODE = int(-INI_RADI_COOR / RADI_STEP_LEN)  # On-axis node
 # Propagation (z) grid
-INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 0.5e-2, 1000
-DIST_STEP_LEN = FIN_DIST_COOR / N_STEPS
+INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 3e-2, 1000
+DIST_STEP_LEN = (FIN_DIST_COOR - INI_DIST_COOR) / N_STEPS
 # Time (t) grid
 INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES = -200e-15, 200e-15, 4096
 TIME_STEP_LEN = (FIN_TIME_COOR - INI_TIME_COOR) / (N_TIME_NODES - 1)
@@ -317,6 +322,7 @@ d_array = np.empty_like(c_array)
 f_array = np.empty_like(envelope_current)
 w_array_current = np.empty_like(envelope_current)
 w_array_next = np.empty_like(envelope_current)
+temp_array = np.empty_like(envelope_current)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1 = IM_UNIT * DELTA_R
@@ -342,14 +348,16 @@ sets = {
 coefficients = {"left": matrix_cnt_3, "right": matrix_cnt_2}
 
 ## Propagation loop over desired number of steps (Spectral domain)
-for k in tqdm(range(N_STEPS - 1)):
+for k in tqdm(range(N_STEPS)):
     nonlinear_terms(envelope_current, b_array, MEDIA["WATER"])
     adam_bashforth_step(b_array, w_array_current, MEDIA["WATER"])
     if k == 0:
         w_array_next = w_array_current.copy()
         envelope_axis[k + 1, :] = envelope_current[AXIS_NODE, :]
 
-    fft_algorithm(b_array[:, :, 0], envelope_fourier, w_array_current, w_array_next)
+    fft_algorithm(
+        b_array[:, :, 0], envelope_fourier, w_array_current, w_array_next, temp_array
+    )
     crank_nicolson_step(operators, sets, coefficients)
     ifft_algorithm(f_array, envelope_next)
 
