@@ -227,7 +227,7 @@ AXIS_NODE = int(-INI_RADI_COOR / RADI_STEP_LEN)  # On-axis node
 INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 3e-2, 1000
 DIST_STEP_LEN = (FIN_DIST_COOR - INI_DIST_COOR) / N_STEPS
 # Time (t) grid
-INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES = -200e-15, 200e-15, 4096
+INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES = -200e-15, 200e-15, 8192
 TIME_STEP_LEN = (FIN_TIME_COOR - INI_TIME_COOR) / (N_TIME_NODES - 1)
 PEAK_NODE = N_TIME_NODES // 2  # Peak intensity node
 # Angular frequency (ω) grid
@@ -251,7 +251,7 @@ LIN_REF_IND_WATER = 1.328
 NLIN_REF_IND_WATER = 1.6e-20
 GVD_COEF_WATER = 241e-28
 N_PHOTONS_WATER = 5
-BETA_COEF_WATER = 8e-64
+CS_MPA_WATER = 8e-64
 
 WAVELENGTH_0 = 800e-9
 WAIST_0 = 100e-6
@@ -271,7 +271,7 @@ AMPLITUDE = np.sqrt(INTENSITY / INT_FACTOR)
 
 MPA_EXP = 2 * N_PHOTONS_WATER - 2
 KERR_COEF = IM_UNIT * WAVENUMBER_0 * NLIN_REF_IND_WATER * DIST_STEP_LEN * INT_FACTOR
-MPA_COEF = -0.5 * BETA_COEF_WATER * DIST_STEP_LEN * INT_FACTOR ** (N_PHOTONS_WATER - 1)
+MPA_COEF = -0.5 * CS_MPA_WATER * DIST_STEP_LEN * INT_FACTOR ** (N_PHOTONS_WATER - 1)
 
 ## Set dictionaries for better organization
 MEDIA = {
@@ -280,10 +280,10 @@ MEDIA = {
         "NLIN_REF_IND": NLIN_REF_IND_WATER,
         "GVD_COEF": GVD_COEF_WATER,
         "N_PHOTONS": N_PHOTONS_WATER,  # Number of photons absorbed [-]
-        "BETA_COEF": BETA_COEF_WATER,  # MPA coefficient [m(2K-3) / W-(K-1)]
+        "CS_MPA": CS_MPA_WATER,  # K-photon MPA coefficient [m(2K-3) - W-(K-1)]
         "MPA_EXP": MPA_EXP,  # MPA exponent [-]
-        "KERR_COEF": KERR_COEF,  # Kerr coefficient [m^2 / W]
-        "MPA_COEF": MPA_COEF,  # MPA coefficient [m^2 / W]
+        "MPA_COEF": MPA_COEF,  # MPA coefficient
+        "KERR_COEF": KERR_COEF,  # Kerr coefficient
         "INT_FACTOR": INT_FACTOR,
     },
     "VACUUM": {
@@ -309,19 +309,24 @@ BEAM = {
 }
 
 ## Set loop variables
+DIST_INDEX = 0
+DIST_LIMIT = 5
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 DELTA_T = 0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"]
 fourier_coeff = IM_UNIT * DELTA_T * frq_array**2
 envelope_current = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
 envelope_next = np.empty_like(envelope_current)
-envelope_axis = np.empty([N_STEPS, N_TIME_NODES], dtype=complex)
 envelope_fourier = np.empty_like(envelope_current)
+envelope_dist = np.empty([N_RADI_NODES, DIST_LIMIT + 1, N_TIME_NODES], dtype=complex)
+envelope_axis = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
+envelope_peak = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
 b_array = np.empty([N_RADI_NODES, N_TIME_NODES, 3], dtype=complex)
 c_array = np.empty(N_RADI_NODES, dtype=complex)
 d_array = np.empty_like(c_array)
 f_array = np.empty_like(envelope_current)
 w_array_current = np.empty_like(envelope_current)
 w_array_next = np.empty_like(envelope_current)
+z_array_node = np.empty(DIST_LIMIT + 1, dtype=int)
 temp_array = np.empty_like(envelope_current)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
@@ -356,7 +361,7 @@ for k in tqdm(range(N_STEPS)):
         envelope_axis[k + 1, :] = envelope_current[AXIS_NODE, :]
 
     fft_algorithm(
-        b_array[:, :, 0], envelope_fourier, w_array_current, w_array_next, temp_array
+        envelope_current, envelope_fourier, w_array_current, w_array_next, temp_array
     )
     crank_nicolson_step(operators, sets, coefficients)
     ifft_algorithm(f_array, envelope_next)
@@ -365,12 +370,27 @@ for k in tqdm(range(N_STEPS)):
     envelope_current, envelope_next = envelope_next, envelope_current
     w_array_next = w_array_current
 
+    # Store data
+    if (
+        (k % (N_STEPS // DIST_LIMIT) == 0) or (k == N_STEPS - 1)
+    ) and DIST_INDEX <= DIST_LIMIT:
+
+        envelope_dist[:, DIST_INDEX, :] = envelope_current
+        z_array_node[DIST_INDEX] = k
+        DIST_INDEX += 1
+
     # Store axis data
     if k > 0:
         envelope_axis[k + 1, :] = envelope_current[AXIS_NODE, :]
+        envelope_peak[:, k + 1] = envelope_current[:, PEAK_NODE]
 
+# Save to file
 np.savez(
     "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdmk_scn_1",
+    e_dist=envelope_dist,
+    e_axis=envelope_axis,
+    e_peak=envelope_peak,
+    z_nodes=z_array_node,
     INI_RADI_COOR=INI_RADI_COOR,
     FIN_RADI_COOR=FIN_RADI_COOR,
     INI_DIST_COOR=INI_DIST_COOR,
@@ -380,6 +400,4 @@ np.savez(
     AXIS_NODE=AXIS_NODE,
     PEAK_NODE=PEAK_NODE,
     LIN_REF_IND=MEDIA["WATER"]["LIN_REF_IND"],
-    e=envelope_current,
-    e_axis=envelope_axis,
 )

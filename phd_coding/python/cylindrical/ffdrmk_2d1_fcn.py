@@ -17,6 +17,7 @@ Numerical discretization: Finite Differences Method (FDM).
         *- Constant electron density at initial t coordinate.
     - Boundary conditions: Neumann-Dirichlet (radial) and Periodic (temporal) for the envelope.
 
+DE:          ∂N/∂t = S_K|E|^(2K)(N_n - N) + S_w N|E|^2 / U_i
 UPPE:          ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t² - i(k_0/2n_0)(N/N_c)E - iB_K|E|^(2K-2)E 
                                   + ik_0n_2|E|^2 E 
 
@@ -36,9 +37,13 @@ t: time coordinate.
 k: wavenumber (in the interacting media).
 k'': GVD coefficient of 2nd order.
 k_0: wavenumber (in vacuum).
+N_n: neutral density (of the interacting media).
 N_c: critical density (of the interacting media).
 n_2: nonlinear refractive index (for a third-order centrosymmetric medium).
+S_K: nonlinear optical field ionization coefficient.
 B_K: nonlinear multiphoton absorption coefficient.
+S_w: bremsstrahlung cross-section for avalanche (cascade) ionization.
+U_i: ionization energy (for the interacting media).
 ∇²: laplace operator (for the transverse direction).
 """
 
@@ -143,7 +148,7 @@ RADI_STEP_LEN = (FIN_RADI_COOR - INI_RADI_COOR) / (N_RADI_NODES - 1)
 AXIS_NODE = int(-INI_RADI_COOR / RADI_STEP_LEN)  # On-axis node
 # Propagation (z) grid
 INI_DIST_COOR, FIN_DIST_COOR, N_STEPS = 0, 2e-2, 1000
-DIST_STEP_LEN = FIN_DIST_COOR / N_STEPS
+DIST_STEP_LEN = (FIN_DIST_COOR - INI_DIST_COOR) / N_STEPS
 # Time (t) grid
 INI_TIME_COOR, FIN_TIME_COOR, N_TIME_NODES = -200e-15, 200e-15, 4096
 TIME_STEP_LEN = (FIN_TIME_COOR - INI_TIME_COOR) / (N_TIME_NODES - 1)
@@ -167,14 +172,16 @@ LIGHT_SPEED = 299792458
 ELECTRON_MASS = 9.1093837139e-31
 ELECTRON_CHARGE = 1.602176634e-19
 PERMITTIVITY = 8.8541878128e-12
-PLANCK = 1.05457182e-34
+PLANCK_CNT = 1.05457182e-34
 LIN_REF_IND_WATER = 1.328
 NLIN_REF_IND_WATER = 1.6e-20
 GVD_COEF_WATER = 241e-28
 N_PHOTONS_WATER = 5
-BETA_COEF_WATER = 8e-64
-SIGMA_COEF_WATER = 9.6e-75
-NEUTRAL_DENS = 6.68e-28
+CS_MPA_WATER = 8e-64
+CS_MPI_WATER = 9.65e-75
+IONIZATION_ENERGY_WATER = 1e-18
+COLLISION_TIME_WATER = 3e-15
+NEUTRAL_DENS = 6.68e28
 
 WAVELENGTH_0 = 800e-9
 WAIST_0 = 100e-6
@@ -194,14 +201,24 @@ INTENSITY = 2 * POWER / (PI * WAIST_0**2)
 AMPLITUDE = np.sqrt(INTENSITY / INT_FACTOR)
 
 CRITICAL_DENS = PERMITTIVITY * ELECTRON_MASS * (ANGULAR_FRQ / ELECTRON_CHARGE) ** 2
+CS_BREMSSTRAHLUNG_WATER = (
+    WAVENUMBER
+    * ANGULAR_FRQ
+    * COLLISION_TIME_WATER
+    / (
+        (LIN_REF_IND_WATER**2 * CRITICAL_DENS)
+        * (1 + (ANGULAR_FRQ * COLLISION_TIME_WATER) ** 2)
+    )
+)
 MPI_EXP = 2 * N_PHOTONS_WATER
 MPA_EXP = MPI_EXP - 2
-MPA_COEF = -0.5 * BETA_COEF_WATER * DIST_STEP_LEN * INT_FACTOR ** (N_PHOTONS_WATER - 1)
+OFI_COEF = CS_MPI_WATER * INT_FACTOR**N_PHOTONS_WATER
+AVA_COEF = CS_BREMSSTRAHLUNG_WATER * INT_FACTOR / IONIZATION_ENERGY_WATER
+MPA_COEF = -0.5 * CS_MPA_WATER * DIST_STEP_LEN * INT_FACTOR ** (N_PHOTONS_WATER - 1)
 REF_COEF = (
     -0.5 * IM_UNIT * WAVENUMBER_0 * DIST_STEP_LEN / (LIN_REF_IND_WATER * CRITICAL_DENS)
 )
 KERR_COEF = IM_UNIT * WAVENUMBER_0 * NLIN_REF_IND_WATER * DIST_STEP_LEN * INT_FACTOR
-MPI_COEF = SIGMA_COEF_WATER * INT_FACTOR**N_PHOTONS_WATER
 
 ## Set dictionaries for better organization
 MEDIA = {
@@ -212,13 +229,15 @@ MEDIA = {
         "NEUTRAL_DENS": NEUTRAL_DENS,
         "CRITICAL_DENS": CRITICAL_DENS,
         "N_PHOTONS": N_PHOTONS_WATER,  # Number of photons absorbed [-]
-        "BETA_COEF": BETA_COEF_WATER,  # MPA coefficient [m(2K-3) / W-(K-1)]
-        "MPI_EXP": MPI_EXP,  # MPI exponent [-]
+        "CS_MPA": CS_MPA_WATER,  # K-photon MPA coefficient [m(2K-3) - W-(K-1)]
+        "CS_MPI": CS_MPI_WATER,  # K-photon MPI coefficient [s-1 - m(2K) - W-K]
         "MPA_EXP": MPA_EXP,  # MPA exponent [-]
-        "REF_COEF": REF_COEF,  # Refraction coefficient [m-1]
-        "MPI_COEF": MPI_COEF,  # MPI coefficient [s-1 - m2K / W-K]
-        "MPA_COEF": MPA_COEF,  # MPA coefficient [m^2 / W]
-        "KERR_COEF": KERR_COEF,  # Kerr coefficient [m^2 / W]
+        "MPI_EXP": MPI_EXP,  # MPI exponent [-]
+        "REF_COEF": REF_COEF,  # Refraction coefficient
+        "MPA_COEF": MPA_COEF,  # MPA coefficient
+        "KERR_COEF": KERR_COEF,  # Kerr coefficient
+        "OFI_COEF": OFI_COEF,  # OFI coefficient
+        "AVA_COEF": AVA_COEF,  # Avalanche ionization coefficient
         "INT_FACTOR": INT_FACTOR,
     },
     "VACUUM": {
@@ -250,9 +269,11 @@ DIST_INDEX = 0
 DIST_LIMIT = 5
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
-DENS_CNT_1 = -0.5 * TIME_STEP_LEN * MEDIA["WATER"]["MPI_COEF"]
-DENS_CNT_2 = 0.5 * TIME_STEP_LEN * MEDIA["WATER"]["NEUTRAL_DENS"]
-DENS_CNT_3 = DENS_CNT_2 * MEDIA["WATER"]["MPI_COEF"]
+DENS_CNT_1 = -0.5 * TIME_STEP_LEN * MEDIA["WATER"]["OFI_COEF"]
+DENS_CNT_2 = 0.5 * TIME_STEP_LEN * MEDIA["WATER"]["AVA_COEF"]
+DENS_CNT_3 = (
+    0.5 * TIME_STEP_LEN * MEDIA["WATER"]["NEUTRAL_DENS"] * MEDIA["WATER"]["OFI_COEF"]
+)
 fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_T * (frq_array * TIME_STEP_LEN) ** 2)
 
 envelope_current = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
@@ -260,7 +281,7 @@ envelope_next = np.empty_like(envelope_current)
 electron_dens_current = np.empty_like(envelope_current)
 electron_dens_next = np.empty_like(envelope_current)
 
-envelope_dist = np.empty([N_RADI_NODES, DIST_LIMIT, N_TIME_NODES], dtype=complex)
+envelope_dist = np.empty([N_RADI_NODES, DIST_LIMIT + 1, N_TIME_NODES], dtype=complex)
 envelope_axis = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
 envelope_peak = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
 electron_dens_dist = np.empty_like(envelope_dist)
@@ -271,6 +292,8 @@ b_array = np.empty_like(envelope_current)
 c_array = np.empty([N_RADI_NODES, N_TIME_NODES, 4], dtype=complex)
 w_array_current = np.empty_like(envelope_current)
 w_array_next = np.empty_like(envelope_current)
+
+z_array_node = np.empty(DIST_LIMIT + 1, dtype=int)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1 = IM_UNIT * DELTA_R
@@ -289,20 +312,15 @@ electron_dens_peak[:, 0] = electron_dens_current[:, PEAK_NODE]
 for k in tqdm(range(N_STEPS)):
     # Electron density evolution update
     for l in range(N_TIME_NODES - 1):
-        A_CNT = np.exp(
-            DENS_CNT_1
-            * (
-                np.abs(envelope_current[:, l + 1]) ** MPI_EXP
-                + np.abs(envelope_current[:, l]) ** MPI_EXP
-            )
-        )
+        e_l1 = np.abs(envelope_current[:, l]) ** 2
+        e_l1_K = e_l1 ** MEDIA["WATER"]["N_PHOTONS"]
+        e_l2 = np.abs(envelope_current[:, l + 1]) ** 2
+        e_l2_K = e_l2 ** MEDIA["WATER"]["N_PHOTONS"]
+
+        DENS_CNT = np.exp(DENS_CNT_1 * (e_l2_K + e_l1_K) + DENS_CNT_2 * (e_l2 + e_l1))
         electron_dens_current[:, l + 1] = (
-            A_CNT
-            * (
-                electron_dens_current[:, l]
-                + DENS_CNT_3 * np.abs(envelope_current[:, l]) ** MPI_EXP
-            )
-            + DENS_CNT_3 * np.abs(envelope_current[:, l + 1]) ** MPI_EXP
+            DENS_CNT * (electron_dens_current[:, l] + DENS_CNT_3 * e_l1_K)
+            + DENS_CNT_3 * e_l2_K
         )
 
     # FFT step in vectorized form
@@ -342,9 +360,13 @@ for k in tqdm(range(N_STEPS)):
     w_array_next = w_array_current
 
     # Store data
-    if k % (N_STEPS // DIST_LIMIT) == 0 and DIST_INDEX < DIST_LIMIT:
+    if (
+        (k % (N_STEPS // DIST_LIMIT) == 0) or (k == N_STEPS - 1)
+    ) and DIST_INDEX <= DIST_LIMIT:
+
         envelope_dist[:, DIST_INDEX, :] = envelope_current
         electron_dens_dist[:, DIST_INDEX, :] = electron_dens_current
+        z_array_node[DIST_INDEX] = k
         DIST_INDEX += 1
 
     # Store axis data
@@ -356,13 +378,14 @@ for k in tqdm(range(N_STEPS)):
 
 # Save to file
 np.savez(
-    "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdmk_fcn_1",
+    "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdrmk_fcn_1",
     e_dist=envelope_dist,
     e_axis=envelope_axis,
     e_peak=envelope_peak,
     elec_dist=electron_dens_dist,
     elec_axis=electron_dens_axis,
     elec_peak=electron_dens_peak,
+    z_nodes=z_array_node,
     INI_RADI_COOR=INI_RADI_COOR,
     FIN_RADI_COOR=FIN_RADI_COOR,
     INI_DIST_COOR=INI_DIST_COOR,
