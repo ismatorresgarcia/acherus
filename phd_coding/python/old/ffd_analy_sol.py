@@ -88,10 +88,10 @@ BEAM = {
 
 ## Analytical solution for a Gaussian beam
 # Set arrays
-envelope_radial_s = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
-envelope_time_s = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
-envelope_fin_s = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
-envelope_axis_s = np.empty_like(envelope_time_s)
+envelope_radial_sol = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
+envelope_time_sol = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
+envelope_fin_sol = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
+envelope_axis_sol = np.empty_like(envelope_time_sol)
 
 # Set variables
 RAYLEIGH_LEN = 0.5 * BEAM["WAVENUMBER"] * BEAM["WAIST_0"] ** 2
@@ -120,30 +120,30 @@ gouy_time_phase = 0.5 * np.atan(
 #
 ratio_term = BEAM["WAIST_0"] / beam_waist[np.newaxis, :]
 sqrt_term = np.sqrt(BEAM["PEAK_TIME"] / beam_duration[:, np.newaxis])
-decay_radial_exp_term = (radi_array[:, np.newaxis] / beam_waist) ** 2
-decay_time_exp_term = (time_array / beam_duration[:, np.newaxis]) ** 2
-prop_radial_exp_term = (
+decay_radial_term = (radi_array[:, np.newaxis] / beam_waist) ** 2
+decay_time_term = (time_array / beam_duration[:, np.newaxis]) ** 2
+prop_radial_term = (
     0.5 * IM_UNIT * BEAM["WAVENUMBER"] * radi_array[:, np.newaxis] ** 2 / beam_radius
 )
-prop_time_exp_term = 1 + IM_UNIT * (
+prop_time_term = 1 + IM_UNIT * (
     BEAM["CHIRP"]
     + (1 + BEAM["CHIRP"] ** 2) * (dist_array[:, np.newaxis] / DISPERSION_LEN)
 )
-gouy_radial_exp_term = IM_UNIT * gouy_radial_phase[np.newaxis, :]
-gouy_time_exp_term = IM_UNIT * gouy_time_phase[:, np.newaxis]
+gouy_radial_term = IM_UNIT * gouy_radial_phase[np.newaxis, :]
+gouy_time_term = IM_UNIT * gouy_time_phase[:, np.newaxis]
 
 # Compute solution
-envelope_radial_s = ratio_term * np.exp(
-    -decay_radial_exp_term + prop_radial_exp_term - gouy_radial_exp_term
+envelope_radial_sol = ratio_term * np.exp(
+    -decay_radial_term + prop_radial_term - gouy_radial_term
 )
-envelope_time_s = sqrt_term * np.exp(
-    -decay_time_exp_term * prop_time_exp_term - gouy_time_exp_term
+envelope_time_sol = sqrt_term * np.exp(
+    -decay_time_term * prop_time_term - gouy_time_term
 )
-envelope_fin_s = BEAM["AMPLITUDE"] * (
-    envelope_radial_s[:, -1, np.newaxis] * envelope_time_s[-1, :]
+envelope_fin_sol = BEAM["AMPLITUDE"] * (
+    envelope_radial_sol[:, -1, np.newaxis] * envelope_time_sol[-1, :]
 )
-envelope_axis_s = BEAM["AMPLITUDE"] * (
-    envelope_radial_s[AXIS_NODE, :, np.newaxis] * envelope_time_s
+envelope_axis_sol = BEAM["AMPLITUDE"] * (
+    envelope_radial_sol[AXIS_NODE, :, np.newaxis] * envelope_time_sol
 )
 
 ### Plots
@@ -167,11 +167,11 @@ time_array = time_2d_array_2[0, :]
 # Set up intensities (W/cm^2)
 plot_beam_waist = RADI_FACTOR * beam_waist
 plot_beam_duration = TIME_FACTOR * beam_duration
-plot_intensity_axis_s = (
-    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_axis_s) ** 2
+plot_int_axis_sol = (
+    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_axis_sol) ** 2
 )
-plot_intensity_fin_s = (
-    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_fin_s) ** 2
+plot_int_fin_sol = (
+    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_fin_sol) ** 2
 )
 
 ## Set up figure 1
@@ -193,7 +193,7 @@ ax2.plot(
 ax2.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$T(z)$ ($\mathrm{fs}$)")
 ax2.legend(facecolor="black", edgecolor="white")
 
-# fig1.tight_layout()
+fig1.tight_layout()
 plt.show()
 
 ## Set up figure 2
@@ -201,14 +201,14 @@ fig2, (ax3, ax4) = plt.subplots(2, 1, figsize=figsize_option)
 # Subplot 1
 ax3.plot(
     time_array,
-    plot_intensity_axis_s[0, :],
+    plot_int_axis_sol[0, :],
     color="#32CD32",  # Lime green
     linestyle="-",
     label=r"On-axis analytical solution at beginning $z$ step",
 )
 ax3.plot(
     time_array,
-    plot_intensity_axis_s[-1, :],
+    plot_int_axis_sol[-1, :],
     color="#1E90FF",  # Electric Blue
     linestyle="-",
     label=r"On-axis analytical solution at final $z$ step",
@@ -218,7 +218,7 @@ ax3.legend(facecolor="black", edgecolor="white")
 # Subplot 2
 ax4.plot(
     dist_array,
-    plot_intensity_axis_s[:, PEAK_NODE],
+    plot_int_axis_sol[:, PEAK_NODE],
     color="#FFFF00",  # Pure yellow
     linestyle="-",
     label="On-axis at peak-time",
@@ -226,7 +226,7 @@ ax4.plot(
 ax4.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$I(z)$ ($\mathrm{W/{cm}^2}$)")
 ax4.legend(facecolor="black", edgecolor="white")
 
-# fig2.tight_layout()
+fig2.tight_layout()
 plt.show()
 
 ## Set up figure 3
@@ -235,7 +235,7 @@ fig3, (ax5, ax6) = plt.subplots(1, 2, figsize=figsize_option)
 fig3_1 = ax5.pcolormesh(
     dist_2d_array_2,
     time_2d_array_2,
-    plot_intensity_axis_s,
+    plot_int_axis_sol,
     cmap=cmap_option,
 )
 fig3.colorbar(fig3_1, ax=ax5)
@@ -243,13 +243,13 @@ ax5.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$t$ ($\mathrm{fs}$)")
 ax5.set_title("On-axis analytical solution in 2D")
 # Subplot 2
 fig3_1 = ax6.pcolormesh(
-    radi_2d_array, time_2d_array, plot_intensity_fin_s, cmap=cmap_option
+    radi_2d_array, time_2d_array, plot_int_fin_sol, cmap=cmap_option
 )
 fig3.colorbar(fig3_1, ax=ax6)
 ax6.set(xlabel=r"$r$ ($\mathrm{\mu m}$)", ylabel=r"$t$ ($\mathrm{fs}$)")
 ax6.set_title(r"Ending $z$ step analytical solution in 2D")
 
-# fig3.tight_layout()
+fig3.tight_layout()
 plt.show()
 
 ## Set up figure 4
@@ -260,7 +260,7 @@ fig4, (ax7, ax8) = plt.subplots(
 ax7.plot_surface(
     dist_2d_array_2,
     time_2d_array_2,
-    plot_intensity_axis_s,
+    plot_int_axis_sol,
     cmap=cmap_option,
     linewidth=0,
     antialiased=True,
@@ -275,7 +275,7 @@ ax7.set_title("On-axis analytical solution in 3D")
 ax8.plot_surface(
     radi_2d_array,
     time_2d_array,
-    plot_intensity_fin_s,
+    plot_int_fin_sol,
     cmap=cmap_option,
     linewidth=0,
     antialiased=True,

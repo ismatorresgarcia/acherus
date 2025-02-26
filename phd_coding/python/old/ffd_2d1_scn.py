@@ -6,7 +6,7 @@ This program includes:
     - Second order group velocity dispersion (GVD).
 
 Numerical discretization: Finite Differences Method (FDM).
-    - Method: Split-step Fourier Crank-Nicolson (FCN) scheme.
+    - Method: Spectral (in frequency) Crank-Nicolson (CN) scheme.
     - Initial condition: Gaussian.
     - Boundary conditions: Neumann-Dirichlet (radial) and Periodic (temporal).
 
@@ -32,117 +32,133 @@ from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
 
 
-def initial_condition(radius, time, im_unit, beam_parameters):
+def initial_condition(r, t, im, beam):
     """
     Set the post-lens chirped Gaussian beam.
 
     Parameters:
-    - radius (array): radial array
-    - time (array): time array
-    - im_unit (complex): square root of -1
-    - beam_parameters (dict): dictionary containing the beam parameters
-        - amplitude (float): amplitude of the Gaussian beam
-        - waist (float): waist of the Gaussian beam
-        - wave_number (float): wavenumber of the Gaussian beam
-        - focal_length (float): focal length of the initial lens
-        - peak_time (float): time at which the Gaussian beam reaches its peak intensity
-        - chirp (float): initial chirping introduced by some optical system
+    - r (array): radial array
+    - t (array): time array
+    - im (complex): square root of -1
+    - beam (dict): dictionary containing the beam parameters
+        - a (float): amplitude of the Gaussian beam
+        - w (float): waist of the Gaussian beam
+        - wn (float): wavenumber of the Gaussian beam
+        - f (float): focal length of the initial lens
+        - pt (float): time at which the Gaussian beam reaches its peak intensity
+        - ch (float): initial chirping introduced by some optical system
     """
-    amplitude = beam_parameters["AMPLITUDE"]
-    waist = beam_parameters["WAIST_0"]
-    wave_number = beam_parameters["WAVENUMBER"]
-    focal_length = beam_parameters["FOCAL_LENGTH"]
-    peak_time = beam_parameters["PEAK_TIME"]
-    chirp = beam_parameters["CHIRP"]
-    gaussian_envelope = amplitude * np.exp(
-        -((radius / waist) ** 2)
-        - 0.5 * im_unit * wave_number * radius**2 / focal_length
-        - (1 + im_unit * chirp) * (time / peak_time) ** 2
+    a = beam["AMPLITUDE"]
+    w = beam["WAIST_0"]
+    wn = beam["WAVENUMBER"]
+    f = beam["FOCAL_LENGTH"]
+    pt = beam["PEAK_TIME"]
+    ch = beam["CHIRP"]
+    gaussian = a * np.exp(
+        -((r / w) ** 2) - 0.5 * im * wn * r**2 / f - (1 + im * ch) * (t / pt) ** 2
     )
 
-    return gaussian_envelope
+    return gaussian
 
 
-def crank_nicolson_diags(nodes, position, coefficient):
+def crank_nicolson_diags(n, lr, c):
     """
     Set the three diagonals for the Crank-Nicolson array with centered differences.
 
     Parameters:
-    - nodes (int): number of radial nodes
-    - position (str): position of the Crank-Nicolson array (left or right)
-    - coefficient (float): coefficient for the diagonal elements
+    - n (int): number of radial nodes
+    - lr (str): position of the Crank-Nicolson array (left or right)
+    - c (float): coefficient for the diagonal elements
 
     Returns:
     - tuple: upper, main, and lower diagonals
     """
-    main_coefficient = 1 + 2 * coefficient
-    indices = np.arange(1, nodes - 1)
+    ind = np.arange(1, n - 1)
 
-    diag_m1 = -coefficient * (1 - 0.5 / indices)
-    diag_0 = np.full(nodes, main_coefficient)
-    diag_p1 = -coefficient * (1 + 0.5 / indices)
+    diag_m1 = -c * (1 - 0.5 / ind)
+    diag_0 = np.ones(n)
+    diag_p1 = -c * (1 + 0.5 / ind)
 
     diag_m1 = np.append(diag_m1, [0])
     diag_p1 = np.insert(diag_p1, 0, [0])
-    if position == "LEFT":
-        diag_0[0], diag_0[-1] = main_coefficient, 1
-        diag_p1[0] = -2 * coefficient
+    if lr == "LEFT":
+        diag_p1[0] = -2 * c
     else:
-        diag_0[0], diag_0[-1] = main_coefficient, 0
-        diag_p1[0] = -2 * coefficient
+        diag_p1[0] = -2 * c
 
     return diag_m1, diag_0, diag_p1
 
 
-def crank_nicolson_array(nodes, position, coefficient):
+def crank_nicolson_array(n, lr, c):
     """
     Set the Crank-Nicolson sparse array in CSR format using the diagonals.
 
     Parameters:
-    - nodes (int): number of radial nodes
-    - position (str): position of the Crank-Nicolson array (left or right)
-    - coefficient (float): coefficient for the diagonal elements
+    - n (int): number of radial nodes
+    - lr (str): position of the Crank-Nicolson array (left or right)
+    - c (float): coefficient for the diagonal elements
 
     Returns:
-    - array: Crank-Nicolson sparse array in CSR format
+    - array: Containing the Crank-Nicolson sparse array in CSR format
     """
-    diag_m1, diag_0, diag_p1 = crank_nicolson_diags(nodes, position, coefficient)
+    diag_m1, diag_0, diag_p1 = crank_nicolson_diags(n, lr, c)
 
     diags = [diag_m1, diag_0, diag_p1]
     offset = [-1, 0, 1]
-    crank_nicolson_output = diags_array(diags, offsets=offset, format="csr")
+    matrix = diags_array(diags, offsets=offset, format="csr")
 
-    return crank_nicolson_output
+    return matrix
 
 
-def fft_step(fourier_coefficient, current_envelope, inter_array):
+def fft_algorithm(e_c, fe_c):
     """
-    Compute one step of the FFT propagation scheme.
+    Compute the FFT of the envelope at step k.
 
     Parameters:
-    - fourier_coefficient: precomputed Fourier coefficient
-    - current_envelope: envelope at step k
-    - inter_array: pre-allocated array for envelope at step k + 1
+    - e_c: envelope at step k
+    - fe_c: pre-allocated array for envelope in Fourier domain at step k
     """
-    inter_array[:] = ifft(fourier_coefficient * fft(current_envelope, axis=1), axis=1)
+    fe_c[:] = fft(e_c, axis=1)
 
 
-def crank_nicolson_step(
-    left_array, right_array, fourier_envelope, inter_array, next_envelope
-):
+def crank_nicolson_step(mats, arr, cffs):
     """
+    Update Crank-Nicolson arrays for one frquency step.
     Compute one step of the Crank-Nicolson propagation scheme.
 
     Parameters:
-    - left_array: sparse array for left-hand side
-    - right_array: sparse array for right-hand side
-    - fourier_envelope: pre-allocated array for intermediate solution
-    - inter_array: pre-allocated array for intermediate results
-    - next_envelope: pre-allocated array for envelope at step k + 1
+    - mats: dict containing sparse arrays
+        - lm: sparse array for left-hand side
+        - rm: sparse array for right-hand side
+    - arr: dict containing envelope arrays
+        - fe_c: pre-allocated array for envelope in Fourier domain at step k
+        - b: pre-allocated array for intermediate results
+        - fe_n: envelope in Fourier domain at step k + 1
+    - cffs: dict containing sparse array new coefficients
+        - left: main diagonal terms for left-hand side array
+        - right: main diagonal terms for right-hand side array
     """
-    for l in range(inter_array.shape[0]):
-        inter_array = right_array @ fourier_envelope[:, l]
-        next_envelope[:, l] = spsolve(left_array, inter_array)
+    for l in range(arr["fe_c"].shape[1]):
+        # Update matrices for current frequency
+        mats["lm"].setdiag(cffs["left"][l])
+        mats["rm"].setdiag(cffs["right"][l])
+        # Set boundary conditions
+        mats["lm"].data[-1] = 1
+        mats["rm"].data[-1] = 0
+        # Solve with Crank-Nicolson for current frequency
+        arr["b"] = mats["rm"] @ arr["fe_c"][:, l]
+        arr["fe_n"][:, l] = spsolve(mats["lm"], arr["b"])
+
+
+def ifft_algorithm(fe_c, e_c):
+    """
+    Compute the IFFT of the Fourier envelope at step k.
+
+    Parameters:
+    - fe_c: pre-allocated array for envelope in Fourier domain at step k
+    - e_c: pre-allocated array for envelope at step k
+    """
+    e_c[:] = ifft(fe_c, axis=1)
 
 
 IM_UNIT = 1j
@@ -225,40 +241,53 @@ BEAM = {
 
 ## Set loop variables
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
-DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
-fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_T * (frq_array * TIME_STEP_LEN) ** 2)
-envelope_current = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
-envelope_next = np.empty_like(envelope_current)
-envelope_axis = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
-b_array = np.empty_like(envelope_current)
-c_array = np.empty(N_RADI_NODES, dtype=complex)
+DELTA_T = 0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"]
+fourier_coeff = IM_UNIT * DELTA_T * frq_array**2
+current_envelope = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
+next_envelope = np.empty_like(current_envelope)
+axis_envelope = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
+fourier_envelope = np.empty_like(current_envelope)
+b_array = np.empty(N_RADI_NODES, dtype=complex)
+c_array = np.empty_like(current_envelope)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1 = IM_UNIT * DELTA_R
+matrix_cnt_2 = 1 - 2 * MATRIX_CNT_1 + fourier_coeff
+matrix_cnt_3 = 1 + 2 * MATRIX_CNT_1 - fourier_coeff
 left_operator = crank_nicolson_array(N_RADI_NODES, "LEFT", MATRIX_CNT_1)
 right_operator = crank_nicolson_array(N_RADI_NODES, "RIGHT", -MATRIX_CNT_1)
 
 ## Set initial electric field wave packet
-envelope_current = initial_condition(radi_2d_array, time_2d_array, IM_UNIT, BEAM)
-envelope_axis[0, :] = envelope_current[AXIS_NODE, :]
+current_envelope = initial_condition(radi_2d_array, time_2d_array, IM_UNIT, BEAM)
+axis_envelope[0, :] = current_envelope[AXIS_NODE, :]
 
-## Propagation loop over desired number of steps
+## Set dictionaries for better organization
+operators = {"lm": left_operator, "rm": right_operator}
+vectors = {
+    "fe_c": fourier_envelope,
+    "b": b_array,
+    "fe_n": c_array,
+}
+entries = {"left": matrix_cnt_3, "right": matrix_cnt_2}
+
+## Propagation loop over desired number of steps (Spectral domain)
 for k in tqdm(range(N_STEPS)):
-    fft_step(fourier_coeff, envelope_current, b_array)
-    crank_nicolson_step(left_operator, right_operator, b_array, c_array, envelope_next)
+    fft_algorithm(current_envelope, fourier_envelope)
+    crank_nicolson_step(operators, vectors, entries)
+    ifft_algorithm(c_array, next_envelope)
 
     # Update arrays for the next step
-    envelope_current, envelope_next = envelope_next, envelope_current
+    current_envelope, next_envelope = next_envelope, current_envelope
 
     # Store axis data
-    envelope_axis[k + 1, :] = envelope_current[AXIS_NODE, :]
+    axis_envelope[k + 1, :] = current_envelope[AXIS_NODE, :]
 
 ## Analytical solution for a Gaussian beam
 # Set arrays
-envelope_radial_s = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
-envelope_time_s = np.empty([N_TIME_NODES, N_STEPS + 1], dtype=complex)
-envelope_fin_s = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
-envelope_axis_s = np.empty_like(envelope_time_s)
+envelope_radial_sol = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
+envelope_time_sol = np.empty([N_TIME_NODES, N_STEPS + 1], dtype=complex)
+envelope_fin_sol = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
+envelope_axis_sol = np.empty_like(envelope_time_sol)
 
 # Set variables
 RAYLEIGH_LEN = 0.5 * BEAM["WAVENUMBER"] * BEAM["WAIST_0"] ** 2
@@ -285,30 +314,30 @@ gouy_time_phase = 0.5 * np.atan(
 #
 ratio_term = BEAM["WAIST_0"] / beam_waist[np.newaxis, :]
 sqrt_term = np.sqrt(BEAM["PEAK_TIME"] / beam_duration[:, np.newaxis])
-decay_radial_exp_term = (radi_array[:, np.newaxis] / beam_waist) ** 2
-decay_time_exp_term = (time_array / beam_duration[:, np.newaxis]) ** 2
-prop_radial_exp_term = (
+decay_radial_term = (radi_array[:, np.newaxis] / beam_waist) ** 2
+decay_time_term = (time_array / beam_duration[:, np.newaxis]) ** 2
+prop_radial_term = (
     0.5 * IM_UNIT * BEAM["WAVENUMBER"] * radi_array[:, np.newaxis] ** 2 / beam_radius
 )
-prop_time_exp_term = 1 + IM_UNIT * (
+prop_time_term = 1 + IM_UNIT * (
     BEAM["CHIRP"]
     + (1 + BEAM["CHIRP"] ** 2) * (dist_array[:, np.newaxis] / DISPERSION_LEN)
 )
-gouy_radial_exp_term = IM_UNIT * gouy_radial_phase[np.newaxis, :]
-gouy_time_exp_term = IM_UNIT * gouy_time_phase[:, np.newaxis]
+gouy_radial_term = IM_UNIT * gouy_radial_phase[np.newaxis, :]
+gouy_time_term = IM_UNIT * gouy_time_phase[:, np.newaxis]
 
 # Compute solution
-envelope_radial_s = ratio_term * np.exp(
-    -decay_radial_exp_term + prop_radial_exp_term - gouy_radial_exp_term
+envelope_radial_sol = ratio_term * np.exp(
+    -decay_radial_term + prop_radial_term - gouy_radial_term
 )
-envelope_time_s = sqrt_term * np.exp(
-    -decay_time_exp_term * prop_time_exp_term - gouy_time_exp_term
+envelope_time_sol = sqrt_term * np.exp(
+    -decay_time_term * prop_time_term - gouy_time_term
 )
-envelope_fin_s = BEAM["AMPLITUDE"] * (
-    envelope_radial_s[:, -1, np.newaxis] * envelope_time_s[-1, :]
+envelope_fin_sol = BEAM["AMPLITUDE"] * (
+    envelope_radial_sol[:, -1, np.newaxis] * envelope_time_sol[-1, :]
 )
-envelope_axis_s = BEAM["AMPLITUDE"] * (
-    envelope_radial_s[AXIS_NODE, :, np.newaxis] * envelope_time_s
+envelope_axis_sol = BEAM["AMPLITUDE"] * (
+    envelope_radial_sol[AXIS_NODE, :, np.newaxis] * envelope_time_sol
 )
 
 ### Plots
@@ -330,15 +359,15 @@ dist_array = dist_2d_array_2[:, 0]
 time_array = time_2d_array_2[0, :]
 
 # Set up intensities (W/cm^2)
-plot_int_axis = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_axis) ** 2
+plot_int_axis = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(axis_envelope) ** 2
 plot_int_fin = (
-    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_current) ** 2
+    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(current_envelope) ** 2
 )
-plot_int_axis_s = (
-    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_axis_s) ** 2
+plot_int_axis_sol = (
+    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_axis_sol) ** 2
 )
-plot_int_fin_s = (
-    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_fin_s) ** 2
+plot_int_fin_sol = (
+    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_fin_sol) ** 2
 )
 
 ## Set up figure 1
@@ -346,13 +375,13 @@ fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize_option)
 # Subplot 1
 intensity_list = [
     (
-        plot_int_axis_s[0, :],
+        plot_int_axis_sol[0, :],
         "#FF00FF",  # Magenta
         "-",
         r"On-axis analytical solution at beginning $z$ step",
     ),
     (
-        plot_int_axis_s[-1, :],
+        plot_int_axis_sol[-1, :],
         "#FFFF00",  # Pure yellow
         "-",
         r"On-axis analytical solution at final $z$ step",
@@ -377,7 +406,7 @@ ax1.legend(facecolor="black", edgecolor="white")
 # Subplot 2
 ax2.plot(
     dist_array,
-    plot_int_axis_s[:, PEAK_NODE],
+    plot_int_axis_sol[:, PEAK_NODE],
     "#FF00FF",  # Magenta
     linestyle="-",
     linewidth=2,
@@ -394,7 +423,7 @@ ax2.plot(
 ax2.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$I(z)$ ($\mathrm{W/{cm}^2}$)")
 ax2.legend(facecolor="black", edgecolor="white")
 
-# fig1.tight_layout()
+fig1.tight_layout()
 plt.show()
 
 ## Set up figure 2
@@ -413,14 +442,14 @@ ax3.set_title("On-axis numerical solution in 2D")
 fig2_2 = ax4.pcolormesh(
     dist_2d_array_2,
     time_2d_array_2,
-    plot_int_axis_s,
+    plot_int_axis_sol,
     cmap=cmap_option,
 )
 fig2.colorbar(fig2_2, ax=ax4)
 ax4.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$t$ ($\mathrm{s}$)")
 ax4.set_title("On-axis analytical solution in 2D")
 
-# fig2.tight_layout()
+fig2.tight_layout()
 plt.show()
 
 ## Set up figure 3
@@ -439,14 +468,14 @@ ax5.set_title("Final step numerical solution in 2D")
 fig3_2 = ax6.pcolormesh(
     radi_2d_array,
     time_2d_array,
-    plot_int_fin_s,
+    plot_int_fin_sol,
     cmap=cmap_option,
 )
 fig3.colorbar(fig3_2, ax=ax6)
-ax6.set(xlabel=r"$r$ ($\mathrm{mm}$)", ylabel=r"$t$ ($\mathrm{s}$)")
+ax6.set(xlabel=r"$t$ ($\mathrm{mm}$)", ylabel=r"$r$ ($\mathrm{s}$)")
 ax6.set_title("Final step analytical solution in 2D")
 
-# fig3.tight_layout()
+fig3.tight_layout()
 plt.show()
 
 ## Set up figure 4
@@ -472,7 +501,7 @@ ax7.set_title("On-axis numerical solution in 3D")
 ax8.plot_surface(
     dist_2d_array_2,
     time_2d_array_2,
-    plot_int_axis_s,
+    plot_int_axis_sol,
     cmap=cmap_option,
     linewidth=0,
     antialiased=False,
@@ -510,7 +539,7 @@ ax9.set_title("Final step numerical solution in 3D")
 ax10.plot_surface(
     radi_2d_array,
     time_2d_array,
-    plot_int_fin_s,
+    plot_int_fin_sol,
     cmap=cmap_option,
     linewidth=0,
     antialiased=False,

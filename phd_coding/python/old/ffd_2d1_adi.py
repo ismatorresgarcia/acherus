@@ -31,88 +31,86 @@ from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
 
 
-def initial_condition(radius, time, im_unit, beam_parameters):
+def initial_condition(r, t, im, beam):
     """
     Set the post-lens chirped Gaussian beam.
 
     Parameters:
-    - radius (array): radial array
-    - time (array): time array
-    - im_unit (complex): square root of -1
-    - beam_parameters (dict): dictionary containing the beam parameters
-        - amplitude (float): amplitude of the Gaussian beam
-        - waist (float): waist of the Gaussian beam
-        - wave_number (float): wavenumber of the Gaussian beam
-        - focal_length (float): focal length of the initial lens
-        - peak_time (float): time at which the Gaussian beam reaches its peak intensity
-        - chirp (float): initial chirping introduced by some optical system
+    - r (array): radial array
+    - t (array): time array
+    - im (complex): square root of -1
+    - beam (dict): dictionary containing the beam parameters
+        - a (float): amplitude of the Gaussian beam
+        - w (float): waist of the Gaussian beam
+        - wn (float): wavenumber of the Gaussian beam
+        - f (float): focal length of the initial lens
+        - pt (float): time at which the Gaussian beam reaches its peak intensity
+        - ch (float): initial chirping introduced by some optical system
     """
-    amplitude = beam_parameters["AMPLITUDE"]
-    waist = beam_parameters["WAIST_0"]
-    wave_number = beam_parameters["WAVENUMBER"]
-    focal_length = beam_parameters["FOCAL_LENGTH"]
-    peak_time = beam_parameters["PEAK_TIME"]
-    chirp = beam_parameters["CHIRP"]
-    gaussian_envelope = amplitude * np.exp(
-        -((radius / waist) ** 2)
-        - 0.5 * im_unit * wave_number * radius**2 / focal_length
-        - (1 + im_unit * chirp) * (time / peak_time) ** 2
+    a = beam["AMPLITUDE"]
+    w = beam["WAIST_0"]
+    wn = beam["WAVENUMBER"]
+    f = beam["FOCAL_LENGTH"]
+    pt = beam["PEAK_TIME"]
+    ch = beam["CHIRP"]
+    gaussian = a * np.exp(
+        -((r / w) ** 2) - 0.5 * im * wn * r**2 / f - (1 + im * ch) * (t / pt) ** 2
     )
 
-    return gaussian_envelope
+    return gaussian
 
 
-def crank_nicolson_radial_diags(nodes, position, coefficient):
+def crank_nicolson_radial_diags(n, lr, c):
     """
     Set the three diagonals for the Crank-Nicolson radial array with centered differences.
 
     Parameters:
-    - nodes (int): number of radial nodes
-    - position (str): position of the Crank-Nicolson array (left or right)
-    - coefficient (float): coefficient for the diagonal elements
+    - n (int): number of radial nodes
+    - lr (str): position of the Crank-Nicolson array (left or right)
+    - c (float): coefficient for the diagonal elements
 
     Returns:
     - tuple: upper, main, and lower diagonals
     """
-    main_coefficient = 1 + 2 * coefficient
-    indices = np.arange(1, nodes - 1)
+    dc = 1 + 2 * c
+    ind = np.arange(1, n - 1)
 
-    diag_m1 = -coefficient * (1 - 0.5 / indices)
-    diag_0 = np.full(nodes, main_coefficient)
-    diag_p1 = -coefficient * (1 + 0.5 / indices)
+    diag_m1 = -c * (1 - 0.5 / ind)
+    diag_0 = np.full(n, dc)
+    diag_p1 = -c * (1 + 0.5 / ind)
 
     diag_m1 = np.append(diag_m1, [0])
     diag_p1 = np.insert(diag_p1, 0, [0])
-    if position == "LEFT":
-        diag_0[0], diag_0[-1] = main_coefficient, 1
-        diag_p1[0] = -2 * coefficient
+    if lr == "LEFT":
+        diag_0[0], diag_0[-1] = dc, 1
+        diag_p1[0] = -2 * c
     else:
-        diag_0[0], diag_0[-1] = main_coefficient, 0
-        diag_p1[0] = -2 * coefficient
+        diag_0[0], diag_0[-1] = dc, 0
+        diag_p1[0] = -2 * c
 
     return diag_m1, diag_0, diag_p1
 
 
-def crank_nicolson_time_diags(nodes, position, coefficient):
+def crank_nicolson_time_diags(n, lr, c):
     """
     Set the three diagonals for a Crank-Nicolson time array with centered differences.
 
     Parameters:
-    - nodes (int): number of time nodes
-    - position (str): position of the Crank-Nicolson array (left or right)
-    - coefficient (float): coefficient for the diagonal elements
+    - n (int): number of time nodes
+    - lr (str): position of the Crank-Nicolson array (left or right)
+    - c (float): coefficient for the diagonal elements
 
     Returns:
     - tuple: upper, main, and lower diagonals
     """
-    main_coefficient = 1 + 2 * coefficient
+    dc = 1 + 2 * c
 
-    diag_m1 = np.full(nodes - 1, -coefficient)
-    diag_0 = np.full(nodes, main_coefficient)
-    diag_p1 = np.full(nodes - 1, -coefficient)
+    diag_m1 = np.full(n - 1, -c)
+    diag_0 = np.full(n, dc)
+    diag_p1 = np.full(n - 1, -c)
 
     diag_p1[0], diag_m1[-1] = 0, 0
-    if position == "LEFT":
+    if lr == "LEFT":
         diag_0[0], diag_0[-1] = 1, 1
     else:
         diag_0[0], diag_0[-1] = 0, 0
@@ -120,88 +118,86 @@ def crank_nicolson_time_diags(nodes, position, coefficient):
     return diag_m1, diag_0, diag_p1
 
 
-def crank_nicolson_radial_array(nodes, position, coefficient):
+def crank_nicolson_radial_array(n, lr, c):
     """
     Set the Crank-Nicolson radial sparse array in CSR format using the diagonals.
 
     Parameters:
-    - nodes (int): number of radial nodes
-    - position (str): position of the Crank-Nicolson array (left or right)
-    - coefficient (float): coefficient for the diagonal elements
+    - n (int): number of radial nodes
+    - lr (str): position of the Crank-Nicolson array (left or right)
+    - c (float): coefficient for the diagonal elements
 
     Returns:
     - array: Crank-Nicolson sparse array in CSR format
     """
-    diag_m1, diag_0, diag_p1 = crank_nicolson_radial_diags(nodes, position, coefficient)
+    diag_m1, diag_0, diag_p1 = crank_nicolson_radial_diags(n, lr, c)
 
     diags = [diag_m1, diag_0, diag_p1]
     offset = [-1, 0, 1]
-    radial_output = diags_array(diags, offsets=offset, format="csr")
+    matrix = diags_array(diags, offsets=offset, format="csr")
 
-    return radial_output
+    return matrix
 
 
-def crank_nicolson_time_array(nodes, position, coefficient):
+def crank_nicolson_time_array(n, lr, c):
     """
     Set the Crank-Nicolson sparse time array in CSR format using the diagonals.
 
     Parameters:
-    - nodes (int): number of time nodes
-    - position (str): position of the Crank-Nicolson array (left or right)
-    - coefficient (float): coefficient for the diagonal elements
+    - n (int): number of time nodes
+    - lr (str): position of the Crank-Nicolson array (left or right)
+    - c (float): coefficient for the diagonal elements
 
     Returns:
     - array: Crank-Nicolson sparse array in CSR format
     """
-    diag_m1, diag_0, diag_p1 = crank_nicolson_time_diags(nodes, position, coefficient)
+    diag_m1, diag_0, diag_p1 = crank_nicolson_time_diags(n, lr, c)
 
     diags = [diag_m1, diag_0, diag_p1]
     offset = [-1, 0, 1]
-    time_output = diags_array(diags, offsets=offset, format="csr")
+    matrix = diags_array(diags, offsets=offset, format="csr")
 
-    return time_output
+    return matrix
 
 
-def adi_radial_step(
-    left_array_r, right_array_t, current_envelope, inter_array, semi_array
-):
+def adi_radial_step(lmr, rmt, e_c, b, e_n):
     """
     Compute first half-step (ADI radial direction).
 
     Parameters:
-    - left_array_r: sparse array for left-hand side (radial)
-    - right_array_t: sparse array for right-hand side (time)
-    - current_envelope: envelope at step k
-    - inter_array: pre-allocated array for intermediate results
-    - semi_array: pre-allocated array for envelope at step k + 1
+    - lmr: sparse array for left-hand side (radial)
+    - rmt: sparse array for right-hand side (time)
+    - e_c: envelope at step k
+    - b: pre-allocated array for intermediate results
+    - e_n: pre-allocated array for envelope at step k + 1
     """
     # Compute right-hand side matrix product row by row
-    for i in range(current_envelope.shape[0]):
-        inter_array[i, :] = right_array_t @ current_envelope[i, :]
+    for i in range(e_c.shape[0]):
+        b[i, :] = rmt @ e_c[i, :]
 
     # Compute first half-step solution
-    for l in range(current_envelope.shape[1]):
-        semi_array[:, l] = spsolve(left_array_r, inter_array[:, l])
+    for l in range(e_c.shape[1]):
+        e_n[:, l] = spsolve(lmr, b[:, l])
 
 
-def adi_time_step(left_array_t, right_array_r, inter_array, semi_array, next_envelope):
+def adi_time_step(lmt, rmr, e_c, b, e_n):
     """
     Compute second half-step (ADI time direction).
 
     Parameters:
-    - left_array_t: sparse array for left-hand side (time)
-    - right_array_r: sparse array for right-hand side (radial)
-    - inter_array: envelope at step k
-    - semi_array: preallocated array for intermediate results
-    - next_envelope: pre-allocated array for envelope at step k + 1
+    - lmt: sparse array for left-hand side (time)
+    - rmr: sparse array for right-hand side (radial)
+    - e_c: envelope at step k
+    - b: preallocated array for intermediate results
+    - e_n: pre-allocated array for envelope at step k + 1
     """
     # Compute right-hand side matrix product column by column
-    for l in range(inter_array.shape[1]):
-        semi_array[:, l] = right_array_r @ inter_array[:, l]
+    for l in range(e_c.shape[1]):
+        b[:, l] = rmr @ e_c[:, l]
 
     # Compute second half-step solution
-    for i in range(inter_array.shape[0]):
-        next_envelope[i, :] = spsolve(left_array_t, semi_array[i, :])
+    for i in range(e_c.shape[0]):
+        e_n[i, :] = spsolve(lmt, b[i, :])
 
 
 IM_UNIT = 1j
@@ -277,11 +273,11 @@ BEAM = {
 ## Set loop variables
 DELTA_R = 0.25 * DIST_STEP_LEN / (BEAM["WAVENUMBER"] * RADI_STEP_LEN**2)
 DELTA_T = -0.25 * DIST_STEP_LEN * MEDIA["WATER"]["GVD_COEF"] / TIME_STEP_LEN**2
-envelope_current = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
-envelope_next = np.empty_like(envelope_current)
-envelope_axis = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
-b_array = np.empty_like(envelope_current)
-c_array = np.empty_like(envelope_current)
+current_envelope = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
+next_envelope = np.empty_like(current_envelope)
+axis_envelope = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
+b_array = np.empty_like(current_envelope)
+c_array = np.empty_like(current_envelope)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MAT_CNT_1R = IM_UNIT * DELTA_R
@@ -292,28 +288,28 @@ left_operator_t = crank_nicolson_time_array(N_TIME_NODES, "LEFT", MAT_CNT_1T)
 right_operator_t = crank_nicolson_time_array(N_TIME_NODES, "RIGHT", -MAT_CNT_1T)
 
 ## Set initial electric field wave packet
-envelope_current = initial_condition(radi_2d_array, time_2d_array, IM_UNIT, BEAM)
-envelope_axis[0, :] = envelope_current[AXIS_NODE, :]
+current_envelope = initial_condition(radi_2d_array, time_2d_array, IM_UNIT, BEAM)
+axis_envelope[0, :] = current_envelope[AXIS_NODE, :]
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):
     adi_radial_step(
-        left_operator_r, right_operator_t, envelope_current, b_array, c_array
+        left_operator_r, right_operator_t, current_envelope, b_array, c_array
     )
-    adi_time_step(left_operator_t, right_operator_r, c_array, b_array, envelope_next)
+    adi_time_step(left_operator_t, right_operator_r, c_array, b_array, next_envelope)
 
     # Update arrays for the next step
-    envelope_current, envelope_next = envelope_next, envelope_current
+    current_envelope, next_envelope = next_envelope, current_envelope
 
     # Store axis data
-    envelope_axis[k + 1, :] = envelope_current[AXIS_NODE, :]
+    axis_envelope[k + 1, :] = current_envelope[AXIS_NODE, :]
 
 ## Analytical solution for a Gaussian beam
 # Set arrays
-envelope_radial_s = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
-envelope_time_s = np.empty([N_TIME_NODES, N_STEPS + 1], dtype=complex)
-envelope_fin_s = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
-envelope_axis_s = np.empty_like(envelope_time_s)
+envelope_radial_sol = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
+envelope_time_sol = np.empty([N_TIME_NODES, N_STEPS + 1], dtype=complex)
+envelope_fin_sol = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
+axis_envelope_sol = np.empty_like(envelope_time_sol)
 
 # Set variables
 RAYLEIGH_LEN = 0.5 * BEAM["WAVENUMBER"] * BEAM["WAIST_0"] ** 2
@@ -340,30 +336,30 @@ gouy_time_phase = 0.5 * np.atan(
 #
 ratio_term = BEAM["WAIST_0"] / beam_waist[np.newaxis, :]
 sqrt_term = np.sqrt(BEAM["PEAK_TIME"] / beam_duration[:, np.newaxis])
-decay_radial_exp_term = (radi_array[:, np.newaxis] / beam_waist) ** 2
-decay_time_exp_term = (time_array / beam_duration[:, np.newaxis]) ** 2
-prop_radial_exp_term = (
+decay_radial_term = (radi_array[:, np.newaxis] / beam_waist) ** 2
+decay_time_term = (time_array / beam_duration[:, np.newaxis]) ** 2
+prop_radial_term = (
     0.5 * IM_UNIT * BEAM["WAVENUMBER"] * radi_array[:, np.newaxis] ** 2 / beam_radius
 )
-prop_time_exp_term = 1 + IM_UNIT * (
+prop_time_term = 1 + IM_UNIT * (
     BEAM["CHIRP"]
     + (1 + BEAM["CHIRP"] ** 2) * (dist_array[:, np.newaxis] / DISPERSION_LEN)
 )
-gouy_radial_exp_term = IM_UNIT * gouy_radial_phase[np.newaxis, :]
-gouy_time_exp_term = IM_UNIT * gouy_time_phase[:, np.newaxis]
+gouy_radial_term = IM_UNIT * gouy_radial_phase[np.newaxis, :]
+gouy_time_term = IM_UNIT * gouy_time_phase[:, np.newaxis]
 
 # Compute solution
-envelope_radial_s = ratio_term * np.exp(
-    -decay_radial_exp_term + prop_radial_exp_term - gouy_radial_exp_term
+envelope_radial_sol = ratio_term * np.exp(
+    -decay_radial_term + prop_radial_term - gouy_radial_term
 )
-envelope_time_s = sqrt_term * np.exp(
-    -decay_time_exp_term * prop_time_exp_term - gouy_time_exp_term
+envelope_time_sol = sqrt_term * np.exp(
+    -decay_time_term * prop_time_term - gouy_time_term
 )
-envelope_fin_s = BEAM["AMPLITUDE"] * (
-    envelope_radial_s[:, -1, np.newaxis] * envelope_time_s[-1, :]
+envelope_fin_sol = BEAM["AMPLITUDE"] * (
+    envelope_radial_sol[:, -1, np.newaxis] * envelope_time_sol[-1, :]
 )
-envelope_axis_s = BEAM["AMPLITUDE"] * (
-    envelope_radial_s[AXIS_NODE, :, np.newaxis] * envelope_time_s
+axis_envelope_s = BEAM["AMPLITUDE"] * (
+    envelope_radial_sol[AXIS_NODE, :, np.newaxis] * envelope_time_sol
 )
 
 ### Plots
@@ -385,15 +381,15 @@ dist_array = dist_2d_array_2[:, 0]
 time_array = time_2d_array_2[0, :]
 
 # Set up intensities (W/cm^2)
-plot_int_axis = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_axis) ** 2
+plot_int_axis = AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(axis_envelope) ** 2
 plot_int_fin = (
-    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_current) ** 2
+    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(current_envelope) ** 2
 )
-plot_int_axis_s = (
-    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_axis_s) ** 2
+plot_int_axis_sol = (
+    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(axis_envelope_sol) ** 2
 )
-plot_int_fin_s = (
-    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_fin_s) ** 2
+plot_int_fin_sol = (
+    AREA_FACTOR * MEDIA["WATER"]["INT_FACTOR"] * np.abs(envelope_fin_sol) ** 2
 )
 
 ## Set up figure 1
@@ -401,13 +397,13 @@ fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize_option)
 # Subplot 1
 intensity_list = [
     (
-        plot_int_axis_s[0, :],
+        plot_int_axis_sol[0, :],
         "#FF00FF",  # Magenta
         "-",
         r"On-axis analytical solution at beginning $z$ step",
     ),
     (
-        plot_int_axis_s[-1, :],
+        plot_int_axis_sol[-1, :],
         "#FFFF00",  # Pure yellow
         "-",
         r"On-axis analytical solution at final $z$ step",
@@ -432,7 +428,7 @@ ax1.legend(facecolor="black", edgecolor="white")
 # Subplot 2
 ax2.plot(
     dist_array,
-    plot_int_axis_s[:, PEAK_NODE],
+    plot_int_axis_sol[:, PEAK_NODE],
     "#FF00FF",  # Magenta
     linestyle="-",
     linewidth=2,
@@ -449,7 +445,7 @@ ax2.plot(
 ax2.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$I(z)$ ($\mathrm{W/{cm}^2}$)")
 ax2.legend(facecolor="black", edgecolor="white")
 
-# fig1.tight_layout()
+fig1.tight_layout()
 plt.show()
 
 ## Set up figure 2
@@ -468,14 +464,14 @@ ax3.set_title("On-axis numerical solution in 2D")
 fig2_2 = ax4.pcolormesh(
     dist_2d_array_2,
     time_2d_array_2,
-    plot_int_axis_s,
+    plot_int_axis_sol,
     cmap=cmap_option,
 )
 fig2.colorbar(fig2_2, ax=ax4)
 ax4.set(xlabel=r"$z$ ($\mathrm{cm}$)", ylabel=r"$t$ ($\mathrm{s}$)")
 ax4.set_title("On-axis analytical solution in 2D")
 
-# fig2.tight_layout()
+fig2.tight_layout()
 plt.show()
 
 ## Set up figure 3
@@ -494,14 +490,14 @@ ax5.set_title("Final step numerical solution in 2D")
 fig3_2 = ax6.pcolormesh(
     radi_2d_array,
     time_2d_array,
-    plot_int_fin_s,
+    plot_int_fin_sol,
     cmap=cmap_option,
 )
 fig3.colorbar(fig3_2, ax=ax6)
 ax6.set(xlabel=r"$r$ ($\mathrm{mm}$)", ylabel=r"$t$ ($\mathrm{s}$)")
 ax6.set_title("Final step analytical solution in 2D")
 
-# fig3.tight_layout()
+fig3.tight_layout()
 plt.show()
 
 ## Set up figure 4
@@ -527,7 +523,7 @@ ax7.set_title("On-axis numerical solution in 3D")
 ax8.plot_surface(
     dist_2d_array_2,
     time_2d_array_2,
-    plot_int_axis_s,
+    plot_int_axis_sol,
     cmap=cmap_option,
     linewidth=0,
     antialiased=False,
@@ -565,7 +561,7 @@ ax9.set_title("Final step numerical solution in 3D")
 ax10.plot_surface(
     radi_2d_array,
     time_2d_array,
-    plot_int_fin_s,
+    plot_int_fin_sol,
     cmap=cmap_option,
     linewidth=0,
     antialiased=False,

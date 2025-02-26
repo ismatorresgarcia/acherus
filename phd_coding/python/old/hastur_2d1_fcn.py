@@ -10,11 +10,11 @@ This program includes:
         *- Instantaneous component (1-a) due to the electronic response in the polarization.
         *- Delayed component (a) due to stimulated molecular Raman scattering.
 
-
 Numerical discretization: Finite Differences Method (FDM).
     - Method: Split-step Fourier Crank-Nicolson (FCN) scheme.
         *- Fast Fourier Transform (FFT) scheme (for GVD).
-        *- Extended Crank-Nicolson (CN) scheme (for diffraction, Kerr and MPA).
+        *- Extended Crank-Nicolson (CN-AB2) scheme (for diffraction, Kerr and MPA).
+    - Method (DE): 4th order Runge-Kutta (RK4) scheme.
     - Initial condition: 
         *- Gaussian envelope at initial z coordinate.
         *- Constant electron density at initial t coordinate.
@@ -58,87 +58,134 @@ from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
 
 
-def initial_condition(radius, time, im_unit, beam_parameters):
+def initial_condition(r, t, im, beam):
     """
     Set the post-lens chirped Gaussian beam.
 
     Parameters:
-    - radius (array): radial array
-    - time (array): time array
-    - im_unit (complex): square root of -1
-    - beam_parameters (dict): dictionary containing the beam parameters
-        - amplitude (float): amplitude of the Gaussian beam
-        - waist (float): waist of the Gaussian beam
-        - wave_number (float): wavenumber of the Gaussian beam
-        - focal_length (float): focal length of the initial lens
-        - peak_time (float): time at which the Gaussian beam reaches its peak intensity
-        - chirp (float): initial chirping introduced by some optical system
+    - r (array): radial array
+    - t (array): time array
+    - im (complex): square root of -1
+    - beam (dict): dictionary containing the beam parameters
+        - a (float): amplitude of the Gaussian beam
+        - w (float): waist of the Gaussian beam
+        - wn (float): wavenumber of the Gaussian beam
+        - f (float): focal length of the initial lens
+        - pt (float): time at which the Gaussian beam reaches its peak intensity
+        - ch (float): initial chirping introduced by some optical system
     """
-    amplitude = beam_parameters["AMPLITUDE"]
-    waist = beam_parameters["WAIST_0"]
-    # wave_number = beam_parameters["WAVENUMBER"]
-    # focal_length = beam_parameters["FOCAL_LENGTH"]
-    peak_time = beam_parameters["PEAK_TIME"]
-    chirp = beam_parameters["CHIRP"]
-    gaussian_envelope = amplitude * np.exp(
-        -((radius / waist) ** 2)
+    a = beam["AMPLITUDE"]
+    w = beam["WAIST_0"]
+    # wn = beam["WAVENUMBER"]
+    # f = beam["FOCAL_LENGTH"]
+    pt = beam["PEAK_TIME"]
+    ch = beam["CHIRP"]
+    gaussian = a * np.exp(
+        -((r / w) ** 2)
         # - 0.5 * im_unit * wave_number * radius**2 / focal_length
-        - (1 + im_unit * chirp) * (time / peak_time) ** 2
+        - (1 + im * ch) * (t / pt) ** 2
     )
 
-    return gaussian_envelope
+    return gaussian
 
 
-def crank_nicolson_diags(nodes, position, coefficient):
+def crank_nicolson_diags(n, lr, c):
     """
     Set the three diagonals for the Crank-Nicolson array with centered differences.
 
     Parameters:
-    - nodes (int): number of radial nodes
-    - position (str): position of the Crank-Nicolson array (left or right)
-    - coefficient (float): coefficient for the diagonal elements
+    - n (int): number of radial nodes
+    - lr (str): position of the Crank-Nicolson array (left or right)
+    - c (float): coefficient for the diagonal elements
 
     Returns:
     - tuple: upper, main, and lower diagonals
     """
-    main_coefficient = 1 + 2 * coefficient
-    indices = np.arange(1, nodes - 1)
+    dc = 1 + 2 * c
+    ind = np.arange(1, n - 1)
 
-    diag_m1 = -coefficient * (1 - 0.5 / indices)
-    diag_0 = np.full(nodes, main_coefficient)
-    diag_p1 = -coefficient * (1 + 0.5 / indices)
+    diag_m1 = -c * (1 - 0.5 / ind)
+    diag_0 = np.full(n, dc)
+    diag_p1 = -c * (1 + 0.5 / ind)
 
     diag_m1 = np.append(diag_m1, [0])
     diag_p1 = np.insert(diag_p1, 0, [0])
-    if position == "LEFT":
-        diag_0[0], diag_0[-1] = main_coefficient, 1
-        diag_p1[0] = -2 * coefficient
+    if lr == "LEFT":
+        diag_0[0], diag_0[-1] = dc, 1
+        diag_p1[0] = -2 * c
     else:
-        diag_0[0], diag_0[-1] = main_coefficient, 0
-        diag_p1[0] = -2 * coefficient
+        diag_0[0], diag_0[-1] = dc, 0
+        diag_p1[0] = -2 * c
 
     return diag_m1, diag_0, diag_p1
 
 
-def crank_nicolson_array(nodes, position, coefficient):
+def crank_nicolson_array(n, lr, c):
     """
     Set the Crank-Nicolson sparse array in CSR format using the diagonals.
 
     Parameters:
-    - nodes (int): number of radial nodes
-    - position (str): position of the Crank-Nicolson array (left or right)
-    - coefficient (float): coefficient for the diagonal elements
+    - n (int): number of radial nodes
+    - lr (str): position of the Crank-Nicolson array (left or right)
+    - c (float): coefficient for the diagonal elements
 
     Returns:
     - array: Crank-Nicolson sparse array in CSR format
     """
-    diag_m1, diag_0, diag_p1 = crank_nicolson_diags(nodes, position, coefficient)
+    diag_m1, diag_0, diag_p1 = crank_nicolson_diags(n, lr, c)
 
     diags = [diag_m1, diag_0, diag_p1]
     offset = [-1, 0, 1]
-    crank_nicolson_output = diags_array(diags, offsets=offset, format="csr")
+    matrix = diags_array(diags, offsets=offset, format="csr")
 
-    return crank_nicolson_output
+    return matrix
+
+
+def density_rate(n_c, e_c, media):
+    """
+    Calculate the electron density rate equation.
+
+    Parameters:
+    - n_c: Current electron density
+    - e_c: Electric field intensity
+    - media (dict): Media parameters
+
+    Returns:
+    - ndarray: Rate of change of electron density
+    """
+    abs_e_c = np.abs(e_c) ** 2
+
+    ofi = (
+        media["OFI_COEF"]
+        * (abs_e_c ** media["N_PHOTONS"])
+        * (media["NEUTRAL_DENS"] - n_c)
+    )
+    ava = media["AVA_COEF"] * n_c * abs_e_c
+    return ofi + ava
+
+
+def runge_kutta_4(n_c, e_c, e_n, dt, media):
+    """
+    Solve the electron density equation using 4th order Runge-Kutta method.
+
+    Parameters:
+    - n_c: electron density at position l
+    - e_c: envelope at step l
+    - e_n: envelope at step l + 1
+    - dt: time step length
+    - media: dictionary with media parameters
+
+    Returns:
+    - ndarray: Updated electron density
+    """
+    e_mid = 0.5 * (e_c + e_n)
+
+    k1 = density_rate(n_c, e_c, media)
+    k2 = density_rate(n_c + 0.5 * dt * k1, e_mid, media)
+    k3 = density_rate(n_c + 0.5 * dt * k2, e_mid, media)
+    k4 = density_rate(n_c + dt * k3, e_n, media)
+
+    return n_c + dt * (k1 + 2 * k2 + 2 * k3 + k4) / 6
 
 
 IM_UNIT = 1j
@@ -253,8 +300,8 @@ MEDIA = {
         "MPI_EXP": MPI_EXP,  # MPI exponent [-]
         "REF_COEF": REF_COEF,  # Refraction coefficient
         "MPA_COEF": MPA_COEF,  # MPA coefficient
-        "KERR_INS_COEF": KERR_INS_COEF,  # Kerr coefficient
-        "KERR_DEL_COEF": KERR_DEL_COEF,  # Kerr coefficient
+        "KERR_INS_COEF": KERR_INS_COEF,  # Instantaneous coefficient
+        "KERR_DEL_COEF": KERR_DEL_COEF,  # Raman-Kerr delayed coefficient
         "OFI_COEF": OFI_COEF,  # OFI coefficient
         "AVA_COEF": AVA_COEF,  # Avalanche ionization coefficient
         "INT_FACTOR": INT_FACTOR,
@@ -298,26 +345,26 @@ RAMAN_CNT_2 = 0.5 * RAMAN_CTE * TIME_STEP_LEN
 RAMAN_CNT_3 = RAMAN_CNT_1 * RAMAN_CNT_2
 fourier_coeff = np.exp(-2 * IM_UNIT * DELTA_T * (frq_array * TIME_STEP_LEN) ** 2)
 
-envelope_current = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
-envelope_next = np.empty_like(envelope_current)
-electron_dens_current = np.empty_like(envelope_current)
-electron_dens_next = np.empty_like(envelope_current)
-kerr_raman_current = np.empty_like(envelope_current)
-kerr_raman_next = np.empty_like(envelope_current)
+current_envelope = np.empty([N_RADI_NODES, N_TIME_NODES], dtype=complex)
+next_envelope = np.empty_like(current_envelope)
+current_electron_dens = np.empty([N_RADI_NODES, N_TIME_NODES])
+next_electron_dens = np.empty_like(current_electron_dens)
+current_kerr_raman = np.empty_like(current_envelope)
+next_kerr_raman = np.empty_like(current_envelope)
 
-envelope_dist = np.empty([N_RADI_NODES, DIST_LIMIT + 1, N_TIME_NODES], dtype=complex)
-envelope_axis = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
-envelope_peak = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
-electron_dens_dist = np.empty_like(envelope_dist)
-electron_dens_axis = np.empty_like(envelope_axis)
-electron_dens_peak = np.empty_like(envelope_peak)
+dist_envelope = np.empty([N_RADI_NODES, DIST_LIMIT + 1, N_TIME_NODES], dtype=complex)
+axis_envelope = np.empty([N_STEPS + 1, N_TIME_NODES], dtype=complex)
+peak_envelope = np.empty([N_RADI_NODES, N_STEPS + 1], dtype=complex)
+dist_electron_dens = np.empty([N_RADI_NODES, DIST_LIMIT + 1, N_TIME_NODES])
+axis_electron_dens = np.empty([N_STEPS + 1, N_TIME_NODES])
+peak_electron_dens = np.empty([N_RADI_NODES, N_STEPS + 1])
 
-b_array = np.empty_like(envelope_current)
+b_array = np.empty_like(current_envelope)
 c_array = np.empty([N_RADI_NODES, N_TIME_NODES, 5], dtype=complex)
-w_array_current = np.empty_like(envelope_current)
-w_array_next = np.empty_like(envelope_current)
+current_w_array = np.empty_like(current_envelope)
+next_w_array = np.empty_like(current_envelope)
 
-z_array_node = np.empty(DIST_LIMIT + 1, dtype=int)
+k_indices = np.empty(DIST_LIMIT + 1, dtype=int)
 
 ## Set tridiagonal Crank-Nicolson matrices in csr_array format
 MATRIX_CNT_1 = IM_UNIT * DELTA_R
@@ -325,48 +372,46 @@ left_operator = crank_nicolson_array(N_RADI_NODES, "LEFT", MATRIX_CNT_1)
 right_operator = crank_nicolson_array(N_RADI_NODES, "RIGHT", -MATRIX_CNT_1)
 
 ## Set initial electric field wave packet and electron density
-envelope_current = initial_condition(radi_2d_array, time_2d_array, IM_UNIT, BEAM)
-electron_dens_current[:, 0] = 0
-kerr_raman_current[:, 0] = 0
-envelope_axis[0, :] = envelope_current[AXIS_NODE, :]
-envelope_peak[:, 0] = envelope_current[:, PEAK_NODE]
-electron_dens_axis[0, :] = electron_dens_current[AXIS_NODE, :]
-electron_dens_peak[:, 0] = electron_dens_current[:, PEAK_NODE]
+current_envelope = initial_condition(radi_2d_array, time_2d_array, IM_UNIT, BEAM)
+current_electron_dens[:, 0] = 0
+current_kerr_raman[:, 0] = 0
+axis_envelope[0, :] = current_envelope[AXIS_NODE, :]
+peak_envelope[:, 0] = current_envelope[:, PEAK_NODE]
+axis_electron_dens[0, :] = current_electron_dens[AXIS_NODE, :]
+peak_electron_dens[:, 0] = current_electron_dens[:, PEAK_NODE]
 
 ## Propagation loop over desired number of steps
 for k in tqdm(range(N_STEPS)):
     # Electron density evolution update
     for l in range(N_TIME_NODES - 1):
-        # Calculate intensities with better numerical stability
-        e_l1 = np.abs(envelope_current[:, l]) ** 2
-        e_l2 = np.abs(envelope_current[:, l + 1]) ** 2
-        e_l1_K = e_l1 ** MEDIA["AIR"]["N_PHOTONS"]
-        e_l2_K = e_l2 ** MEDIA["AIR"]["N_PHOTONS"]
+        # Update density
+        current_electron_dens[:, l + 1] = runge_kutta_4(
+            current_electron_dens[:, l],
+            current_envelope[:, l],
+            current_envelope[:, l + 1],
+            TIME_STEP_LEN,
+            MEDIA["AIR"],
+        )
 
-        DENS_CNT = np.exp(DENS_CNT_1 * (e_l2_K + e_l1_K) + DENS_CNT_2 * (e_l2 + e_l1))
-        electron_dens_current[:, l + 1] = (
-            DENS_CNT * (electron_dens_current[:, l] + DENS_CNT_3 * e_l1_K)
-            + DENS_CNT_3 * e_l2_K
+        current_kerr_raman[:, l + 1] = (
+            RAMAN_CNT_1 * current_kerr_raman[:, l]
+            + RAMAN_CNT_2 * np.abs(current_envelope[:, l + 1]) ** 2
+            + RAMAN_CNT_3 * np.abs(current_envelope[:, l]) ** 2
         )
-        kerr_raman_current[:, l + 1] = (
-            RAMAN_CNT_1 * kerr_raman_current[:, l]
-            + RAMAN_CNT_2 * e_l2
-            + RAMAN_CNT_3 * e_l1
-        )
-    kerr_raman_current[:, 0] = kerr_raman_current[:, 2]
+    current_kerr_raman[:, 0] = current_kerr_raman[:, 2]
 
     # FFT step in vectorized form
-    b_array = ifft(fourier_coeff * fft(envelope_current, axis=1), axis=1)
+    b_array = ifft(fourier_coeff * fft(current_envelope, axis=1), axis=1)
 
     # Nonlinear terms calculation
     c_array[:, :, 0] = b_array
     c_array[:, :, 1] = np.abs(c_array[:, :, 0]) ** 2
     c_array[:, :, 2] = np.abs(c_array[:, :, 0]) ** MEDIA["AIR"]["MPA_EXP"]
-    c_array[:, :, 3] = electron_dens_current
-    c_array[:, :, 4] = np.imag(kerr_raman_current)
+    c_array[:, :, 3] = current_electron_dens
+    c_array[:, :, 4] = np.imag(current_kerr_raman)
 
     # Calculate Adam-Bashforth term for current step
-    w_array_current = c_array[:, :, 0] * (
+    current_w_array = c_array[:, :, 0] * (
         MEDIA["AIR"]["KERR_INS_COEF"] * c_array[:, :, 1]
         + MEDIA["AIR"]["MPA_COEF"] * c_array[:, :, 2]
         + MEDIA["AIR"]["REF_COEF"] * c_array[:, :, 3]
@@ -375,52 +420,52 @@ for k in tqdm(range(N_STEPS)):
 
     # For k = 0, initialize Adam_Bashforth second condition
     if k == 0:
-        w_array_next = w_array_current.copy()
-        envelope_axis[1, :] = envelope_current[AXIS_NODE, :]
-        electron_dens_axis[1, :] = electron_dens_current[AXIS_NODE, :]
+        next_w_array = current_w_array.copy()
+        axis_envelope[1, :] = current_envelope[AXIS_NODE, :]
+        axis_electron_dens[1, :] = current_electron_dens[AXIS_NODE, :]
 
     # Solve propagation equation for all time slices
     for l in range(N_TIME_NODES):
         d_array = right_operator @ b_array[:, l]
-        f_array = d_array + 1.5 * w_array_current[:, l] - 0.5 * w_array_next[:, l]
-        envelope_next[:, l] = spsolve(left_operator, f_array)
+        f_array = d_array + 1.5 * current_w_array[:, l] - 0.5 * next_w_array[:, l]
+        next_envelope[:, l] = spsolve(left_operator, f_array)
 
     # Update arrays for the next step
-    envelope_current, envelope_next = envelope_next, envelope_current
-    electron_dens_current, electron_dens_next = (
+    current_envelope, next_envelope = next_envelope, current_envelope
+    current_electron_dens, electron_dens_next = (
         electron_dens_next,
-        electron_dens_current,
+        current_electron_dens,
     )
-    kerr_raman_current, kerr_raman_next = kerr_raman_next, kerr_raman_current
-    w_array_next = w_array_current
+    current_kerr_raman, next_kerr_raman = next_kerr_raman, current_kerr_raman
+    next_w_array = current_w_array
 
     # Store data
     if (
         (k % (N_STEPS // DIST_LIMIT) == 0) or (k == N_STEPS - 1)
     ) and DIST_INDEX <= DIST_LIMIT:
 
-        envelope_dist[:, DIST_INDEX, :] = envelope_current
-        electron_dens_dist[:, DIST_INDEX, :] = electron_dens_current
-        z_array_node[DIST_INDEX] = k
+        dist_envelope[:, DIST_INDEX, :] = current_envelope
+        dist_electron_dens[:, DIST_INDEX, :] = current_electron_dens
+        k_indices[DIST_INDEX] = k
         DIST_INDEX += 1
 
     # Store axis data
     if k > 0:
-        envelope_axis[k + 1, :] = envelope_current[AXIS_NODE, :]
-        envelope_peak[:, k + 1] = envelope_current[:, PEAK_NODE]
-        electron_dens_axis[k + 1, :] = electron_dens_current[AXIS_NODE, :]
-        electron_dens_peak[:, k + 1] = electron_dens_current[:, PEAK_NODE]
+        axis_envelope[k + 1, :] = current_envelope[AXIS_NODE, :]
+        peak_envelope[:, k + 1] = current_envelope[:, PEAK_NODE]
+        axis_electron_dens[k + 1, :] = current_electron_dens[AXIS_NODE, :]
+        peak_electron_dens[:, k + 1] = current_electron_dens[:, PEAK_NODE]
 
 # Save to file
 np.savez(
     "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/hastur_fcn_1",
-    e_dist=envelope_dist,
-    e_axis=envelope_axis,
-    e_peak=envelope_peak,
-    elec_dist=electron_dens_dist,
-    elec_axis=electron_dens_axis,
-    elec_peak=electron_dens_peak,
-    z_nodes=z_array_node,
+    e_dist=dist_envelope,
+    e_axis=axis_envelope,
+    e_peak=peak_envelope,
+    elec_dist=dist_electron_dens,
+    elec_axis=axis_electron_dens,
+    elec_peak=peak_electron_dens,
+    k_indices=k_indices,
     INI_RADI_COOR=INI_RADI_COOR,
     FIN_RADI_COOR=FIN_RADI_COOR,
     INI_DIST_COOR=INI_DIST_COOR,

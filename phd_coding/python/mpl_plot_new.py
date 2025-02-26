@@ -1,6 +1,6 @@
 """
 Python script for plotting NumPy arrays saved during the simulations.
-This script uses the matplotlib library to plot the results.
+The script uses the matplotlib library to plot the results.
 """
 
 from dataclasses import dataclass
@@ -12,8 +12,8 @@ import numpy as np
 
 
 @dataclass
-class PlotConfig:
-    """Configuration for plot styling"""
+class VisualizationConfig:
+    """Configuration for plot styling."""
 
     style: str = "dark_background"
     figsize: Tuple[int, int] = (13, 7)
@@ -35,38 +35,38 @@ class PlotConfig:
             }
 
 
-class PhysicalConstants:
-    """Physical constants used in calculations"""
+class UniversalConstants:
+    """Universal constants and conversion factors."""
 
-    ELEC_PERMITTIVITY_0: float = 8.8541878128e-12
-    LIGHT_SPEED_0: float = 299792458
+    permittivity_0: float = 8.8541878128e-12
+    light_speed_0: float = 299792458
 
     # Conversion factors
-    INT_FACTOR: float = 1
-    RADI_FACTOR: float = 1e6
-    DIST_FACTOR: float = 100
-    TIME_FACTOR: float = 1e15
-    AREA_FACTOR: float = 1e-4
-    VOL_FACTOR: float = 1e-6
+    int_factor: float = 1
+    radi_factor: float = 1e6
+    dist_factor: float = 100
+    time_factor: float = 1e15
+    area_factor: float = 1e-4
+    vol_factor: float = 1e-6
 
 
-class ComputationalDomain:
-    """Handles computational domain setup and calculations"""
+class DomainParameters:
+    """Handles computational domain setup and calculations."""
 
-    def __init__(self, data: Dict[str, Any], constants: PhysicalConstants):
-        self.data = data
+    def __init__(self, constants: UniversalConstants, data: Dict[str, Any]):
         self.constants = constants
+        self.data = data
         self.setup_domain_limits()
-        self.calculate_nodes()
+        self.compute_nodes()
         self.setup_arrays()
 
     def setup_domain_limits(self):
         """Set up the computational domain limits"""
-        self.radi_limits = (self.data["INI_RADI_COOR"], self.data["FIN_RADI_COOR"] / 20)
-        self.dist_limits = (self.data["INI_DIST_COOR"], self.data["FIN_DIST_COOR"])
+        self.radi_limits = (self.data["ini_radi_coor"], self.data["fin_radi_coor"] / 20)
+        self.dist_limits = (self.data["ini_dist_coor"], self.data["fin_dist_coor"])
         self.time_limits = (-100e-15, 100e-15)
 
-    def calculate_nodes(self):
+    def compute_nodes(self):
         """Calculate node positions"""
         # Calculate dimensions
         self.n_radi = self.data["e_dist"].shape[0]
@@ -79,40 +79,37 @@ class ComputationalDomain:
             "radi": (
                 *self.radi_limits,
                 self.n_radi,
-                self.data["INI_RADI_COOR"],
-                self.data["FIN_RADI_COOR"],
+                self.data["ini_radi_coor"],
+                self.data["fin_radi_coor"],
             ),
             "dist": (
                 *self.dist_limits,
                 self.n_dist,
-                self.data["INI_DIST_COOR"],
-                self.data["FIN_DIST_COOR"],
+                self.data["ini_dist_coor"],
+                self.data["fin_dist_coor"],
             ),
             "time": (
                 *self.time_limits,
                 self.n_time,
-                self.data["INI_TIME_COOR"],
-                self.data["FIN_TIME_COOR"],
+                self.data["ini_time_coor"],
+                self.data["fin_time_coor"],
             ),
         }.items():
             start_val = (start - ini) * (n_nodes - 1) / (fin - ini)
             end_val = (end - ini) * (n_nodes - 1) / (fin - ini)
             self.nodes[dim] = (int(start_val), int(end_val) + 1)
 
-        self.peak_node = -int(
-            self.time_limits[0]
-            * (self.n_time - 1)
-            // (self.data["FIN_TIME_COOR"] - self.data["INI_TIME_COOR"])
-        )
+        self.axis_node = self.data["axis_node"]
+        self.peak_node = self.data["peak_node"]
 
-    def calculate_z_coor(self, k_index):
-        """Convert saved k-indices to corresponding z-coordinates"""
+    def compute_z_coor(self, indices):
+        """Convert k-indices to their corresponding z-coordinates."""
 
         # Calculate the z coordinate position
-        ini_dist_coor = self.data["INI_DIST_COOR"] * self.constants.DIST_FACTOR
-        fin_dist_coor = self.data["FIN_DIST_COOR"] * self.constants.DIST_FACTOR
+        ini_dist_coor = self.data["ini_dist_coor"] * self.constants.dist_factor
+        fin_dist_coor = self.data["fin_dist_coor"] * self.constants.dist_factor
         z_coor = ini_dist_coor + (
-            k_index * (fin_dist_coor - ini_dist_coor) / (self.n_dist - 1)
+            indices * (fin_dist_coor - ini_dist_coor) / (self.n_dist - 1)
         )
         return z_coor
 
@@ -128,13 +125,13 @@ class ComputationalDomain:
         # Create sliced arrays
         self.arrays = {
             "radi": np.linspace(
-                self.data["INI_RADI_COOR"], self.data["FIN_RADI_COOR"], self.n_radi
+                self.data["ini_radi_coor"], self.data["fin_radi_coor"], self.n_radi
             )[self.slices["r"]],
             "dist": np.linspace(
-                self.data["INI_DIST_COOR"], self.data["FIN_DIST_COOR"], self.n_dist
+                self.data["ini_dist_coor"], self.data["fin_dist_coor"], self.n_dist
             )[self.slices["z"]],
             "time": np.linspace(
-                self.data["INI_TIME_COOR"], self.data["FIN_TIME_COOR"], self.n_time
+                self.data["ini_time_coor"], self.data["fin_time_coor"], self.n_time
             )[self.slices["t"]],
         }
 
@@ -150,69 +147,64 @@ class ComputationalDomain:
         )
 
 
-class Plotter:
-    """Handles all plotting functionality"""
+class Visualization:
+    """Handles all plotting functionality."""
 
     def __init__(
         self,
-        domain: ComputationalDomain,
-        config: PlotConfig,
-        constants: PhysicalConstants,
+        constants: UniversalConstants,
+        domain: DomainParameters,
+        config: VisualizationConfig,
     ):
+        self.constants = constants
         self.domain = domain
         self.config = config
-        self.constants = constants
         plt.style.use(self.config.style)
         self.setup_scaled_arrays()
 
     def calculate_intensities(self, envelope_dist, envelope_axis, envelope_peak):
-        """Calculate intensities for plotting"""
+        """Calculate intensities for plotting."""
         return (
-            self.constants.AREA_FACTOR
-            * self.constants.INT_FACTOR
+            self.constants.area_factor
+            * self.constants.int_factor
             * np.abs(envelope_dist) ** 2,
-            self.constants.AREA_FACTOR
-            * self.constants.INT_FACTOR
+            self.constants.area_factor
+            * self.constants.int_factor
             * np.abs(envelope_axis) ** 2,
-            self.constants.AREA_FACTOR
-            * self.constants.INT_FACTOR
+            self.constants.area_factor
+            * self.constants.int_factor
             * np.abs(envelope_peak) ** 2,
         )
 
     def calculate_densities(self, density_dist, density_axis, density_peak):
-        """Calculate densities for plotting"""
+        """Calculate densities for plotting."""
         return (
-            self.constants.VOL_FACTOR
-            * self.constants.INT_FACTOR
-            * np.abs(density_dist) ** 2,
-            self.constants.VOL_FACTOR
-            * self.constants.INT_FACTOR
-            * np.abs(density_axis) ** 2,
-            self.constants.VOL_FACTOR
-            * self.constants.INT_FACTOR
-            * np.abs(density_peak) ** 2,
+            self.constants.vol_factor * density_dist,
+            self.constants.vol_factor * density_axis,
+            self.constants.vol_factor * density_peak,
         )
 
     def setup_scaled_arrays(self):
-        """Set up scaled arrays for plotting"""
+        """Set up scaled arrays for plotting."""
         self.scaled_arrays = {
-            "radi": self.constants.RADI_FACTOR * self.domain.arrays["radi"],
-            "dist": self.constants.DIST_FACTOR * self.domain.arrays["dist"],
-            "time": self.constants.TIME_FACTOR * self.domain.arrays["time"],
-            "dist_2d_1": self.constants.DIST_FACTOR * self.domain.arrays["dist_2d_1"],
-            "time_2d_1": self.constants.TIME_FACTOR * self.domain.arrays["time_2d_1"],
-            "radi_2d_2": self.constants.RADI_FACTOR * self.domain.arrays["radi_2d_2"],
-            "time_2d_2": self.constants.TIME_FACTOR * self.domain.arrays["time_2d_2"],
-            "radi_2d_3": self.constants.RADI_FACTOR * self.domain.arrays["radi_2d_3"],
-            "dist_2d_3": self.constants.DIST_FACTOR * self.domain.arrays["dist_2d_3"],
+            "radi": self.constants.radi_factor * self.domain.arrays["radi"],
+            "dist": self.constants.dist_factor * self.domain.arrays["dist"],
+            "time": self.constants.time_factor * self.domain.arrays["time"],
+            "dist_2d_1": self.constants.dist_factor * self.domain.arrays["dist_2d_1"],
+            "time_2d_1": self.constants.time_factor * self.domain.arrays["time_2d_1"],
+            "radi_2d_2": self.constants.radi_factor * self.domain.arrays["radi_2d_2"],
+            "time_2d_2": self.constants.time_factor * self.domain.arrays["time_2d_2"],
+            "radi_2d_3": self.constants.radi_factor * self.domain.arrays["radi_2d_3"],
+            "dist_2d_3": self.constants.dist_factor * self.domain.arrays["dist_2d_3"],
         }
 
-    def plot_1d_solutions(self, data, plot_type="intensity"):
-        """Create 1D solution plots for intensity or density
+    def plot_1d_solutions(self, data_axis, data_peak, plot_type="intensity"):
+        """
+        Create 1D solution plots for intensity or density.
 
-        Args:
-            data: Array containing the data to plot
-            plot_type: "intensity" or "density"
+        Arguments:
+            data: Array containing the data to plot.
+            plot_type: "intensity" or "density".
         """
         plot_config = {
             "intensity": {
@@ -236,17 +228,17 @@ class Plotter:
         # First subplot - temporal evolution
         ax1.plot(
             self.scaled_arrays["time"],
-            data[0, :],
+            data_axis[0, :],
             color=self.config.colors[plot_config[plot_type]["colors"]["init"]],
             linestyle="--",
-            label=r"On-axis numerical solution at beginning $z$ step",
+            label=r"On-axis solution at beginning $z$ step",
         )
         ax1.plot(
             self.scaled_arrays["time"],
-            data[-1, :],
+            data_axis[-1, :],
             color=self.config.colors[plot_config[plot_type]["colors"]["final"]],
             linestyle="-",
-            label=r"On-axis numerical solution at final $z$ step",
+            label=r"On-axis solution at final $z$ step",
         )
         ax1.set(
             xlabel=r"$t$ ($\mathrm{fs}$)",
@@ -257,10 +249,10 @@ class Plotter:
         # Second subplot - spatial on_axis evolution
         ax2.plot(
             self.scaled_arrays["dist"],
-            data[:, self.domain.peak_node],
+            data_peak[self.domain.axis_node, :],
             color=self.config.colors[plot_config[plot_type]["colors"]["peak"]],
             linestyle="-",
-            label="On-axis peak time numerical solution",
+            label="On-axis peak time solution",
         )
         ax2.set(
             xlabel=r"$z$ ($\mathrm{cm}$)",
@@ -271,13 +263,14 @@ class Plotter:
         fig.tight_layout()
         plt.show()
 
-    def plot_2d_solutions(self, data, z_nodes=None, z_coor=None, plot_type="intensity"):
-        """Create 2D solution plots for different coordinate systems
+    def plot_2d_solutions(self, data, k_array=None, z_coor=None, plot_type="intensity"):
+        """
+        Create 2D solution plots for different coordinate systems.
 
-        Args:
-            data: Dictionary containing the datasets for different coordinates
-            z_nodes: List of z indices to plot (for rt plots)
-            plot_type: "intensity" or "density"
+        Arguments:
+            data: Dictionary containing the datasets for different coordinates.
+            k_array: List of z indices to plot (for rt plots).
+            plot_type: "intensity" or "density".
         """
         # Configuration for different plot types
         plot_config = {
@@ -303,9 +296,9 @@ class Plotter:
 
         # Plot each coordinate system in a separate figure
         for coord_sys, data1 in data.items():
-            if coord_sys == "rt" and z_nodes is not None:
+            if coord_sys == "rt" and k_array is not None:
                 # Plot for each z node
-                for idx in range(len(z_nodes)):
+                for idx in range(len(k_array)):
                     fig, ax = plt.subplots(figsize=self.config.figsize)
                     x, y = (
                         self.scaled_arrays["radi_2d_2"],
@@ -355,13 +348,14 @@ class Plotter:
                 fig.tight_layout()
                 plt.show()
 
-    def plot_3d_solutions(self, data, z_nodes, z_coor=None, plot_type="intensity"):
-        """Create 3D solution plots for different coordinate systems
+    def plot_3d_solutions(self, data, k_array, z_coor=None, plot_type="intensity"):
+        """
+        Create 3D solution plots for different coordinate systems.
 
-        Args:
-            data: Dictionary containing the datasets for different coordinates
-            z_nodes: List of z indices to plot (for rt plots)
-            plot_type: "intensity" or "density"
+        Arguments:
+            data: Dictionary containing the datasets for different coordinates.
+            k_array: List of z indices to plot (for rt plots).
+            plot_type: "intensity" or "density".
         """
         plot_config = {
             "intensity": {
@@ -385,9 +379,9 @@ class Plotter:
         }
 
         for coord_sys, data1 in data.items():
-            if coord_sys == "rt" and z_nodes is not None:
+            if coord_sys == "rt" and k_array is not None:
                 # Plot for each z node
-                for idx in range(len(z_nodes)):
+                for idx in range(len(k_array)):
                     fig = plt.figure(figsize=self.config.figsize)
                     ax = fig.add_subplot(projection="3d")
                     x, y = (
@@ -465,23 +459,23 @@ class Plotter:
 
 
 def main():
-    """Main execution function"""
+    """Main execution function."""
     # Load data
     data = np.load(
-        "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/pruebilla_full_1.npz"
+        "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdmk_fcn_1.npz"
     )
 
     # Initialize classes
-    config = PlotConfig()
-    constants = PhysicalConstants()
-    domain = ComputationalDomain(data, constants)
-    plotter = Plotter(domain, config, constants)
+    constants = UniversalConstants()
+    config = VisualizationConfig()
+    domain = DomainParameters(constants, data)
+    plotter = Visualization(constants, domain, config)
 
     # Define selected propagation indices for plotting
-    z_nodes = data["z_nodes"]
+    k_array = data["k_array"]
 
-    # Convert k-indices to the corresponding z-coordinates
-    z_coor = [domain.calculate_z_coor(k) for k in z_nodes]
+    # Convert k-indices to their corresponding z-coordinates
+    z_coor = [domain.compute_z_coor(k) for k in k_array]
 
     # Calculate intensities
     plot_int_dist, plot_int_axis, plot_int_peak = plotter.calculate_intensities(
@@ -489,11 +483,11 @@ def main():
         data["e_axis"][domain.slices["z"], domain.slices["t"]],
         data["e_peak"][domain.slices["r"], domain.slices["z"]],
     )
-    plot_dens_dist, plot_dens_axis, plot_dens_peak = plotter.calculate_densities(
-        data["elec_dist"][domain.slices["r"], :, domain.slices["t"]],
-        data["elec_axis"][domain.slices["z"], domain.slices["t"]],
-        data["elec_peak"][domain.slices["r"], domain.slices["z"]],
-    )
+    # plot_dens_dist, plot_dens_axis, plot_dens_peak = plotter.calculate_densities(
+    #    data["elec_dist"][domain.slices["r"], :, domain.slices["t"]],
+    #    data["elec_axis"][domain.slices["z"], domain.slices["t"]],
+    #    data["elec_peak"][domain.slices["r"], domain.slices["z"]],
+    # )
 
     # Prepare data dictionaries for different coordinate systems
     intensity_data = {
@@ -502,23 +496,23 @@ def main():
         "rz": plot_int_peak,
     }
 
-    density_data = {
-        "rt": plot_dens_dist,
-        "zt": plot_dens_axis,
-        "rz": plot_dens_peak,
-    }
+    # density_data = {
+    #    "rt": plot_dens_dist,
+    #    "zt": plot_dens_axis,
+    #    "rz": plot_dens_peak,
+    # }
 
     # Create 1D plots
-    plotter.plot_1d_solutions(plot_int_axis, "intensity")
-    plotter.plot_1d_solutions(plot_dens_axis, "density")
+    plotter.plot_1d_solutions(plot_int_axis, plot_int_peak, "intensity")
+    # plotter.plot_1d_solutions(plot_dens_axis, plot_dens_peak, "density")
 
     # Create 2D plots
-    plotter.plot_2d_solutions(intensity_data, z_nodes, z_coor, "intensity")
-    plotter.plot_2d_solutions(density_data, z_nodes, z_coor, "density")
+    plotter.plot_2d_solutions(intensity_data, k_array, z_coor, "intensity")
+    # plotter.plot_2d_solutions(density_data, k_array, z_coor, "density")
 
     # Create 3D plots
-    plotter.plot_3d_solutions(intensity_data, z_nodes, z_coor, "intensity")
-    plotter.plot_3d_solutions(density_data, z_nodes, z_coor, "density")
+    plotter.plot_3d_solutions(intensity_data, k_array, z_coor, "intensity")
+    # plotter.plot_3d_solutions(density_data, k_array, z_coor, "density")
 
 
 if __name__ == "__main__":
