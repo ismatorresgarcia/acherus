@@ -64,7 +64,7 @@ class DomainParameters:
         """Set up the computational domain limits"""
         self.radi_limits = (self.data["ini_radi_coor"], self.data["fin_radi_coor"] / 20)
         self.dist_limits = (self.data["ini_dist_coor"], self.data["fin_dist_coor"])
-        self.time_limits = (-100e-15, 100e-15)
+        self.time_limits = (-200e-15, 200e-15)
 
     def compute_nodes(self):
         """Calculate node positions"""
@@ -462,7 +462,7 @@ def main():
     """Main execution function."""
     # Load data
     data = np.load(
-        "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/ffdmk_fcn_1.npz"
+        "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/x_waves_rapidillo.npz"
     )
 
     # Initialize classes
@@ -483,11 +483,11 @@ def main():
         data["e_axis"][domain.slices["z"], domain.slices["t"]],
         data["e_peak"][domain.slices["r"], domain.slices["z"]],
     )
-    # plot_dens_dist, plot_dens_axis, plot_dens_peak = plotter.calculate_densities(
-    #    data["elec_dist"][domain.slices["r"], :, domain.slices["t"]],
-    #    data["elec_axis"][domain.slices["z"], domain.slices["t"]],
-    #    data["elec_peak"][domain.slices["r"], domain.slices["z"]],
-    # )
+    plot_dens_dist, plot_dens_axis, plot_dens_peak = plotter.calculate_densities(
+        data["elec_dist"][domain.slices["r"], :, domain.slices["t"]],
+        data["elec_axis"][domain.slices["z"], domain.slices["t"]],
+        data["elec_peak"][domain.slices["r"], domain.slices["z"]],
+    )
 
     # Prepare data dictionaries for different coordinate systems
     intensity_data = {
@@ -496,23 +496,23 @@ def main():
         "rz": plot_int_peak,
     }
 
-    # density_data = {
-    #    "rt": plot_dens_dist,
-    #    "zt": plot_dens_axis,
-    #    "rz": plot_dens_peak,
-    # }
+    density_data = {
+        "rt": plot_dens_dist,
+        "zt": plot_dens_axis,
+        "rz": plot_dens_peak,
+    }
 
     # Create 1D plots
     plotter.plot_1d_solutions(plot_int_axis, plot_int_peak, "intensity")
-    # plotter.plot_1d_solutions(plot_dens_axis, plot_dens_peak, "density")
+    plotter.plot_1d_solutions(plot_dens_axis, plot_dens_peak, "density")
 
     # Create 2D plots
     plotter.plot_2d_solutions(intensity_data, k_array, z_coor, "intensity")
-    # plotter.plot_2d_solutions(density_data, k_array, z_coor, "density")
+    plotter.plot_2d_solutions(density_data, k_array, z_coor, "density")
 
     # Create 3D plots
     plotter.plot_3d_solutions(intensity_data, k_array, z_coor, "intensity")
-    # plotter.plot_3d_solutions(density_data, k_array, z_coor, "density")
+    plotter.plot_3d_solutions(density_data, k_array, z_coor, "density")
 
 
 if __name__ == "__main__":

@@ -243,10 +243,10 @@ def solve_envelope(mats, b, w_c, w_n, e_n):
     - e_n: pre-allocated array for envelope at step k + 1
     """
     lm, rm = mats
-    for m in range(e_n.shape[1]):
-        c = rm @ b[:, m]
-        d = c + 1.5 * w_c[:, m] - 0.5 * w_n[:, m]
-        e_n[:, m] = spsolve(lm, d)
+    for l in range(e_n.shape[1]):
+        c = rm @ b[:, l]
+        d = c + 1.5 * w_c[:, l] - 0.5 * w_n[:, l]
+        e_n[:, l] = spsolve(lm, d)
 
 
 @dataclass
@@ -329,8 +329,8 @@ class DomainParameters:
         self.ini_dist_coor = 0
         self.fin_dist_coor = 10
         self.n_steps = 5000
-        self.dist_index = 0
         self.dist_limit = 5
+        self.dist_limitin = self.n_steps // self.dist_limit
 
         # Time domain
         self.ini_time_coor = -500e-15
@@ -541,10 +541,13 @@ class FCNSolver:
         )
         self.density[:, 0] = initial_density(self.media)
         # Store initial values for diagnostics
+        self.dist_envelope[:, 0, :] = self.envelope
+        self.dist_density[:, 0, :] = self.density
         self.axis_envelope[0, :] = self.envelope[self.domain.axis_node, :]
         self.axis_density[0, :] = self.density[self.domain.axis_node, :]
         self.peak_envelope[:, 0] = self.envelope[:, self.domain.peak_node]
         self.peak_density[:, 0] = self.density[:, self.domain.peak_node]
+        self.k_array[0] = 0
 
     def solve_step(self, step):
         "Perform one propagation step."
@@ -561,8 +564,8 @@ class FCNSolver:
             self.b_array, self.density, self.raman, self.w_array, self.equation
         )
 
-        # For k = 0, initialize Adam_Bashforth second condition
-        if step == 0:
+        # For step = 1, initialize Adam_Bashforth second condition
+        if step == 1:
             self.next_w_array = self.w_array.copy()
             self.axis_envelope[1, :] = self.envelope[self.domain.axis_node, :]
             self.axis_density[1, :] = self.density[self.domain.axis_node, :]
@@ -582,20 +585,15 @@ class FCNSolver:
         self.raman, self.next_raman = self.next_raman, self.raman
         self.next_w_array = self.w_array
 
-    def save_diagnostics(self, step):
-        """Save diagnostics data for current step."""
-        if (
-            (step % (self.domain.n_steps // self.domain.dist_limit) == 0)
-            or (step == self.domain.n_steps - 1)
-        ) and self.domain.dist_index <= self.domain.dist_limit:
+    def save_expensive_diagnostics(self, step):
+        """Save memory expensive diagnostics data for current step."""
+        self.dist_envelope[:, step, :] = self.envelope
+        self.dist_density[:, step, :] = self.density
+        self.k_array[step] = self.k_array[step - 1] + self.domain.dist_limitin
 
-            self.dist_envelope[:, self.domain.dist_index, :] = self.envelope
-            self.dist_density[:, self.domain.dist_index, :] = self.density
-            self.k_array[self.domain.dist_index] = step
-            self.domain.dist_index += 1
-
-        # Store data
-        if step > 0:
+    def save_cheap_diagnostics(self, step):
+        """Save memory cheap diagnostics data for current step."""
+        if step > 1:
             self.max_intensity = 0
             self.max_density = 0
             for l in range(self.domain.n_time_nodes):
@@ -608,20 +606,21 @@ class FCNSolver:
                     self.max_density = density
                     self.domain.density_peak_node = l
 
-            self.axis_envelope[step + 1, :] = self.envelope[self.domain.axis_node, :]
-            self.axis_density[step + 1, :] = self.density[self.domain.axis_node, :]
-            self.peak_envelope[:, step + 1] = self.envelope[
+            self.axis_envelope[step, :] = self.envelope[self.domain.axis_node, :]
+            self.axis_density[step, :] = self.density[self.domain.axis_node, :]
+            self.peak_envelope[:, step] = self.envelope[
                 :, self.domain.intensity_peak_node
             ]
-            self.peak_density[:, step + 1] = self.density[
-                :, self.domain.density_peak_node
-            ]
+            self.peak_density[:, step] = self.density[:, self.domain.density_peak_node]
 
     def propagate(self):
         """Propagate beam through all steps."""
-        for k in tqdm(range(self.domain.n_steps)):
-            self.solve_step(k)
-            self.save_diagnostics(k)
+        for m in tqdm(range(1, self.domain.dist_limit + 1)):
+            for n in range(1, self.domain.dist_limitin + 1):
+                k = (m - 1) * self.domain.dist_limitin + n
+                self.solve_step(k)
+                self.save_cheap_diagnostics(k)
+            self.save_expensive_diagnostics(m)
 
 
 def main():
