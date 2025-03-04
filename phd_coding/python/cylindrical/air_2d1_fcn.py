@@ -55,7 +55,7 @@ U_i: ionization energy (for the interacting media).
 from dataclasses import dataclass
 
 import numpy as np
-from numpy.fft import fft, ifft
+from numpy.fft import fft, fftfreq, ifft
 from scipy.sparse import diags_array
 from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
@@ -261,7 +261,6 @@ class UniversalConstants:
         self.planck_bar = 1.05457182e-34
         self.pi = np.pi
         self.im_unit = 1j
-        self.re_unit = 1
 
 
 @dataclass
@@ -278,7 +277,7 @@ class MediaParameters:
         # self.int_factor = (
         #    0.5 * const.light_speed * const.permittivity * self.lin_ref_ind_air
         # )
-        self.int_factor = const.re_unit
+        self.int_factor = 1
         self.energy_gap_air = 11 * const.electron_charge
         self.collision_time_air = 3.5e-13
         self.neutral_dens_air = 2.5e25
@@ -318,7 +317,7 @@ class BeamParameters:
 class DomainParameters:
     "Spatial and temporal domain parameters."
 
-    def __init__(self):
+    def __init__(self, const):
         # Radial domain
         self.ini_radi_coor = 0
         self.fin_radi_coor = 50e-3
@@ -337,9 +336,9 @@ class DomainParameters:
         self.fin_time_coor = 500e-15
         self.n_time_nodes = 8192
 
-        self.setup_domain()
+        self.setup_domain(const)
 
-    def setup_domain(self):
+    def setup_domain(self, const):
         "Setup domain parameters."
         # Calculate steps
         self.radi_step_len = (self.fin_radi_coor - self.ini_radi_coor) / (
@@ -366,17 +365,7 @@ class DomainParameters:
         self.time_array = np.linspace(
             self.ini_time_coor, self.fin_time_coor, self.n_time_nodes
         )
-        w1 = np.linspace(
-            0,
-            np.pi / self.time_step_len - self.frq_step_len,
-            self.n_time_nodes // 2,
-        )
-        w2 = np.linspace(
-            -np.pi / self.time_step_len,
-            -self.frq_step_len,
-            self.n_time_nodes // 2,
-        )
-        self.frq_array = np.append(w1, w2)
+        self.frq_array = 2 * const.pi * fftfreq(self.n_time_nodes, self.time_step_len)
 
         # Create 2D arrays
         self.radi_2d_array, self.time_2d_array = np.meshgrid(
@@ -627,7 +616,7 @@ def main():
     "Main function."
     # Initialize classes
     const = UniversalConstants()
-    domain = DomainParameters()
+    domain = DomainParameters(const)
     media = MediaParameters(const)
     beam = BeamParameters(const, media)
 

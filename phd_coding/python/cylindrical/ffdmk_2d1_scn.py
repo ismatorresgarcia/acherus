@@ -26,7 +26,7 @@ k'': GVD coefficient of 2nd order.
 from dataclasses import dataclass
 
 import numpy as np
-from numpy.fft import fft, ifft
+from numpy.fft import fft, fftfreq, ifft
 from scipy.sparse import diags_array
 from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
@@ -106,11 +106,11 @@ def solve_envelope(mats, arr, cffs):
     """
     lm, rm = mats
     fe_c, fe_n, w_c, w_n, b, c = arr
-    lc, rc = cffs
+    mrc, mlc = cffs
     for l in range(fe_c.shape[1]):
         # Update matrices for current frequency
-        lm.setdiag(lc[l])
-        rm.setdiag(rc[l])
+        lm.setdiag(mlc[l])
+        rm.setdiag(mrc[l])
         # Set boundary conditions
         lm.data[-1] = 1
         rm.data[-1] = 0
@@ -136,14 +136,13 @@ class UniversalConstants:
         self.permittivity = 8.8541878128e-12
         self.pi = np.pi
         self.im_unit = 1j
-        self.re_unit = 1
 
 
 @dataclass
 class MediaParameters:
     "Media parameters."
 
-    def __init__(self, const):
+    def __init__(self):
         self.lin_ref_ind_water = 1.328
         self.nlin_ref_ind_water = 1.6e-20
         self.gvd_coef_water = 241e-28
@@ -152,7 +151,7 @@ class MediaParameters:
         # self.int_factor = (
         #    0.5 * const.light_speed * const.permittivity * self.lin_ref_ind_water
         # )
-        self.int_factor = const.re_unit
+        self.int_factor = 1
 
 
 @dataclass
@@ -179,7 +178,7 @@ class BeamParameters:
 class DomainParameters:
     "Spatial and temporal domain parameters."
 
-    def __init__(self):
+    def __init__(self, const):
         # Radial domain
         self.ini_radi_coor = 0
         self.fin_radi_coor = 25e-4
@@ -191,17 +190,17 @@ class DomainParameters:
         self.ini_dist_coor = 0
         self.fin_dist_coor = 2e-2
         self.n_steps = 1000
-        self.dist_index = 0
         self.dist_limit = 5
+        self.dist_limitin = self.n_steps // self.dist_limit
 
         # Time domain
         self.ini_time_coor = -200e-15
         self.fin_time_coor = 200e-15
         self.n_time_nodes = 4096
 
-        self.setup_domain()
+        self.setup_domain(const)
 
-    def setup_domain(self):
+    def setup_domain(self, const):
         "Setup domain parameters."
         # Calculate steps
         self.radi_step_len = (self.fin_radi_coor - self.ini_radi_coor) / (
@@ -227,17 +226,7 @@ class DomainParameters:
         self.time_array = np.linspace(
             self.ini_time_coor, self.fin_time_coor, self.n_time_nodes
         )
-        w1 = np.linspace(
-            0,
-            np.pi / self.time_step_len - self.frq_step_len,
-            self.n_time_nodes // 2,
-        )
-        w2 = np.linspace(
-            -np.pi / self.time_step_len,
-            -self.frq_step_len,
-            self.n_time_nodes // 2,
-        )
-        self.frq_array = np.append(w1, w2)
+        self.frq_array = 2 * const.pi * fftfreq(self.n_time_nodes, self.time_step_len)
 
         # Create 2D arrays
         self.radi_2d_array, self.time_2d_array = np.meshgrid(
@@ -301,13 +290,17 @@ class SCNSolver:
         self.b_array = np.empty(self.domain.n_radi_nodes, dtype=complex)
         self.c_array = np.empty_like(self.b_array)
         self.d_array = np.empty_like(self.envelope)
+
+        # Setup tracking variables
+        self.max_intensity = 0
+        self.max_density = 0
         self.k_array = np.empty(self.domain.dist_limit + 1, dtype=int)
 
         # Setup operators and initial condition
-        self.setup_operators()
+        self.setup_operators(beam)
         self.set_initial_condition()
 
-    def setup_operators(self):
+    def setup_operators(self, beam):
         """Setup operators."""
         # Setup CN parameters
         self.delta_r = (
@@ -320,6 +313,9 @@ class SCNSolver:
 
         # Setup matrices
         fourier_coeff = self.const.im_unit * self.delta_t * self.domain.frq_array**2
+        self.matrix_cnt_1 = beam.frequency_0 / (
+            beam.frequency_0 + self.domain.frq_array
+        )
         self.matrix_cnt_2 = 1 - 2 * self.mat_cnt_1 + fourier_coeff
         self.matrix_cnt_3 = 1 + 2 * self.mat_cnt_1 - fourier_coeff
 
@@ -335,7 +331,7 @@ class SCNSolver:
             self.b_array,
             self.c_array,
         )
-        self.entries = (self.matrix_cnt_3, self.matrix_cnt_2)
+        self.entries = (self.matrix_cnt_2, self.matrix_cnt_3)
 
     def set_initial_condition(self):
         "Set the initial condition for the solver."
@@ -345,17 +341,19 @@ class SCNSolver:
             self.const.im_unit,
             self.beam,
         )
+        self.dist_envelope[:, 0, :] = self.envelope
         self.axis_envelope[0, :] = self.envelope[self.domain.axis_node, :]
         self.peak_envelope[:, 0] = self.envelope[:, self.domain.peak_node]
+        self.k_array[0] = 0
 
     def solve_step(self, step):
         "Perform one propagation step."
         calculate_nonlinear(self.envelope, self.w_array, self.equation)
 
-        # For k = 0, initialize Adam_Bashforth second condition
-        if step == 0:
+        # For k = 1, initialize Adam_Bashforth second condition
+        if step == 1:
             self.next_w_array = self.w_array.copy()
-            self.axis_envelope[step + 1, :] = self.envelope[self.domain.axis_node, :]
+            self.axis_envelope[1, :] = self.envelope[self.domain.axis_node, :]
             self.peak_envelope[:, 1] = self.envelope[:, self.domain.peak_node]
         frequency_domain(
             self.envelope,
@@ -371,35 +369,43 @@ class SCNSolver:
         self.envelope, self.next_envelope = self.next_envelope, self.envelope
         self.next_w_array = self.w_array
 
-    def save_diagnostics(self, step):
-        """Save diagnostics data for current step."""
-        if (
-            (step % (self.domain.n_steps // self.domain.dist_limit) == 0)
-            or (step == self.domain.n_steps - 1)
-        ) and self.domain.dist_index <= self.domain.dist_limit:
+    def save_expensive_diagnostics(self, step):
+        """Save memory expensive diagnostics data for current step."""
+        self.dist_envelope[:, step, :] = self.envelope
+        self.k_array[step] = self.k_array[step - 1] + self.domain.dist_limitin
 
-            self.dist_envelope[:, self.domain.dist_index, :] = self.envelope
-            self.k_array[self.domain.dist_index] = step
-            self.domain.dist_index += 1
+    def save_cheap_diagnostics(self, step):
+        """Save memory cheap diagnostics data for current step."""
+        if step > 1:
+            self.max_intensity = 0
+            self.max_density = 0
+            for l in range(self.domain.n_time_nodes):
+                intensity = np.abs(self.envelope[self.domain.axis_node, l])
+                if intensity > self.max_intensity:
+                    self.max_intensity = intensity
+                    self.domain.intensity_peak_node = l
 
-        # Store axis data
-        if step > 0:
-            self.axis_envelope[step + 1, :] = self.envelope[self.domain.axis_node, :]
-            self.peak_envelope[:, step + 1] = self.envelope[:, self.domain.peak_node]
+            self.axis_envelope[step, :] = self.envelope[self.domain.axis_node, :]
+            self.peak_envelope[:, step] = self.envelope[
+                :, self.domain.intensity_peak_node
+            ]
 
     def propagate(self):
         """Propagate beam through all steps."""
-        for k in tqdm(range(self.domain.n_steps)):
-            self.solve_step(k)
-            self.save_diagnostics(k)
+        for m in tqdm(range(1, self.domain.dist_limit + 1)):
+            for n in range(1, self.domain.dist_limitin + 1):
+                k = (m - 1) * self.domain.dist_limitin + n
+                self.solve_step(k)
+                self.save_cheap_diagnostics(k)
+            self.save_expensive_diagnostics(m)
 
 
 def main():
     "Main function."
     # Initialize classes
     const = UniversalConstants()
-    domain = DomainParameters()
-    media = MediaParameters(const)
+    domain = DomainParameters(const)
+    media = MediaParameters()
     beam = BeamParameters(const, media)
 
     # Create and run solver
@@ -413,15 +419,15 @@ def main():
         e_axis=solver.axis_envelope,
         e_peak=solver.peak_envelope,
         k_array=solver.k_array,
-        INI_RADI_COOR=domain.ini_radi_coor,
-        FIN_RADI_COOR=domain.fin_radi_coor,
-        INI_DIST_COOR=domain.ini_dist_coor,
-        FIN_DIST_COOR=domain.fin_dist_coor,
-        INI_TIME_COOR=domain.ini_time_coor,
-        FIN_TIME_COOR=domain.fin_time_coor,
-        AXIS_NODE=domain.axis_node,
-        PEAK_NODE=domain.peak_node,
-        LIN_REF_IND=media.lin_ref_ind_water,
+        ini_radi_coor=domain.ini_radi_coor,
+        fin_radi_coor=domain.fin_radi_coor,
+        ini_dist_coor=domain.ini_dist_coor,
+        fin_dist_coor=domain.fin_dist_coor,
+        ini_time_coor=domain.ini_time_coor,
+        fin_time_coor=domain.fin_time_coor,
+        axis_node=domain.axis_node,
+        peak_node=domain.peak_node,
+        lin_ref_ind=media.lin_ref_ind_water,
     )
 
 

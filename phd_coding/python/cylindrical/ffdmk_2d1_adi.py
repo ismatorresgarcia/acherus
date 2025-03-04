@@ -206,14 +206,13 @@ class UniversalConstants:
         self.permittivity = 8.8541878128e-12
         self.pi = np.pi
         self.im_unit = 1j
-        self.re_unit = 1
 
 
 @dataclass
 class MediaParameters:
     "Media parameters."
 
-    def __init__(self, const):
+    def __init__(self):
         self.lin_ref_ind_water = 1.328
         self.nlin_ref_ind_water = 1.6e-20
         self.gvd_coef_water = 241e-28
@@ -222,7 +221,7 @@ class MediaParameters:
         # self.int_factor = (
         #    0.5 * const.light_speed * const.permittivity * self.lin_ref_ind_water
         # )
-        self.int_factor = const.re_unit
+        self.int_factor = 1
 
 
 @dataclass
@@ -465,7 +464,7 @@ def main():
     # Initialize classes
     const = UniversalConstants()
     domain = DomainParameters()
-    media = MediaParameters(const)
+    media = MediaParameters()
     beam = BeamParameters(const, media)
 
     # Create and run solver
