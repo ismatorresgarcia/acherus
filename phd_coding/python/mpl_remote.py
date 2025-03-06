@@ -67,9 +67,9 @@ class DomainParameters:
 
     def setup_domain_limits(self):
         """Set up the computational domain limits"""
-        self.radi_limits = (self.data["ini_radi_coor"], self.data["fin_radi_coor"] / 20)
+        self.radi_limits = (self.data["ini_radi_coor"], self.data["fin_radi_coor"])
         self.dist_limits = (self.data["ini_dist_coor"], self.data["fin_dist_coor"])
-        self.time_limits = (-200e-15, 200e-15)
+        self.time_limits = (self.data["ini_time_coor"], self.data["fin_time_coor"])
 
     def compute_nodes(self):
         """Calculate node positions"""
@@ -454,7 +454,7 @@ class Visualization:
                     )
                     xlabel = r"$r$ ($\mathrm{\mu m}$)"
                     ylabel = r"$z$ ($\mathrm{cm}$)"
-                    label = "Peak time evolution"
+                    label = "Maximum evolution"
 
                 surf = ax.plot_surface(
                     x,
