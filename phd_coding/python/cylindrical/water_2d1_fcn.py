@@ -155,17 +155,18 @@ def solve_density(n_c, e_c, dt, equation, media):
     - media: media parameters
     """
     dt_0, dt_2, dt_6 = dt
-    n_c0 = n_c[:, :-1]
-    e_c0 = e_c[:, :-1]
-    e_c1 = e_c[:, 1:]
-    e_mid = 0.5 * (e_c0 + e_c1)
+    for l in range(e_c.shape[1] - 1):
+        n_c0 = n_c[:, l]
+        e_c0 = e_c[:, l]
+        e_c1 = e_c[:, l + 1]
+        e_mid = 0.5 * (e_c0 + e_c1)
 
-    k1 = density_rate(n_c0, e_c0, equation, media)
-    k2 = density_rate(n_c0 + dt_2 * k1, e_mid, equation, media)
-    k3 = density_rate(n_c0 + dt_2 * k2, e_mid, equation, media)
-    k4 = density_rate(n_c0 + dt_0 * k3, e_c1, equation, media)
+        k1 = density_rate(n_c0, e_c0, equation, media)
+        k2 = density_rate(n_c0 + dt_2 * k1, e_mid, equation, media)
+        k3 = density_rate(n_c0 + dt_2 * k2, e_mid, equation, media)
+        k4 = density_rate(n_c0 + dt_0 * k3, e_c1, equation, media)
 
-    n_c[:, 1:] = n_c0 + dt_6 * (k1 + 2 * k2 + 2 * k3 + k4)
+        n_c[:, l + 1] = n_c0 + dt_6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
 
 def solve_dispersion(fc, e_c, b):
@@ -584,8 +585,8 @@ def main():
     # Initialize classes
     const = UniversalConstants()
     media = MediaParameters()
-    beam = BeamParameters(const, media)
     domain = DomainParameters(const)
+    beam = BeamParameters(const, media)
     equation = EquationParameters(const, media, beam, domain)
 
     # Create and run solver
