@@ -594,10 +594,10 @@ class FCNSolver:
         )
 
         # Update arrays
-        self.envelope = self.next_envelope
-        self.density = self.next_density
-        self.raman = self.next_raman
-        self.next_w_array = self.w_array
+        self.envelope, self.next_envelope = self.next_envelope, self.envelope
+        self.density, self.next_density = self.next_density, self.density
+        self.raman, self.next_raman = self.next_raman, self.raman
+        self.next_w_array, self.w_array = self.w_array, self.next_w_array
 
     def save_expensive_diagnostics(self, step):
         """Save memory expensive diagnostics data for current step."""

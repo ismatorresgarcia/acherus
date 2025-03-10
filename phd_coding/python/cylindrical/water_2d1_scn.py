@@ -597,9 +597,9 @@ class SCNSolver:
         time_domain(self.next_fourier_envelope, self.next_envelope)
 
         # Update arrays
-        self.envelope = self.next_envelope
-        self.density = self.next_density
-        self.next_w_array = self.w_array
+        self.envelope, self.next_envelope = self.next_envelope, self.envelope
+        self.density, self.next_density = self.next_density, self.density
+        self.next_w_array, self.w_array = self.w_array, self.next_w_array
 
     def save_expensive_diagnostics(self, step):
         """Save memory expensive diagnostics data for current step."""
