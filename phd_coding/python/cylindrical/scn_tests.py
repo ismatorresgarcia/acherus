@@ -84,123 +84,40 @@ def initial_envelope(r, t, im, amp, wnum, w, ptime, ch, f):
     return amp * np.exp(space_decaying_term + time_decaying_term)
 
 
-def initial_density(back_dens):
+def crank_nicolson_matrix(n, out_diag, main_diag):
     """
-    Set the initial electron density distribution.
-
-    Parameters:
-    - back_dens: background electron density of the medium
-
-    Returns:
-    - float array: Initial free electron density
-    """
-    return back_dens
-
-
-def crank_nicolson_matrix(n, pos, c):
-    """
-    Set the Crank-Nicolson sparse array in CSR format using the diagonals.
+    Initialize the Crank-Nicolson sparse array in CSR format using the diagonals.
 
     Parameters:
     - n (int): number of radial nodes
-    - pos (str): position of the Crank-Nicolson array (left or right)
-    - c (float): coefficient for the diagonal elements
 
     Returns:
     - array: sparse array for the Crank-Nicolson matrix
     """
-    ind = np.arange(1, n - 1)
+    out_diag = np.ones(n - 1, dtype=complex)
+    main_diag = np.ones(n, dtype=complex)
 
-    diag_m1 = -c * (1 - 0.5 / ind)
-    diag_0 = np.ones(n)
-    diag_p1 = -c * (1 + 0.5 / ind)
-
-    diag_m1 = np.append(diag_m1, [0])
-    diag_p1 = np.insert(diag_p1, 0, [0])
-
-    if pos == "left":
-        diag_p1[0] = -2 * c
-    else:
-        diag_p1[0] = -2 * c
-
-    diags = [diag_m1, diag_0, diag_p1]
+    diags = [out_diag, main_diag, out_diag]
     offset = [-1, 0, 1]
 
     return diags_array(diags, offsets=offset, format="csr")
 
 
-def density_rate(n_c, e_c, ofi_coef, ava_coef, n_p, n_dens):
-    """
-    Compute electron density equation terms.
-
-    Parameters:
-    - n_c: electron density at step ll
-    - e_c: envelope at step ll
-    - ofi_coef: optical field ionization coefficient
-    - ava_coef: avalanche ionization coefficient
-    - n_p: multiphoton ionization exponent
-    - n_dens: neutral density
-
-    Returns:
-    - ndarray: Rate of change of electron density
-    """
-    abs_e_c = np.abs(e_c) ** 2
-
-    ofi = ofi_coef * (abs_e_c**n_p) * (n_dens - n_c)
-    ava = ava_coef * n_c * abs_e_c
-
-    return ofi + ava
-
-
-def solve_density(n_c, e_c, n, dt_0, dt_2, dt_6, ofi_coef, ava_coef, n_p, n_dens):
-    """
-    Compute one step of the 4th order Runge-Kutta method for electron density.
-
-    Parameters:
-    - n_c: electron density at step ll
-    - e_c: envelope at step ll
-    - n: number of time nodes
-    - dt_0: time step length
-    - dt_2: time step length divided by 2
-    - dt_6: time step length divided by 6
-    - ofi_coef: optical field ionization coefficient
-    - ava_coef: avalanche ionization coefficient
-    - n_p: multiphoton ionization exponent
-    - n_dens: neutral density
-    """
-    for ll in range(n - 1):
-        n_c0 = n_c[:, ll]
-        e_c0 = e_c[:, ll]
-        e_c1 = e_c[:, ll + 1]
-        e_mid = 0.5 * (e_c0 + e_c1)
-
-        k1 = density_rate(n_c0, e_c0, ofi_coef, ava_coef, n_p, n_dens)
-        k2 = density_rate(n_c0 + dt_2 * k1, e_mid, ofi_coef, ava_coef, n_p, n_dens)
-        k3 = density_rate(n_c0 + dt_2 * k2, e_mid, ofi_coef, ava_coef, n_p, n_dens)
-        k4 = density_rate(n_c0 + dt_0 * k3, e_c1, ofi_coef, ava_coef, n_p, n_dens)
-
-        n_c[:, ll + 1] = n_c0 + dt_6 * (k1 + 2 * k2 + 2 * k3 + k4)
-
-
-def calculate_nonlinear(e_c, n_c, w_c, n_p, p_coef, m_coef, k_coef):
+def calculate_nonlinear(e_c, w_c, n_p, m_coef, k_coef):
     """
     Compute the nonlinear terms.
 
     Parameters:
     - e_c: envelope at step k
-    - n_c: electron density at step k
     - w_c: pre-allocated array for Adam-Bashforth terms
     - n_p: multiphoton ionization exponent
-    - p_coef: plasma coefficient
     - m_coef: MPA coefficient
     - k_coef: Kerr coefficient
     """
     e_c_2 = np.abs(e_c) ** 2
     e_c_2k2 = e_c_2 ** (n_p - 1)
 
-    w_c[:] = e_c * (
-        p_coef[None, :] * n_c + m_coef[None, :] * e_c_2k2 + k_coef[None, :] * e_c_2
-    )
+    w_c[:] = e_c * (m_coef[np.newaxis, :] * e_c_2k2 + k_coef[np.newaxis, :] * e_c_2)
 
 
 def frequency_domain(e_c, fe_c, w_c, w_n):
@@ -218,76 +135,80 @@ def frequency_domain(e_c, fe_c, w_c, w_n):
     w_n[:] = fft(w_n, axis=1, workers=-1)
 
 
+def update_matrix(lm, rm, oc_l, mrc_l, mlc_l, up_diag, main_diag, down_diag):
+    """
+    Update the Crank-Nicolson matrices for the current frequency.
+    """
+    lm.setdiag(-oc_l * down_diag, k=-1)  # Lower diagonal
+    lm.setdiag(mlc_l, k=0)  # Main diagonal
+    lm.setdiag(-oc_l * up_diag, k=1)  # Upper diagonal
+    rm.setdiag(oc_l * down_diag, k=-1)  # Lower diagonal
+    rm.setdiag(mrc_l, k=0)  # Main diagonal
+    rm.setdiag(oc_l * up_diag, k=1)  # Upper diagonal
+
+    # Boundary condition for lower diagonal
+    out_diag = lm.diagonal(-1)
+    out_diag[-1] = 0  # Set last element to 0 for left matrix
+    lm.setdiag(out_diag, k=-1)
+
+    out_diag = rm.diagonal(-1)
+    out_diag[-1] = 0  # Set last element to 0 for right matrix
+    rm.setdiag(out_diag, k=-1)
+
+    # Boundary condition for main diagonal
+    main_diag = lm.diagonal()
+    main_diag[-1] = 1  # Set last element to 1 for left matrix
+    lm.setdiag(main_diag, k=0)
+
+    main_diag = rm.diagonal()
+    main_diag[-1] = 0  # Set last element to 0 for right matrix
+    rm.setdiag(main_diag, k=0)
+
+    # Boundary condition for upper diagonal
+    out_diag = lm.diagonal(1)
+    out_diag[0] = -2 * oc_l  # Set first element to Neumann condition
+    lm.setdiag(out_diag, k=1)
+
+    out_diag = rm.diagonal(1)
+    out_diag[0] = 2 * oc_l  # Set first element to Neumann condition
+    rm.setdiag(out_diag, k=1)
+
+
 def solve_envelope(
     lm,
     rm,
     n,
+    b,
+    c,
     fe_c,
     fe_n,
     w_c,
     w_n,
-    b,
-    c,
     oc,
     mrc,
     mlc,
-    lm_diag_m1,
-    lm_diag_p1,
-    rm_diag_m1,
-    rm_diag_p1,
+    up_diag,
+    main_diag,
+    down_diag,
 ):
     """
-    Update Crank-Nicolson arrays for one frequency step.
+    Solve the envelope equation for each frequency.
     """
-
-    # Store original off-diagonal elements
-    np.copyto(lm_diag_m1, lm.diagonal(-1))  # Lower diagonal of left matrix
-    np.copyto(lm_diag_p1, lm.diagonal(1))  # Upper diagonal of left matrix
-    np.copyto(rm_diag_m1, rm.diagonal(-1))  # Lower diagonal of right matrix
-    np.copyto(rm_diag_p1, rm.diagonal(1))  # Upper diagonal of right matrix
-
     for ll in range(n):
-        # Cache current frequency entries
-        oc_l = oc[ll]
-        mlc_l = mlc[ll]
-        mrc_l = mrc[ll]
+        update_matrix(
+            lm,
+            rm,
+            oc[ll],
+            mrc[ll],
+            mlc[ll],
+            up_diag,
+            main_diag,
+            down_diag,
+        )
 
-        # Update matrices for current frequency
-        lm.setdiag(lm_diag_m1 * oc_l, k=-1)  # Lower diagonal
-        lm.setdiag(mlc_l, k=0)  # Main diagonal
-        lm.setdiag(lm_diag_p1 * oc_l, k=1)  # Upper diagonal
-        rm.setdiag(rm_diag_m1 * oc_l, k=-1)  # Lower diagonal
-        rm.setdiag(mrc_l, k=0)  # Main diagonal
-        rm.setdiag(rm_diag_p1 * oc_l, k=1)  # Upper diagonal
-
-        # Restore boundary condition elements for main diagonal
-        diag_0 = lm.diagonal()
-        diag_0[-1] = 1  # Set last element to 1 for left matrix
-        lm.setdiag(diag_0, k=0)
-
-        diag_0 = rm.diagonal()
-        diag_0[-1] = 0  # Set last element to 0 for right matrix
-        rm.setdiag(diag_0, k=0)
-
-        # Restore boundary condition elements for lower diagonal
-        diag_m1 = lm.diagonal(-1)
-        diag_m1[-1] = 0  # Set last element to 0 for left matrix
-        lm.setdiag(diag_m1, k=-1)
-
-        diag_m1 = rm.diagonal(-1)
-        diag_m1[-1] = 0  # Set last element to 0 for left matrix
-        rm.setdiag(diag_m1, k=-1)
-
-        # Solve with Crank-Nicolson for current frequency
         b = rm @ fe_c[:, ll]
         c = b + 1.5 * w_c[:, ll] - 0.5 * w_n[:, ll]
         fe_n[:, ll] = spsolve(lm, c)
-
-        # Restore original off-diagonal elements for next iteration
-        lm.setdiag(lm_diag_p1, k=1)
-        lm.setdiag(lm_diag_m1, k=-1)
-        rm.setdiag(rm_diag_p1, k=1)
-        rm.setdiag(rm_diag_m1, k=-1)
 
 
 def time_domain(fe_c, e_c):
@@ -320,20 +241,15 @@ class MediaParameters:
     "Media parameters."
 
     def __init__(self):
-        self.lin_ref_ind_water = 1.334
-        self.nlin_ref_ind_water = 4.1e-20
-        self.gvd_coef_water = 248e-28
+        self.lin_ref_ind_water = 1.328
+        self.nlin_ref_ind_water = 1.6e-20
+        self.gvd_coef_water = 241e-28
         self.n_photons_water = 5
-        self.mpa_cnt_water = 1e-61
-        self.mpi_cnt_water = 1.2e-72
+        self.mpa_cnt_water = 8e-64
         self.int_factor = 1
         # self.int_factor = (
         #    0.5 * const.light_speed * const.permittivity * self.lin_ref_ind_water
         # )
-        self.energy_gap_water = 1.04e-18  # 6.5 eV
-        self.collision_time_water = 3e-15
-        self.neutral_dens_water = 6.68e28
-        self.background_density_water = 1e-6
 
 
 @dataclass
@@ -343,16 +259,16 @@ class BeamParameters:
     def __init__(self, const, media):
         # Basic parameters
         self.wavelength_0 = 800e-9
-        self.waist_0 = 75e-6
-        self.peak_time = 130e-15
-        self.energy = 2.2e-6
-        self.chirp = 0
+        self.waist_0 = 100e-6
+        self.peak_time = 50e-15
+        self.energy = 2.83e-6
+        self.chirp = -1
         self.focal_length = 0
 
         # Derived parameters
         self.wavenumber_0 = 2 * const.pi / self.wavelength_0
-        self.wavenumber = 2 * const.pi * media.lin_ref_ind_water / self.wavelength_0
-        self.frequency_0 = const.light_speed * self.wavenumber_0
+        self.wavenumber = self.wavenumber_0 * media.lin_ref_ind_water
+        self.frequency_0 = self.wavenumber_0 * const.light_speed
         self.power = self.energy / (self.peak_time * np.sqrt(0.5 * const.pi))
         self.cr_power = (
             3.77
@@ -369,19 +285,19 @@ class DomainParameters:
     def __init__(self, const, beam):
         # Radial domain
         self.ini_radi_coor = 0
-        self.fin_radi_coor = 50e-5
-        self.i_radi_nodes = 3000
+        self.fin_radi_coor = 100e-5
+        self.i_radi_nodes = 1500
 
         # Distance domain
         self.ini_dist_coor = 0
-        self.fin_dist_coor = 3e-2
-        self.n_steps = 2000
+        self.fin_dist_coor = 2e-2
+        self.n_steps = 1000
         self.dist_limit = 5
 
         # Time domain
-        self.ini_time_coor = -600e-15
-        self.fin_time_coor = 600e-15
-        self.n_time_nodes = 8192
+        self.ini_time_coor = -200e-15
+        self.fin_time_coor = 200e-15
+        self.n_time_nodes = 4096
 
         # Initialize derived parameters functions
         self._setup_derived_parameters()
@@ -439,77 +355,45 @@ class EquationParameters:
     """Parameters for the final equation."""
 
     def __init__(self, const, media, beam, domain):
-        # Cache common parameters
-        self.omega = beam.frequency_0
-        self.omega_tau = self.omega * media.collision_time_water
-
         # Initialize main function parameters
-        self._init_densities(const, media, beam)
         self._init_coefficients(media)
         self._init_operators(const, media, beam, domain)
 
-    def _init_densities(self, const, media, beam):
-        "Initialize density parameters."
-        self.critical_dens = (
-            const.permittivity
-            * const.electron_mass
-            * (self.omega / const.electron_charge) ** 2
-        )
-        self.bremss_cs_water = (beam.wavenumber * self.omega_tau) / (
-            (media.lin_ref_ind_water**2 * self.critical_dens) * (1 + self.omega_tau**2)
-        )
-
     def _init_coefficients(self, media):
         "Initialize equation coefficients."
-        self.mpi_exp = 2 * media.n_photons_water
-        self.mpa_exp = self.mpi_exp - 2
-        self.ofi_coef = media.mpi_cnt_water * media.int_factor**media.n_photons_water
-        self.ava_coef = self.bremss_cs_water * media.int_factor / media.energy_gap_water
+        # self.mpi_exp = 2 * media.n_photons_water
 
     def _init_operators(self, const, media, beam, domain):
         "Initialize equation operators."
         # Pre-compute common terms
-        freq_shift = domain.frq_array_shift
-        freq_tau = freq_shift * media.collision_time_water
-        freq_tau_sq = freq_tau**2
-        self.u_operator = 1 / (
-            1 + media.gvd_coef_water * domain.frq_array / beam.wavenumber
-        )
-        operator_common = self.u_operator * domain.dist_step_len * freq_shift
-        plasma_common = (1 + const.im_unit * freq_tau) / (1 + freq_tau_sq)
-
+        self.u_operator = beam.wavenumber + media.gvd_coef_water * domain.frq_array
         self.delta_r = (
-            0.25 * domain.dist_step_len / (beam.wavenumber * domain.radi_step_len**2)
+            0.25 * domain.dist_step_len / (self.u_operator * domain.radi_step_len**2)
         )
-        self.delta_t = 0.25 * domain.dist_step_len * media.gvd_coef_water
-
-        # Plasma coefficient calculation
-        self.plasma_coef = (
-            -0.5
-            * beam.wavenumber_0
-            * media.collision_time_water
-            * operator_common
-            * plasma_common
-            / (media.lin_ref_ind_water * self.critical_dens)
+        self.delta_t = (
+            0.25 * domain.dist_step_len * media.gvd_coef_water * domain.frq_array**2
         )
 
         # MPA coefficient calculation
         self.mpa_coef = (
             -0.5
+            * domain.dist_step_len
+            * domain.frq_array_shift
             * media.mpa_cnt_water
-            * operator_common
+            * media.lin_ref_ind_water
             * media.int_factor ** (media.n_photons_water - 1)
-            / beam.frequency_0
+            / (const.light_speed * self.u_operator)
         )
 
         # Kerr coefficient calculation
         self.kerr_coef = (
             const.im_unit
+            * domain.dist_step_len
+            * domain.frq_array_shift**2
+            * media.lin_ref_ind_water
             * media.nlin_ref_ind_water
-            * plasma_common
             * media.int_factor
-            * freq_shift
-            / (beam.frequency_0 * const.light_speed)
+            / (const.light_speed**2 * self.u_operator)
         )
 
 
@@ -523,11 +407,6 @@ class SCNSolver:
         self.domain = domain
         self.equation = equation
 
-        # Compute frequent constants
-        self.dt_0 = domain.time_step_len
-        self.dt_2 = domain.time_step_len / 2
-        self.dt_6 = domain.time_step_len / 6
-
         # Initialize arrays and operators
         shape = (self.domain.n_radi_nodes, self.domain.n_time_nodes)
         dist_shape = (
@@ -539,15 +418,10 @@ class SCNSolver:
         peak_shape = (self.domain.n_radi_nodes, self.domain.n_steps + 1)
 
         self.envelope = np.empty(shape, dtype=complex)
-        self.density = np.empty(shape)
         self.next_envelope = np.empty_like(self.envelope)
-        self.next_density = np.empty_like(self.density)
         self.dist_envelope = np.empty(dist_shape, dtype=complex)
-        self.dist_density = np.empty(dist_shape)
         self.axis_envelope = np.empty(axis_shape, dtype=complex)
-        self.axis_density = np.empty(axis_shape)
         self.peak_envelope = np.empty(peak_shape, dtype=complex)
-        self.peak_density = np.empty(peak_shape)
         self.fourier_envelope = np.empty_like(self.envelope)
         self.next_fourier_envelope = np.empty_like(self.envelope)
         self.w_array = np.empty_like(self.envelope)
@@ -556,10 +430,8 @@ class SCNSolver:
         self.c_array = np.empty_like(self.b_array)
 
         # Pre-allocate temporary arrays for matrices
-        self.lm_diag_m1 = np.empty(self.domain.n_radi_nodes - 1, dtype=complex)
-        self.lm_diag_p1 = np.empty(self.domain.n_radi_nodes - 1, dtype=complex)
-        self.rm_diag_m1 = np.empty(self.domain.n_radi_nodes - 1, dtype=complex)
-        self.rm_diag_p1 = np.empty(self.domain.n_radi_nodes - 1, dtype=complex)
+        self.diag_out = np.empty(self.domain.n_radi_nodes - 1, dtype=complex)
+        self.diag_main = np.empty(self.domain.n_radi_nodes, dtype=complex)
 
         # Setup tracking variables
         self.k_array = np.empty(self.domain.dist_limit + 1, dtype=int)
@@ -571,17 +443,21 @@ class SCNSolver:
     def setup_operators(self, const, equation):
         """Setup operators."""
         # Setup operators
-        self.disp_operator = const.im_unit * equation.delta_t * self.domain.frq_array**2
-        self.diff_operator = const.im_unit * equation.delta_r * self.equation.u_operator
+        self.diff_operator = const.im_unit * equation.delta_r
+        self.disp_operator = const.im_unit * equation.delta_t
         self.matrix_cnt_1 = 1 - 2 * self.diff_operator + self.disp_operator
         self.matrix_cnt_2 = 1 + 2 * self.diff_operator - self.disp_operator
 
+        # Setup outer diagonals radial index dependence
+        self.diag_up = 1 + 0.5 / np.arange(1, self.domain.n_radi_nodes - 1)
+        self.diag_down = 1 - 0.5 / np.arange(1, self.domain.n_radi_nodes - 1)
+
         # Setup matrices
         self.left_matrix = crank_nicolson_matrix(
-            self.domain.n_radi_nodes, "left", const.im_unit * equation.delta_r
+            self.domain.n_radi_nodes, self.diag_out, self.diag_main
         )
         self.right_matrix = crank_nicolson_matrix(
-            self.domain.n_radi_nodes, "right", -const.im_unit * equation.delta_r
+            self.domain.n_radi_nodes, self.diag_out, self.diag_main
         )
 
     def set_initial_envelope(self):
@@ -597,36 +473,18 @@ class SCNSolver:
             self.beam.chirp,
             self.beam.focal_length,
         )
-        self.density[:, 0] = initial_density(self.media.background_density_water)
         # Store initial values for diagnostics
         self.dist_envelope[:, 0, :] = self.envelope
-        self.dist_density[:, 0, :] = self.density
         self.axis_envelope[0, :] = self.envelope[self.domain.axis_node, :]
-        self.axis_density[0, :] = self.density[self.domain.axis_node, :]
         self.peak_envelope[:, 0] = self.envelope[:, self.domain.peak_node]
-        self.peak_density[:, 0] = self.density[:, self.domain.peak_node]
         self.k_array[0] = 0
 
     def solve_step(self, step):
         "Perform one propagation step."
-        solve_density(
-            self.density,
-            self.envelope,
-            self.domain.n_time_nodes,
-            self.dt_0,
-            self.dt_2,
-            self.dt_6,
-            self.equation.ofi_coef,
-            self.equation.ava_coef,
-            self.media.n_photons_water,
-            self.media.neutral_dens_water,
-        )
         calculate_nonlinear(
             self.envelope,
-            self.density,
             self.w_array,
             self.media.n_photons_water,
-            self.equation.plasma_coef,
             self.equation.mpa_coef,
             self.equation.kerr_coef,
         )
@@ -635,9 +493,7 @@ class SCNSolver:
         if step == 1:
             np.copyto(self.next_w_array, self.w_array)
             self.axis_envelope[1] = self.envelope[self.domain.axis_node]
-            self.axis_density[1] = self.density[self.domain.axis_node]
             self.peak_envelope[:, 1] = self.envelope[:, self.domain.peak_node]
-            self.peak_density[:, 1] = self.density[:, self.domain.peak_node]
         frequency_domain(
             self.envelope,
             self.fourier_envelope,
@@ -647,32 +503,29 @@ class SCNSolver:
         solve_envelope(
             self.left_matrix,
             self.right_matrix,
-            self.domain.n_time_nodes,
+            self.domain.n_radi_nodes,
+            self.b_array,
+            self.c_array,
             self.fourier_envelope,
             self.next_fourier_envelope,
             self.w_array,
             self.next_w_array,
-            self.b_array,
-            self.c_array,
-            self.equation.u_operator,
+            self.diff_operator,
             self.matrix_cnt_1,
             self.matrix_cnt_2,
-            self.lm_diag_m1,
-            self.lm_diag_p1,
-            self.rm_diag_m1,
-            self.rm_diag_p1,
+            self.diag_up,
+            self.diag_main,
+            self.diag_down,
         )
         time_domain(self.next_fourier_envelope, self.next_envelope)
 
         # Update arrays
         self.envelope, self.next_envelope = self.next_envelope, self.envelope
-        self.density, self.next_density = self.next_density, self.density
         self.next_w_array, self.w_array = self.w_array, self.next_w_array
 
     def save_expensive_diagnostics(self, step):
         """Save memory expensive diagnostics data for current step."""
         self.dist_envelope[:, step, :] = self.envelope
-        self.dist_density[:, step, :] = self.density
         self.k_array[step] = self.k_array[step - 1] + self.domain.dist_limitin
 
     def save_cheap_diagnostics(self, step):
@@ -681,20 +534,15 @@ class SCNSolver:
             # Cache accessed arrays and parameters
             axis_node = self.domain.axis_node
             envelope = self.envelope
-            density = self.density
 
             # Cache axis data computations
             axis_envelope_data = envelope[axis_node]
-            axis_density_data = density[axis_node]
             intensity = np.abs(axis_envelope_data)
 
             intensity_peak_node = np.argmax(intensity)
-            density_peak_node = np.argmax(axis_density_data)
 
             self.axis_envelope[step] = axis_envelope_data
-            self.axis_density[step] = axis_density_data
             self.peak_envelope[:, step] = envelope[:, intensity_peak_node]
-            self.peak_density[:, step] = density[:, density_peak_node]
 
     def propagate(self):
         """Propagate beam through all steps."""
@@ -730,9 +578,6 @@ def main():
         e_dist=solver.dist_envelope,
         e_axis=solver.axis_envelope,
         e_peak=solver.peak_envelope,
-        elec_dist=solver.dist_density,
-        elec_axis=solver.axis_density,
-        elec_peak=solver.peak_density,
         k_array=solver.k_array,
         ini_radi_coor=domain.ini_radi_coor,
         fin_radi_coor=domain.fin_radi_coor,

@@ -141,7 +141,6 @@ def density_rate(n_c, e_c, ofi_coef, ava_coef, n_p, n_dens):
     - ndarray: Rate of change of electron density
     """
     abs_e_c = np.abs(e_c) ** 2
-
     ofi = ofi_coef * (abs_e_c**n_p) * (n_dens - n_c)
     ava = ava_coef * n_c * abs_e_c
 
@@ -189,13 +188,14 @@ def solve_raman(r_c, e_c, n, raman1, raman2, raman3):
     - n: number of time nodes
     """
     r_c[:, 0] = 0
+    r_c[:, 1] = 0
     abs_e_c2 = np.abs(e_c) ** 2
-    for ll in range(n - 1):
+    for ll in range(n - 2):
         r_c0 = r_c[:, ll]
         abs_e_c0 = abs_e_c2[:, ll]
         abs_e_c1 = abs_e_c2[:, ll + 1]
 
-        r_c[:, ll + 1] = r_c0 * raman1 + raman2 * abs_e_c1 + raman3 * abs_e_c0
+        r_c[:, ll + 2] = r_c0 * raman1 + raman2 * abs_e_c1 + raman3 * abs_e_c0
 
 
 def calculate_nonlinear(e_c, n_c, r_c, w_c, n_p, p_coef, m_coef, k_coef, r_coef):
@@ -218,10 +218,10 @@ def calculate_nonlinear(e_c, n_c, r_c, w_c, n_p, p_coef, m_coef, k_coef, r_coef)
     rm_c = np.imag(r_c)
 
     w_c[:] = e_c * (
-        p_coef[None, :] * n_c
-        + m_coef[None, :] * e_c_2k2
-        + k_coef[None, :] * e_c_2
-        + r_coef[None, :] * rm_c
+        p_coef[np.newaxis, :] * n_c
+        + m_coef[np.newaxis, :] * e_c_2k2
+        + k_coef[np.newaxis, :] * e_c_2
+        + r_coef[np.newaxis, :] * rm_c
     )
 
 

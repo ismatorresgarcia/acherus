@@ -149,7 +149,6 @@ def density_rate(n_c, e_c, ofi_coef, ava_coef, n_p, n_dens):
     - ndarray: Rate of change of electron density
     """
     abs_e_c = np.abs(e_c) ** 2
-
     ofi = ofi_coef * (abs_e_c**n_p) * (n_dens - n_c)
     ava = ava_coef * n_c * abs_e_c
 
@@ -197,13 +196,14 @@ def solve_raman(r_c, e_c, n, raman1, raman2, raman3):
     - n: number of time nodes
     """
     r_c[:, 0] = 0
+    r_c[:, 1] = 0
     abs_e_c2 = np.abs(e_c) ** 2
-    for ll in range(n - 1):
+    for ll in range(n - 2):
         r_c0 = r_c[:, ll]
         abs_e_c0 = abs_e_c2[:, ll]
         abs_e_c1 = abs_e_c2[:, ll + 1]
 
-        r_c[:, ll + 1] = r_c0 * raman1 + raman2 * abs_e_c1 + raman3 * abs_e_c0
+        r_c[:, ll + 2] = r_c0 * raman1 + raman2 * abs_e_c1 + raman3 * abs_e_c0
 
 
 def solve_dispersion(fc, e_c, b):
