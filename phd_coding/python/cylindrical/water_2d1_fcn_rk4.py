@@ -75,7 +75,7 @@ def initial_envelope(r, t, im, amp, wnum, w, ptime, ch, f):
     - f: focal length of the beam
 
     Returns:
-    - complex 2-array: Initial envelope field
+    - complex 2D-array: Initial envelope field
     """
     space_decaying_term = -((r / w) ** 2)
     time_decaying_term = -(1 + im * ch) * (t / ptime) ** 2
@@ -86,169 +86,19 @@ def initial_envelope(r, t, im, amp, wnum, w, ptime, ch, f):
     return amp * np.exp(space_decaying_term + time_decaying_term)
 
 
-def initial_density(back_dens):
-    """
-    Set up the initial electron density distribution.
-
-    Parameters:
-    - back_dens: background electron density of the medium
-
-    Returns:
-    - float 1-array: Initial free electron density
-    """
-    return back_dens
-
-
-@nb.njit
-def laplacian_operator(field, radi_array, diff_array, n_r, dr_0, dr_p2, dr_m2):
-    """Set up the cylindrical Laplacian operator with boundary conditions.
-
-    Parameters:
-    - field: envelope array for any time step ll
-    - radi_array: radial coordinates array
-    - diff_array: pre-allocated array for the Laplacian operator
-    - n_r: number of radial nodes
-    - dr_0: radial step length
-    - dr_p2: radial step length squared
-    - dr_m2: radial step length multiplied by 2
-
-    Returns:
-    - float 1-array: Laplacian operator
-    """
-    # Neumann homogeneous boundary condition at r=0
-    diff_array[0] = 4 * (field[1] - field[0]) / dr_p2
-
-    # Interior nodes
-    for ii in range(1, n_r - 1):
-        ri = radi_array[ii]
-        if ri > 1e-6:
-            dfield_dr = (field[ii + 1] - field[ii - 1]) / dr_m2
-            dfield_drr = dfield_dr / ri
-            d2field_dr2 = (field[ii + 1] - 2 * field[ii] + field[ii - 1]) / dr_p2
-            diff_array[ii] = dfield_drr + d2field_dr2
-        else:
-            diff_array[ii] = 4 * (field[ii + 1] - field[ii]) / dr_p2
-
-    # Dirichlet homogeneous boundary contidion at r=r_max
-    ii = n_r - 1
-    ri = radi_array[ii]
-    dfield_dr = -field[ii - 1] / dr_0
-    dfield_drr = dfield_dr / ri
-    d2field_dr2 = (-2 * field[ii - 1] + field[ii - 2]) / dr_p2
-    diff_array[ii] = dfield_drr + d2field_dr2
-
-    return diff_array
-
-
-@nb.njit
-def nonlinear_operator(field, density, nlin_array, n_ph, p_coef, m_coef, k_coef):
-    """Set up the nonlinear operator terms.
-
-    Parameters:
-    - field: envelope array for any time step ll
-    - density: free electron density array for any time step ll
-    - nlin_array: pre-allocated array for the nonlinear operator
-    - p_coef: plasma coefficient
-    - m_coef: MPA coefficient
-    - k_coef: Kerr coefficient
-    - n_ph: number of photons
-
-    Returns:
-    - complex 1-array: Nonlinear operator
-    """
-    field_2 = np.abs(field) ** 2
-    field_2k2 = field_2 ** (n_ph - 1)
-
-    nlin_array[:] = field * (p_coef * density + m_coef * field_2k2 + k_coef * field_2)
-
-    return nlin_array
-
-
-@nb.njit
-def compute_field_operator(
-    field,
-    density,
-    radi_array,
-    diff_array,
-    nlin_array,
-    im,
-    n_r,
-    n_ph,
-    wnum,
-    dr_0,
-    dr_p2,
-    dr_m2,
-    p_coef,
-    m_coef,
-    k_coef,
-):
-    """Set up the envelope propagation terms.
-
-    Parameters:
-    - field: envelope array for any time step ll
-    - density: free electron density array for any time step ll
-    - radi_array: radial coordinates array
-    - diff_array: pre-allocated array for the Laplacian operator
-    - nlin_array: pre-allocated array for the nonlinear operator
-    - im: square root of -1
-    - n_r: number of radial nodes
-    - n_ph: number of photons
-    - wnum: initial wavenumber of the beam
-    - dr_0: radial step length
-    - dr_p2: radial step length squared
-    - dr_m2: radial step length multiplied by 2
-    - p_coef: plasma coefficient
-    - m_coef: MPA coefficient
-    - k_coef: Kerr coefficient
-
-    Returns:
-    - complex 1-array: Envelope operator
-    """
-    # Diffraction terms
-    diff_coeff = 0.5 * im / wnum
-    laplacian_operator(field, radi_array, diff_array, n_r, dr_0, dr_p2, dr_m2)
-
-    # Nonlinear terms
-    nonlinear_operator(field, density, nlin_array, n_ph, p_coef, m_coef, k_coef)
-
-    return nlin_array + diff_coeff * diff_array
-
-
-@nb.njit
-def compute_density_operator(density, field, n_ph, neutral_dens, ofi_coef, ava_coef):
-    """Set up the electron density evolution terms.
-
-    Parameters:
-    - density: free electron density array for any time step ll
-    - field: envelope array for any time step ll
-    - n_ph: number of photons
-    - neutral_dens: neutral density of the medium
-    - ofi_coef: OFI coefficient
-    - ava_coef: avalanche/cascade coefficient
-
-    Returns:
-    - float 1-array: Electron density operator
-    """
-    field_2 = np.abs(field) ** 2
-    field_2n = field_2**n_ph
-
-    ofi = ofi_coef * field_2n * (neutral_dens - density)
-    ava = ava_coef * density * field_2
-
-    return ofi + ava
-
-
 def crank_nicolson_matrix(n_r, pos, coef):
     """
-    Set the three diagonals for the Crank-Nicolson array with centered differences.
+    Set the three diagonals for the
+    Crank-Nicolson array with centered
+    differences.
 
     Parameters:
-    - n_r (int): number of radial nodes
-    - pos (str): position of the Crank-Nicolson array (left or right)
-    - coef (float): coefficient for the diagonal elements
+    - n_r: number of radial nodes
+    - pos: position of the Crank-Nicolson array (left or right)
+    - coef: coefficient for the diagonal elements
 
     Returns:
-    - complex 2-array: sparse 2-array for the Crank-Nicolson matrix
+    - complex 2D-array: sparse 2-array for the Crank-Nicolson matrix
     """
     dc = 1 + 2 * coef
     ind = np.arange(1, n_r - 1)
@@ -267,148 +117,209 @@ def crank_nicolson_matrix(n_r, pos, coef):
         diag_p1[0] = -2 * coef
 
     diags = [diag_m1, diag_0, diag_p1]
-    offset = [-1, 0, 1]
+    d_ind = [-1, 0, 1]
 
-    return diags_array(diags, offsets=offset, format="csc")
+    return diags_array(diags, offsets=d_ind, format="csc")
 
 
 @nb.njit
-def rk4_step(
-    e_curr,
-    n_curr,
-    e_aux,
-    n_aux,
-    field_op_args,
-    dens_op_args,
-    dz2,
-    dz6,
-    dt2,
-    dt6,
-):
+def set_density_operator(density, field, n_ph, neutral_dens, ofi_coef, ava_coef):
+    """Set up the electron density evolution terms.
+
+    Parameters:
+    - density: density at current time slice
+    - field: envelope at current time slice
+    - n_ph: number of photons for MPI
+    - neutral_dens: neutral density of the medium
+    - ofi_coef: OFI coefficient
+    - ava_coef: avalanche/cascade coefficient
+
+    Returns:
+    - float 1D-array: Electron density operator
     """
-    Compute one step of the RK4 integration step.
+    field_2 = np.abs(field) ** 2
+    field_2n = field_2**n_ph
+
+    ofi = ofi_coef * field_2n * (neutral_dens - density)
+    ava = ava_coef * density * field_2
+
+    return ofi + ava
+
+
+@nb.njit
+def rk4_density_step(e_curr, n_curr, n_aux, dens_op_args, dt, dt2, dt6):
+    """
+    Compute one time step of the RK4 integration for electron
+    density evolution.
 
     Parameters:
     - e_curr: envelope at current time slice
     - n_curr: density at current time slice
-    - field_op_args: arguments for the field operator
+    - n_aux: auxiliary density array for RK4 integration
     - dens_op_args: arguments for the density operator
+    - dt: time step
     - dt2: half time step
     - dt6: time step divided by 6
-    - dz2: half distance step
-    - dz6: distance step divided by 6
 
     Returns:
-    - complex 1-array: RK4 integration at current time slice
-    - float 1-array: Electron density at next time slice
+    - float 1D-array: Electron density at next time slice
     """
-    k1_f = compute_field_operator(e_curr, n_curr, *field_op_args)
-    k1_d = compute_density_operator(n_curr, e_curr, *dens_op_args)
-
-    e_aux = e_curr + dz2 * k1_f
+    k1_d = set_density_operator(n_curr, e_curr, *dens_op_args)
     n_aux = n_curr + dt2 * k1_d
 
-    k2_f = compute_field_operator(e_aux, n_aux, *field_op_args)
-    k2_d = compute_density_operator(n_aux, e_aux, *dens_op_args)
-
-    e_aux = e_curr + dz2 * k2_f
+    k2_d = set_density_operator(n_aux, e_curr, *dens_op_args)
     n_aux = n_curr + dt2 * k2_d
 
-    k3_f = compute_field_operator(e_aux, n_aux, *field_op_args)
-    k3_d = compute_density_operator(n_aux, e_aux, *dens_op_args)
+    k3_d = set_density_operator(n_aux, e_curr, *dens_op_args)
+    n_aux = n_curr + dt * k3_d
 
-    e_aux = e_curr + dz2 * k3_f
-    n_aux = n_curr + dt2 * k3_d
+    k4_d = set_density_operator(n_aux, e_curr, *dens_op_args)
 
-    k4_f = compute_field_operator(e_aux, n_aux, *field_op_args)
-    k4_d = compute_density_operator(n_aux, e_aux, *dens_op_args)
+    n_l = n_curr + dt6 * (k1_d + 2 * k2_d + 2 * k3_d + k4_d)
 
-    w_c = dz6 * (k1_f + 2 * k2_f + 2 * k3_f + k4_f)
-    n_n = n_curr + dt6 * (k1_d + 2 * k2_d + 2 * k3_d + k4_d)
-
-    return w_c, n_n
+    return n_l
 
 
 @nb.njit(parallel=True)
-def solve_density(
-    e_c,
-    n_c,
-    e_aux,
-    n_aux,
-    w_c,
-    n_n,
-    n_t,
-    field_op_args,
-    dens_op_args,
-    dz2,
-    dz6,
-    dt2,
-    dt6,
-):
+def solve_density(e_c, n_c, n_aux, n_n, n_t, dens_op_args, dt, dt2, dt6):
     """
     Solve electron density evolution for all time steps.
 
     Parameters:
     - e_c: envelope at current time slice
     - n_c: density at current time slice
-    - e_aux: auxiliary envelope array
-    - n_aux: auxiliary density array
-    - w_c: pre-allocated array for the nonlinear terms
-    - n_n: pre-allocated array for the density at next time slice
+    - n_aux: auxiliary density array for RK4 integration
+    - n_n: density at next time slice
     - n_t: number of time nodes
-    - field_op_args: arguments for the field operator
     - dens_op_args: arguments for the density operator
-    - dz2: half distance step
-    - dz6: distance step divided by 6
+    - dt: time step
     - dt2: half time step
     - dt6: time step divided by 6
     """
+    # Set the initial condition
+    n_n[:, 0], n_c[:, 0] = 0, 0
+
+    # Solve the electron density evolution
     for ll in nb.prange(n_t - 1):
         e_curr = e_c[:, ll]
         n_curr = n_c[:, ll]
 
-        w_c_ll, n_next = rk4_step(
-            e_curr,
-            n_curr,
-            e_aux,
-            n_aux,
-            field_op_args,
-            dens_op_args,
-            dz2,
-            dz6,
-            dt2,
-            dt6,
-        )
+        n_next = rk4_density_step(e_curr, n_curr, n_aux, dens_op_args, dt, dt2, dt6)
 
-        w_c[:, ll] = w_c_ll
         n_n[:, ll + 1] = n_next
+
+
+@nb.njit
+def set_field_operator(field, density, n_ph, p_coef, m_coef, k_coef):
+    """Set up the envelope propagation nonlinear terms.
+
+    Parameters:
+    - field: envelope at current time slice
+    - density: electron density at current time slice
+    - n_ph: number of photons for MPI
+    - p_coef: plasma coefficient
+    - m_coef: MPA coefficient
+    - k_coef: Kerr coefficient
+
+    Returns:
+    - complex 1D-array: Nonlinear operator
+    """
+    field_2 = np.abs(field) ** 2
+    field_2k2 = field_2 ** (n_ph - 1)
+
+    nonlinear = field * (p_coef * density + m_coef * field_2k2 + k_coef * field_2)
+
+    return nonlinear
+
+
+@nb.njit
+def rk4_field_step(e_curr, n_curr, e_aux, field_op_args, dz, dz2, dz6):
+    """
+    Compute one step of the RK4 integration for envelope propagation.
+
+    Parameters:
+    - e_curr: envelope at current time slice
+    - n_curr: density at current time slice
+    - e_aux: auxiliary envelope array for RK4 integration
+    - field_op_args: arguments for the field operator
+    - dz: distance step
+    - dz2: half distance step
+    - dz6: distance step divided by 6
+
+    Returns:
+    - complex 1D-array: RK4 integration for one time slice
+    """
+    k1_f = set_field_operator(e_curr, n_curr, *field_op_args)
+    e_aux = e_curr + dz2 * k1_f
+
+    k2_f = set_field_operator(e_aux, n_curr, *field_op_args)
+    e_aux = e_curr + dz2 * k2_f
+
+    k3_f = set_field_operator(e_aux, n_curr, *field_op_args)
+    e_aux = e_curr + dz * k3_f
+
+    k4_f = set_field_operator(e_aux, n_curr, *field_op_args)
+
+    w_l = dz6 * (k1_f + 2 * k2_f + 2 * k3_f + k4_f)
+
+    return w_l
+
+
+@nb.njit(parallel=True)
+def solve_nonlinear(e_c, n_c, e_aux, w_c, n_t, field_op_args, dz, dz2, dz6):
+    """
+    Solve envelope propagation nonlinearities for all
+    time steps.
+
+    Parameters:
+    - e_c: envelope at current time slice
+    - n_c: density at current time slice
+    - e_aux: auxiliary envelope array for RK4 integration
+    - w_c: pre-allocated array for the nonlinear terms
+    - n_t: number of time nodes
+    - field_op_args: arguments for the field operator
+    - dz: distance step
+    - dz2: half distance step
+    - dz6: distance step divided by 6
+    """
+    for ll in nb.prange(n_t):
+        e_curr = e_c[:, ll]
+        n_curr = n_c[:, ll]
+
+        w_next = rk4_field_step(e_curr, n_curr, e_aux, field_op_args, dz, dz2, dz6)
+
+        w_c[:, ll] = w_next
 
 
 def solve_dispersion(fc, e_c, b):
     """
-    Compute one step of the FFT propagation scheme for dispersion.
+    Solve one step of the FFT
+    propagation scheme for
+    dispersion.
 
     Parameters:
-    - fc: precomputed Fourier coefficient
-    - e_c: envelope at step k
-    - b: pre-allocated array for envelope at step k + 1
+    - fc: Fourier coefficient
+    - e_c: envelope at current propagation step
+    - b: envelope at next propagation step
     """
     b[:] = ifft(fc * fft(e_c, axis=1, workers=-1), axis=1, workers=-1)
 
 
-def solve_envelope(lm, rm, n, b, w_c, e_n):
+def solve_envelope(lm, rm, n_t, b, w_c, e_n):
     """
-    Compute one step of the Crank-Nicolson propagation scheme.
+    Solve one step of the generalized
+    Crank-Nicolson scheme for envelope
+    propagation.
 
     Parameters:
     - lm: left matrix for Crank-Nicolson
     - rm: right matrix for Crank-Nicolson
-    - n: number of time nodes
-    - b: intermediate array from FFT step
-    - w_c: current step nonlinear terms
-    - e_n: pre-allocated array for envelope at step k + 1
+    - n_t: number of time nodes
+    - b: envelope solution from FFT
+    - w_c: current propagation step nonlinear terms
+    - e_n: envelope at next propagation step
     """
-    for ll in range(n):
+    for ll in range(n_t):
         c = rm @ b[:, ll]
         d = c + w_c[:, ll]
         e_n[:, ll] = lm.solve(d)
@@ -446,7 +357,6 @@ class MediaParameters:
         self.energy_gap_water = 1.04e-18  # 6.5 eV
         self.collision_time_water = 3e-15
         self.neutral_dens_water = 6.68e28
-        self.background_density_water = 1e-6
 
 
 @dataclass
@@ -613,15 +523,12 @@ class FCNSolver:
         self.equation = equation
 
         # Compute frequent constants
-        self.dr = domain.radi_step_len
-        self.dr2 = self.dr**2
-        self.ddr = 2 * self.dr
-        dz = domain.dist_step_len
-        self.dz_2 = 0.5 * dz
-        self.dz_6 = dz / 6
-        dt = domain.time_step_len
-        self.dt_2 = 0.5 * dt
-        self.dt_6 = dt / 6
+        self.dz = domain.dist_step_len
+        self.dz_2 = 0.5 * self.dz
+        self.dz_6 = self.dz / 6
+        self.dt = domain.time_step_len
+        self.dt_2 = 0.5 * self.dt
+        self.dt_6 = self.dt / 6
 
         # Initialize arrays and operators
         shape = (self.domain.n_radi_nodes, self.domain.n_time_nodes)
@@ -644,20 +551,9 @@ class FCNSolver:
         self.peak_density = np.empty(peak_shape)
         self.b_array = np.empty_like(self.envelope)
         self.w_array = np.empty_like(self.envelope)
-        self.diff_array = np.empty(self.domain.n_radi_nodes, dtype=complex)
-        self.nlin_array = np.empty_like(self.diff_array)
 
         self.field_op_args = (
-            self.domain.radi_array,
-            self.diff_array,
-            self.nlin_array,
-            self.const.im_unit,
-            self.domain.n_radi_nodes,
             self.media.n_photons_water,
-            self.beam.wavenumber,
-            self.dr,
-            self.dr2,
-            self.ddr,
             self.equation.plasma_coef,
             self.equation.mpa_coef,
             self.equation.kerr_coef,
@@ -669,19 +565,8 @@ class FCNSolver:
             self.equation.ava_coef,
         )
 
-        # Setup arrays for RK4 calculations
-        self.k1_field = np.empty(self.domain.n_radi_nodes, dtype=complex)
-        self.k2_field = np.empty_like(self.k1_field)
-        self.k3_field = np.empty_like(self.k1_field)
-        self.k4_field = np.empty_like(self.k1_field)
-
-        self.k1_dens = np.empty(self.domain.n_radi_nodes)
-        self.k2_dens = np.empty_like(self.k1_dens)
-        self.k3_dens = np.empty_like(self.k1_dens)
-        self.k4_dens = np.empty_like(self.k1_dens)
-
-        self.e_temp = np.empty_like(self.k1_field)
-        self.n_temp = np.empty_like(self.k1_dens)
+        self.e_temp = np.empty(self.domain.n_radi_nodes, dtype=complex)
+        self.n_temp = np.empty(self.domain.n_radi_nodes)
 
         # Setup tracking variables
         self.k_array = np.empty(self.domain.dist_limit + 1, dtype=int)
@@ -735,10 +620,9 @@ class FCNSolver:
             self.beam.chirp,
             self.beam.focal_length,
         )
-        self.density[:, 0] = initial_density(self.media.background_density_water)
         # Store initial values for diagnostics
         self.dist_envelope[:, 0, :] = self.envelope
-        self.dist_density[:, 0, :] = self.density
+        self.dist_density[:, 0, :] = 0
         self.axis_envelope[0, :] = self.envelope[self.domain.axis_node, :]
         self.axis_density[0, :] = self.density[self.domain.axis_node, :]
         self.peak_envelope[:, 0] = self.envelope[:, self.domain.peak_node]
@@ -747,21 +631,28 @@ class FCNSolver:
 
     def solve_step(self):
         "Perform one propagation step."
-        solve_dispersion(self.fourier_coeff, self.envelope, self.b_array)
         solve_density(
-            self.b_array,
+            self.envelope,
             self.density,
-            self.e_temp,
             self.n_temp,
-            self.w_array,
             self.next_density,
             self.domain.n_time_nodes,
-            self.field_op_args,
             self.dens_op_args,
-            self.dz_2,
-            self.dz_6,
+            self.dt,
             self.dt_2,
             self.dt_6,
+        )
+        solve_dispersion(self.fourier_coeff, self.envelope, self.b_array)
+        solve_nonlinear(
+            self.b_array,
+            self.next_density,
+            self.e_temp,
+            self.w_array,
+            self.domain.n_time_nodes,
+            self.field_op_args,
+            self.dz,
+            self.dz_2,
+            self.dz_6,
         )
         solve_envelope(
             self.left_matrix,
@@ -773,14 +664,8 @@ class FCNSolver:
         )
 
         # Update arrays
-        self.envelope, self.next_envelope = self.next_envelope, self.envelope
-        self.density, self.next_density = self.next_density, self.density
-
-    def expensive_diagnostics(self, step):
-        """Save memory expensive diagnostics data for current step."""
-        self.dist_envelope[:, step, :] = self.envelope
-        self.dist_density[:, step, :] = self.density
-        self.k_array[step] = self.k_array[step - 1] + self.domain.dist_limitin
+        np.copyto(self.envelope, self.next_envelope)
+        np.copyto(self.density, self.next_density)
 
     def cheap_diagnostics(self, step):
         """Save memory cheap diagnostics data for current step."""
@@ -792,9 +677,9 @@ class FCNSolver:
         # Cache axis data computations
         axis_envelope_data = envelope[axis_node]
         axis_density_data = density[axis_node]
-        intensity = np.abs(axis_envelope_data)
+        axis_intensity_data = np.abs(axis_envelope_data)
 
-        intensity_peak_node = np.argmax(intensity)
+        intensity_peak_node = np.argmax(axis_intensity_data)
         density_peak_node = np.argmax(axis_density_data)
 
         self.axis_envelope[step] = axis_envelope_data
@@ -810,6 +695,12 @@ class FCNSolver:
         if np.any(~np.isfinite(self.density)):
             print("WARNING: Non-finite values detected in density")
             sys.exit(1)
+
+    def expensive_diagnostics(self, step):
+        """Save memory expensive diagnostics data for current step."""
+        self.dist_envelope[:, step, :] = self.envelope
+        self.dist_density[:, step, :] = self.density
+        self.k_array[step] = self.k_array[step - 1] + self.domain.dist_limitin
 
     def propagate(self):
         """Propagate beam through all steps."""
@@ -841,7 +732,7 @@ def main():
 
     # Save to file
     np.savez(
-        "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/water_fcn_1",
+        "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/water_fcn_rk4_1",
         e_dist=solver.dist_envelope,
         e_axis=solver.axis_envelope,
         e_peak=solver.peak_envelope,

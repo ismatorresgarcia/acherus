@@ -170,13 +170,11 @@ def solve_density(n_c, e_c, n, dt_0, dt_2, dt_6, ofi_coef, ava_coef, n_p, n_dens
     for ll in range(n - 1):
         n_c0 = n_c[:, ll]
         e_c0 = e_c[:, ll]
-        e_c1 = e_c[:, ll + 1]
-        e_mid = 0.5 * (e_c0 + e_c1)
 
         k1 = density_rate(n_c0, e_c0, ofi_coef, ava_coef, n_p, n_dens)
-        k2 = density_rate(n_c0 + dt_2 * k1, e_mid, ofi_coef, ava_coef, n_p, n_dens)
-        k3 = density_rate(n_c0 + dt_2 * k2, e_mid, ofi_coef, ava_coef, n_p, n_dens)
-        k4 = density_rate(n_c0 + dt_0 * k3, e_c1, ofi_coef, ava_coef, n_p, n_dens)
+        k2 = density_rate(n_c0 + dt_2 * k1, e_c0, ofi_coef, ava_coef, n_p, n_dens)
+        k3 = density_rate(n_c0 + dt_2 * k2, e_c0, ofi_coef, ava_coef, n_p, n_dens)
+        k4 = density_rate(n_c0 + dt_0 * k3, e_c0, ofi_coef, ava_coef, n_p, n_dens)
 
         n_c[:, ll + 1] = n_c0 + dt_6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
