@@ -26,25 +26,25 @@ DISCLAIMER: UPPE uses "god-like" units, where envelope intensity and its square 
             This is equivalent to setting 0.5*c*e_0*n_0 = 1 in the UPPE when using the SI system.
             The result obtained is identical since the consistency is mantained throught the code.
             This way, the number of operations is reduced, and the code is more readable.
-            However, the dictionary "MEDIA" has an entry "INT_FACTOR" where the conversion
+            However, the dictionary "medium" has an entry "INT_FACTOR" where the conversion
             factor can be changed at will between the two unit systems.
 
 E: envelope.
-N: electron density (in the interacting media).
+N: electron density (in the interacting medium).
 i: imaginary unit.
 r: radial coordinate.
 z: distance coordinate.
 t: time coordinate.
-k: wavenumber (in the interacting media).
+k: wavenumber (in the interacting medium).
 k'': GVD coefficient of 2nd order.
 k_0: wavenumber (in vacuum).
-N_n: neutral density (of the interacting media).
-N_c: critical density (of the interacting media).
+N_n: neutral density (of the interacting medium).
+N_c: critical density (of the interacting medium).
 n_2: nonlinear refractive index (for a third-order centrosymmetric medium).
 S_K: nonlinear optical field ionization coefficient.
 B_K: nonlinear multiphoton absorption coefficient.
 S_w: bremsstrahlung cross-section for avalanche (cascade) ionization.
-U_i: ionization energy (for the interacting media).
+U_i: ionization energy (for the interacting medium).
 ∇²: laplace operator (for the transverse direction).
 """
 
@@ -59,258 +59,283 @@ from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 
-def initial_envelope(r, t, im, amp, wnum, w, ptime, ch, f):
+def initialize_envelope(
+    grid_radial,
+    grid_time,
+    unit_imag,
+    amplitude,
+    wavenumber,
+    waist,
+    time_peak,
+    chirp,
+    focal_length,
+):
     """
     Set up the Gaussian beam.
 
     Parameters:
-    - r: radial coordinates array
-    - t: time coordinates array
-    - im: square root of -1
-    - amp: initial amplitude of the beam
-    - wnum: initial wavenumber of the beam
-    - w: initial waist of the beam
-    - ptime: initial peak time of the beam
-    - ch: chirp of the beam
-    - f: focal length of the beam
+    - grid_radial: radial coordinates array
+    - grid_time: time coordinates array
+    - unit_imag: square root of -1
+    - amplitude: initial amplitude of the beam
+    - wavenumber: initial wavenumber of the beam
+    - waist: initial waist of the beam
+    - time_peak: initial peak time of the beam
+    - chirp: chirp of the beam
+    - focal_length: focal length of the beam
 
     Returns:
-    - complex 2D-array: Initial envelope field
+    - complex 2D-array: Initial envelope
     """
-    space_decaying_term = -((r / w) ** 2)
-    time_decaying_term = -(1 + im * ch) * (t / ptime) ** 2
+    space_decaying_term = -((grid_radial / waist) ** 2)
+    time_decaying_term = -(1 + unit_imag * chirp) * (grid_time / time_peak) ** 2
 
-    if f != 0:
-        space_decaying_term -= 0.5 * im * wnum * r**2 / f
+    if focal_length != 0:
+        space_decaying_term -= (
+            0.5 * unit_imag * wavenumber * grid_radial**2 / focal_length
+        )
 
-    return amp * np.exp(space_decaying_term + time_decaying_term)
+    return amplitude * np.exp(space_decaying_term + time_decaying_term)
 
 
-def crank_nicolson_matrix(n_r, pos, coef):
+def create_crank_nicolson_matrix(nodes_radial, matrix_position, coef_delta):
     """
     Set the three diagonals for the
     Crank-Nicolson array with centered
     differences.
 
     Parameters:
-    - n_r: number of radial nodes
-    - pos: position of the Crank-Nicolson array (left or right)
-    - coef: coefficient for the diagonal elements
+    - nodes_radial: number of radial nodes
+    - matrix_position: position of the Crank-Nicolson array (left or right)
+    - coef_delta: coefficient for the diagonal elements
 
     Returns:
     - complex 2D-array: sparse 2-array for the Crank-Nicolson matrix
     """
-    dc = 1 + 2 * coef
-    ind = np.arange(1, n_r - 1)
+    dc = 1 + 2 * coef_delta
+    indices = np.arange(1, nodes_radial - 1)
 
-    diag_m1 = -coef * (1 - 0.5 / ind)
-    diag_0 = np.full(n_r, dc)
-    diag_p1 = -coef * (1 + 0.5 / ind)
+    diag_lower = -coef_delta * (1 - 0.5 / indices)
+    diag_main = np.full(nodes_radial, dc)
+    diag_upper = -coef_delta * (1 + 0.5 / indices)
 
-    diag_m1 = np.append(diag_m1, [0])
-    diag_p1 = np.insert(diag_p1, 0, [0])
-    if pos == "left":
-        diag_0[0], diag_0[-1] = dc, 1
-        diag_p1[0] = -2 * coef
+    diag_lower = np.append(diag_lower, [0])
+    diag_upper = np.insert(diag_upper, 0, [0])
+    if matrix_position == "left":
+        diag_main[0], diag_main[-1] = dc, 1
+        diag_upper[0] = -2 * coef_delta
     else:
-        diag_0[0], diag_0[-1] = dc, 0
-        diag_p1[0] = -2 * coef
+        diag_main[0], diag_main[-1] = dc, 0
+        diag_upper[0] = -2 * coef_delta
 
-    diags = [diag_m1, diag_0, diag_p1]
-    d_ind = [-1, 0, 1]
+    diags = [diag_lower, diag_main, diag_upper]
+    diags_ind = [-1, 0, 1]
 
-    return diags_array(diags, offsets=d_ind, format="csc")
+    return diags_array(diags, offsets=diags_ind, format="csc")
 
 
 @nb.njit
-def set_density_operator(density, field, n_ph, neutral_dens, ofi_coef, ava_coef):
+def _set_density_operator(
+    dens_slice, env_slice, photon_number, dens_neutral, coef_ofi, coef_ava
+):
     """Set up the electron density evolution terms.
 
     Parameters:
-    - density: density at current time slice
-    - field: envelope at current time slice
-    - n_ph: number of photons for MPI
-    - neutral_dens: neutral density of the medium
-    - ofi_coef: OFI coefficient
-    - ava_coef: avalanche/cascade coefficient
+    - dens_slice: density at current time slice
+    - env_slice: envelope at current time slice
+    - photon_number: number of photons for MPI
+    - dens_neutral: neutral density of the medium
+    - coef_ofi: OFI coefficient
+    - coef_ava: avalanche/cascade coefficient
 
     Returns:
     - float 1D-array: Electron density operator
     """
-    field_2 = np.abs(field) ** 2
-    field_2n = field_2**n_ph
+    env_slice_2 = np.abs(env_slice) ** 2
+    env_slice_k = env_slice_2**photon_number
 
-    ofi = ofi_coef * field_2n * (neutral_dens - density)
-    ava = ava_coef * density * field_2
+    term_ofi = coef_ofi * env_slice_k * (dens_neutral - dens_slice)
+    term_ava = coef_ava * dens_slice * env_slice_2
 
-    return ofi + ava
+    return term_ofi + term_ava
 
 
 @nb.njit
-def rk4_density_step(e_curr, n_curr, n_aux, dens_op_args, dt, dt2, dt6):
+def _rk4_density_step(
+    env_slice, dens_slice, dens_aux, dens_op_args, dt, dt_half, dt_sixth
+):
     """
     Compute one time step of the RK4 integration for electron
     density evolution.
 
     Parameters:
-    - e_curr: envelope at current time slice
-    - n_curr: density at current time slice
-    - n_aux: auxiliary density array for RK4 integration
+    - env_slice: envelope at current time slice
+    - dens_slice: density at current time slice
+    - dens_aux: auxiliary density array for RK4 integration
     - dens_op_args: arguments for the density operator
     - dt: time step
-    - dt2: half time step
-    - dt6: time step divided by 6
+    - dt_half: half time step
+    - dt_sixth: time step divided by 6
 
     Returns:
     - float 1D-array: Electron density at next time slice
     """
-    k1_d = set_density_operator(n_curr, e_curr, *dens_op_args)
-    n_aux = n_curr + dt2 * k1_d
+    k1_d = _set_density_operator(dens_slice, env_slice, *dens_op_args)
+    dens_aux = dens_slice + dt_half * k1_d
 
-    k2_d = set_density_operator(n_aux, e_curr, *dens_op_args)
-    n_aux = n_curr + dt2 * k2_d
+    k2_d = _set_density_operator(dens_aux, env_slice, *dens_op_args)
+    dens_aux = dens_slice + dt_half * k2_d
 
-    k3_d = set_density_operator(n_aux, e_curr, *dens_op_args)
-    n_aux = n_curr + dt * k3_d
+    k3_d = _set_density_operator(dens_aux, env_slice, *dens_op_args)
+    dens_aux = dens_slice + dt * k3_d
 
-    k4_d = set_density_operator(n_aux, e_curr, *dens_op_args)
+    k4_d = _set_density_operator(dens_aux, env_slice, *dens_op_args)
 
-    n_l = n_curr + dt6 * (k1_d + 2 * k2_d + 2 * k3_d + k4_d)
+    dens_next = dens_slice + dt_sixth * (k1_d + 2 * k2_d + 2 * k3_d + k4_d)
 
-    return n_l
+    return dens_next
 
 
 @nb.njit(parallel=True)
-def solve_density(e_c, n_c, n_aux, n_n, n_t, dens_op_args, dt, dt2, dt6):
+def solve_density(env, dens, dens_aux, nodes_time, dens_op_args, dt, dt_half, dt_sixth):
     """
     Solve electron density evolution for all time steps.
 
     Parameters:
-    - e_c: envelope at current time slice
-    - n_c: density at current time slice
-    - n_aux: auxiliary density array for RK4 integration
-    - n_n: density at next time slice
-    - n_t: number of time nodes
+    - env: envelope at all time slices
+    - dens: density at all time slices
+    - dens_aux: auxiliary density array for RK4 integration
+    - nodes_time: number of time nodes
     - dens_op_args: arguments for the density operator
     - dt: time step
-    - dt2: half time step
-    - dt6: time step divided by 6
+    - dt_half: half time step
+    - dt_sixth: time step divided by 6
     """
     # Set the initial condition
-    n_n[:, 0], n_c[:, 0] = 0, 0
+    dens[:, 0] = 0
 
     # Solve the electron density evolution
-    for ll in nb.prange(n_t - 1):
-        e_curr = e_c[:, ll]
-        n_curr = n_c[:, ll]
+    for ll in nb.prange(nodes_time - 1):
+        env_slice = env[:, ll]
+        dens_slice = dens[:, ll]
 
-        n_next = rk4_density_step(e_curr, n_curr, n_aux, dens_op_args, dt, dt2, dt6)
+        dens_next = _rk4_density_step(
+            env_slice, dens_slice, dens_aux, dens_op_args, dt, dt_half, dt_sixth
+        )
 
-        n_n[:, ll + 1] = n_next
+        dens[:, ll + 1] = dens_next
 
 
 @nb.njit
-def set_field_operator(field, density, n_ph, p_coef, m_coef, k_coef):
+def _set_envelope_operator(
+    env_slice, dens_slice, number_photons, coef_p, coef_m, coef_k
+):
     """Set up the envelope propagation nonlinear terms.
 
     Parameters:
-    - field: envelope at current time slice
-    - density: electron density at current time slice
-    - n_ph: number of photons for MPI
-    - p_coef: plasma coefficient
-    - m_coef: MPA coefficient
-    - k_coef: Kerr coefficient
+    - env_slice: envelope at current time slice
+    - dens_slice: electron density at current time slice
+    - number_photons: number of photons for MPI
+    - coef_p: plasma coefficient
+    - coef_m: MPA coefficient
+    - coef_k: Kerr coefficient
 
     Returns:
     - complex 1D-array: Nonlinear operator
     """
-    field_2 = np.abs(field) ** 2
-    field_2k2 = field_2 ** (n_ph - 1)
+    env_slice_2 = np.abs(env_slice) ** 2
+    env_slice_2k2 = env_slice_2 ** (number_photons - 1)
 
-    nonlinear = field * (p_coef * density + m_coef * field_2k2 + k_coef * field_2)
+    nlin_slice = env_slice * (
+        coef_p * dens_slice + coef_m * env_slice_2k2 + coef_k * env_slice_2
+    )
 
-    return nonlinear
+    return nlin_slice
 
 
 @nb.njit
-def ab2_field_step(e_curr, n_curr, field_op_args):
+def _ab2_envelope_step(env_slice, dens_slice, env_op_args):
     """
     Compute one step of the AB2 integration for
     envelope propagation.
 
     Parameters:
-    - e_curr: envelope at current time slice
-    - n_curr: density at current time slice
-    - field_op_args: arguments for the envelope operator
+    - env_slice: envelope at current time slice
+    - dens_slice: density at current time slice
+    - env_op_args: arguments for the envelope operator
 
     Returns:
     - complex 1D-array: AB2 integration for one time slice
     """
-    w_l = set_field_operator(e_curr, n_curr, *field_op_args)
+    nlin_curr_slice = _set_envelope_operator(env_slice, dens_slice, *env_op_args)
 
-    return w_l
+    return nlin_curr_slice
 
 
 @nb.njit(parallel=True)
-def solve_nonlinear(e_c, n_c, w_c, n_t, field_op_args):
+def solve_nonlinear(env, dens, nlin_curr, nodes_time, env_op_args):
     """
     Solve envelope propagation nonlinearities for all
     time steps.
 
     Parameters:
-    - e_c: envelope at current time slice
-    - n_c: density at current time slice
-    - w_c: pre-allocated array for the nonlinear terms
-    - n_t: number of time nodes
-    - field_op_args: arguments for the envelope operator
+    - env: envelope at all time slice
+    - dens: density at all time slice
+    - nlin_curr: pre-allocated array for the nonlinear terms
+    - nodes_time: number of time nodes
+    - env_op_args: arguments for the envelope operator
     """
-    for ll in nb.prange(n_t):
-        e_curr = e_c[:, ll]
-        n_curr = n_c[:, ll]
+    for ll in nb.prange(nodes_time):
+        env_slice = env[:, ll]
+        dens_slice = dens[:, ll]
 
-        w_curr = ab2_field_step(e_curr, n_curr, field_op_args)
+        nlin_curr_slice = _ab2_envelope_step(env_slice, dens_slice, env_op_args)
 
-        w_c[:, ll] = w_curr
+        nlin_curr[:, ll] = nlin_curr_slice
 
 
-def solve_dispersion(fc, e_c, b):
+def solve_dispersion(coef_fourier, env_curr, env_next):
     """
     Solve one step of the FFT
     propagation scheme for
     dispersion.
 
     Parameters:
-    - fc: Fourier coefficient
-    - e_c: envelope at current propagation step
-    - b: envelope at next propagation step
+    - coef_fourier: Fourier coefficient for advancing one step
+    - env_curr: envelope at current propagation step
+    - env_next: envelope at next propagation step
     """
-    b[:] = ifft(fc * fft(e_c, axis=1, workers=-1), axis=1, workers=-1)
+    env_next[:] = ifft(
+        coef_fourier * fft(env_curr, axis=1, workers=-1), axis=1, workers=-1
+    )
 
 
-def solve_envelope(lm, rm, n_t, b, w_p, w_c, e_n):
+def solve_envelope(
+    matrix_left, matrix_right, nodes_time, env_curr, nlin_curr, nlin_prev, env_next
+):
     """
     Solve one step of the generalized
     Crank-Nicolson scheme for envelope
     propagation.
 
     Parameters:
-    - lm: left matrix for Crank-Nicolson
-    - rm: right matrix for Crank-Nicolson
-    - n_t: number of time nodes
-    - b: envelope solution from FFT
-    - w_p: previous propagation step nonlinear terms
-    - w_c: current propagation step nonlinear terms
-    - e_n: envelope at next propagation step
+    - matrix_left: left matrix for Crank-Nicolson
+    - matrix_right: right matrix for Crank-Nicolson
+    - nodes_time: number of time nodes
+    - env_curr: envelope solution from FFT
+    - nlin_next: current propagation step nonlinear terms
+    - nlin_prev: previous propagation step nonlinear terms
+    - env_next: envelope at next propagation step
     """
-    for ll in range(n_t):
-        c = rm @ b[:, ll]
-        d = c + 1.5 * w_c[:, ll] - 0.5 * w_p[:, ll]
-        e_n[:, ll] = lm.solve(d)
+    for ll in range(nodes_time):
+        c = matrix_right @ env_curr[:, ll]
+        d = c + 1.5 * nlin_curr[:, ll] - 0.5 * nlin_prev[:, ll]
+        env_next[:, ll] = matrix_left.solve(d)
 
 
 @dataclass
-class UniversalConstants:
-    "UniversalConstants."
+class Constants:
+    "Physical and mathematical constants."
 
     def __init__(self):
         self.light_speed = 299792458.0
@@ -323,361 +348,370 @@ class UniversalConstants:
 
 
 @dataclass
-class MediaParameters:
-    "Media parameters."
+class MediumParameters:
+    "Medium parameters to be chosen."
 
     def __init__(self):
-        self.lin_ref_ind_water = 1.334
-        self.nlin_ref_ind_water = 4.1e-20
-        self.gvd_coef_water = 248e-28
-        self.n_photons_water = 5
-        self.mpa_cnt_water = 1e-61
-        self.mpi_cnt_water = 1.2e-72
-        self.int_factor = 1
-        # self.int_factor = (
-        #    0.5 * const.light_speed * const.permittivity * self.lin_ref_ind_water
+        self.ref_ind_linear = 1.334
+        self.ref_ind_nonlinear = 4.1e-20
+        self.coefficient_gvd = 248e-28
+        self.photons_absorbed = 5
+        self.constant_mpa = 1e-61
+        self.constant_mpi = 1.2e-72
+        self.intensity_units = 1
+        # self.intensity_units = (
+        #    0.5 * const.light_speed * const.permittivity * self.lin_ref_ind
         # )
-        self.energy_gap_water = 1.04e-18  # 6.5 eV
-        self.collision_time_water = 3e-15
-        self.neutral_dens_water = 6.68e28
+        self.energy_ionization = 1.04e-18  # 6.5 eV
+        self.time_collisions = 3e-15
+        self.density_neutral = 6.68e28
 
 
 @dataclass
-class BeamParameters:
-    "Beam parameters."
+class LaserPulseParameters:
+    "Laser pulse physical parameters and derived properties."
 
-    def __init__(self, const, media):
+    def __init__(self, const, medium):
         # Basic parameters
-        self.wavelength_0 = 800e-9
-        self.waist_0 = 75e-6
-        self.peak_time = 130e-15
-        self.energy = 2.2e-6
-        self.chirp = 0
-        self.focal_length = 0
+        self.input_wavelength = 800e-9
+        self.input_waist = 75e-6
+        self.input_peak_time = 130e-15
+        self.input_energy = 2.2e-6
+        self.input_chirp = 0
+        self.input_focal_length = 0
 
         # Derived parameters
-        self.wavenumber_0 = 2 * const.pi / self.wavelength_0
-        self.wavenumber = self.wavenumber_0 * media.lin_ref_ind_water
-        self.frequency_0 = self.wavenumber_0 * const.light_speed
-        self.power = self.energy / (self.peak_time * np.sqrt(0.5 * const.pi))
-        self.cr_power = (
-            3.77
-            * self.wavelength_0**2
-            / (8 * const.pi * media.lin_ref_ind_water * media.nlin_ref_ind_water)
+        self.input_wavenumber_0 = 2 * const.pi / self.input_wavelength
+        self.input_wavenumber = self.input_wavenumber_0 * medium.ref_ind_linear
+        self.input_frequency = self.input_wavenumber_0 * const.light_speed
+        self.input_power = self.input_energy / (
+            self.input_peak_time * np.sqrt(0.5 * const.pi)
         )
-        self.intensity = 2 * self.power / (const.pi * self.waist_0**2)
-        self.amplitude = np.sqrt(self.intensity / media.int_factor)
+        self.critical_power = (
+            3.77
+            * self.input_wavelength**2
+            / (8 * const.pi * medium.ref_ind_linear * medium.ref_ind_nonlinear)
+        )
+        self.input_intensity = 2 * self.input_power / (const.pi * self.input_waist**2)
+        self.input_amplitude = np.sqrt(self.input_intensity / medium.intensity_units)
 
 
-class DomainParameters:
-    "Spatial and temporal domain parameters."
+class Grid:
+    "Spatial and temporal grid parameters."
 
     def __init__(self, const):
         # Radial domain
-        self.ini_radi_coor = 0
-        self.fin_radi_coor = 25e-4
-        self.i_radi_nodes = 1500
+        self.radial_coor_ini = 0
+        self.radial_coor_fin = 25e-4
+        self.radial_nodes_inner = 1500
 
         # Distance domain
-        self.ini_dist_coor = 0
-        self.fin_dist_coor = 3e-2
-        self.n_steps = 1000
-        self.dist_limit = 5
+        self.distance_coor_ini = 0
+        self.distance_coor_fin = 3e-2
+        self.distance_steps = 1000
+        self.distance_limit = 5
 
         # Time domain
-        self.ini_time_coor = -250e-15
-        self.fin_time_coor = 250e-15
-        self.n_time_nodes = 4096
+        self.time_coor_ini = -250e-15
+        self.time_coor_fin = 250e-15
+        self.time_nodes = 4096
 
         # Initialize derived parameters functions
         self._setup_derived_parameters()
-        self._create_arrays(const)
+        self._setup_arrays(const)
 
     @property
-    def n_radi_nodes(self):
+    def radial_nodes(self):
         "Total number of radial nodes for boundary conditions."
-        return self.i_radi_nodes + 2
+        return self.radial_nodes_inner + 2
 
     @property
-    def dist_limitin(self):
+    def distance_limitin(self):
         "Inner loop auxiliary parameters."
-        return self.n_steps // self.dist_limit
+        return self.distance_steps // self.distance_limit
 
     def _setup_derived_parameters(self):
         "Setup domain parameters."
         # Calculate steps
-        self.radi_step_len = (self.fin_radi_coor - self.ini_radi_coor) / (
-            self.n_radi_nodes - 1
+        self.radial_step_len = (self.radial_coor_fin - self.radial_coor_ini) / (
+            self.radial_nodes - 1
         )
-        self.dist_step_len = (self.fin_dist_coor - self.ini_dist_coor) / self.n_steps
-        self.time_step_len = (self.fin_time_coor - self.ini_time_coor) / (
-            self.n_time_nodes - 1
+        self.distance_step_len = (
+            self.distance_coor_fin - self.distance_coor_ini
+        ) / self.distance_steps
+        self.time_step_len = (self.time_coor_fin - self.time_coor_ini) / (
+            self.time_nodes - 1
         )
-        self.frq_step_len = 2 * np.pi / (self.n_time_nodes * self.time_step_len)
+        self.frequency_step_len = 2 * np.pi / (self.time_nodes * self.time_step_len)
 
         # Calculate nodes
-        self.axis_node = int(-self.ini_radi_coor / self.radi_step_len)
-        self.peak_node = self.n_time_nodes // 2
+        self.node_axis = int(-self.radial_coor_ini / self.radial_step_len)
+        self.node_peak = self.time_nodes // 2
 
-    def _create_arrays(self, const):
-        "Create arrays."
+    def _setup_arrays(self, const):
+        "Setup grid arrays."
         # 1D
-        self.radi_array = np.linspace(
-            self.ini_radi_coor, self.fin_radi_coor, self.n_radi_nodes
+        self.radial_grid = np.linspace(
+            self.radial_coor_ini, self.radial_coor_fin, self.radial_nodes
         )
-        self.dist_array = np.linspace(
-            self.ini_dist_coor, self.fin_dist_coor, self.n_steps + 1
+        self.distance_grid = np.linspace(
+            self.distance_coor_ini, self.distance_coor_fin, self.distance_steps + 1
         )
-        self.time_array = np.linspace(
-            self.ini_time_coor, self.fin_time_coor, self.n_time_nodes
+        self.time_grid = np.linspace(
+            self.time_coor_ini, self.time_coor_fin, self.time_nodes
         )
-        self.frq_array = 2 * const.pi * fftfreq(self.n_time_nodes, self.time_step_len)
+        self.frequency_grid = (
+            2 * const.pi * fftfreq(self.time_nodes, self.time_step_len)
+        )
 
         # 2D
-        self.radi_2d_array, self.time_2d_array = np.meshgrid(
-            self.radi_array, self.time_array, indexing="ij"
+        self.radial_2d_grid, self.time_2d_grid = np.meshgrid(
+            self.radial_grid, self.time_grid, indexing="ij"
         )
 
 
 @dataclass
-class EquationParameters:
-    """Parameters for the final equation."""
+class UPPEParameters:
+    """Pulse propagation and electron density evolution
+    parameters for the final numerical scheme."""
 
-    def __init__(self, const, media, beam, domain):
+    def __init__(self, const, medium, laser, grid):
         # Cache common parameters
-        self.omega = beam.frequency_0
-        self.omega_tau = self.omega * media.collision_time_water
+        self.omega = laser.input_frequency
+        self.omega_tau = self.omega * medium.time_collisions
 
         # Initialize main function parameters
-        self._init_densities(const, media, beam)
-        self._init_coefficients(media)
-        self._init_operators(const, media, beam, domain)
+        self._init_densities(const, medium, laser)
+        self._init_coefficients(medium)
+        self._init_operators(const, medium, laser, grid)
 
-    def _init_densities(self, const, media, beam):
+    def _init_densities(self, const, medium, laser):
         "Initialize density parameters."
-        self.critical_dens = (
+        self.dens_critical = (
             const.permittivity
             * const.electron_mass
             * (self.omega / const.electron_charge) ** 2
         )
-        self.bremss_cs_water = (beam.wavenumber * self.omega_tau) / (
-            (media.lin_ref_ind_water**2 * self.critical_dens) * (1 + self.omega_tau**2)
+        self.cross_sec_bremss = (laser.input_wavenumber * self.omega_tau) / (
+            (medium.ref_ind_linear**2 * self.dens_critical) * (1 + self.omega_tau**2)
         )
 
-    def _init_coefficients(self, media):
+    def _init_coefficients(self, medium):
         "Initialize equation coefficients."
-        self.mpi_exp = 2 * media.n_photons_water
-        self.mpa_exp = self.mpi_exp - 2
-        self.ofi_coef = media.mpi_cnt_water * media.int_factor**media.n_photons_water
-        self.ava_coef = self.bremss_cs_water * media.int_factor / media.energy_gap_water
+        self.exp_mpi = 2 * medium.photons_absorbed
+        self.exp_mpa = self.exp_mpi - 2
+        self.coef_ofi = (
+            medium.constant_mpi * medium.intensity_units**medium.photons_absorbed
+        )
+        self.coef_ava = (
+            self.cross_sec_bremss * medium.intensity_units / medium.energy_ionization
+        )
 
-    def _init_operators(self, const, media, beam, domain):
+    def _init_operators(self, const, medium, laser, grid):
         "Initialize equation operators."
         # Plasma coefficient calculation
-        self.plasma_coef = (
+        self.coef_plasma = (
             -0.5
             * const.im_unit
-            * beam.wavenumber_0
-            * domain.dist_step_len
-            / (media.lin_ref_ind_water * self.critical_dens)
+            * laser.input_wavenumber_0
+            * grid.distance_step_len
+            / (medium.ref_ind_linear * self.dens_critical)
         )
 
         # MPA coefficient calculation
-        self.mpa_coef = (
+        self.coef_mpa = (
             -0.5
-            * media.mpa_cnt_water
-            * domain.dist_step_len
-            * media.int_factor ** (media.n_photons_water - 1)
+            * medium.constant_mpa
+            * grid.distance_step_len
+            * medium.intensity_units ** (medium.photons_absorbed - 1)
         )
 
         # Kerr coefficient calculation
-        self.kerr_coef = (
+        self.coef_kerr = (
             const.im_unit
-            * beam.wavenumber_0
-            * media.nlin_ref_ind_water
-            * domain.dist_step_len
-            * media.int_factor
+            * laser.input_wavenumber_0
+            * medium.ref_ind_nonlinear
+            * grid.distance_step_len
+            * medium.intensity_units
         )
 
 
 class FCNSolver:
     """FCN solver class for beam propagation."""
 
-    def __init__(self, const, media, beam, domain, equation):
+    def __init__(self, const, medium, laser, grid, uppe):
+        # Cache common parameters
         self.const = const
-        self.media = media
-        self.beam = beam
-        self.domain = domain
-        self.equation = equation
+        self.medium = medium
+        self.laser = laser
+        self.grid = grid
 
         # Compute frequent constants
-        self.dt = domain.time_step_len
-        self.dt_2 = 0.5 * self.dt
+        self.dt = self.grid.time_step_len
+        self.dt_2 = self.dt * 0.5
         self.dt_6 = self.dt / 6
 
         # Initialize arrays and operators
-        shape = (self.domain.n_radi_nodes, self.domain.n_time_nodes)
-        dist_shape = (
-            self.domain.n_radi_nodes,
-            self.domain.dist_limit + 1,
-            self.domain.n_time_nodes,
+        shape = (self.grid.radial_nodes, self.grid.time_nodes)
+        shape_distance = (
+            self.grid.radial_nodes,
+            self.grid.distance_limit + 1,
+            self.grid.time_nodes,
         )
-        axis_shape = (self.domain.n_steps + 1, self.domain.n_time_nodes)
-        peak_shape = (self.domain.n_radi_nodes, self.domain.n_steps + 1)
+        shape_axis = (self.grid.distance_steps + 1, self.grid.time_nodes)
+        shape_peak = (self.grid.radial_nodes, self.grid.distance_steps + 1)
         self.envelope = np.empty(shape, dtype=complex)
+        self.envelope_next = np.empty_like(self.envelope)
+        self.envelope_split = np.empty_like(self.envelope)
+        self.envelope_distance = np.empty(shape_distance, dtype=complex)
+        self.envelope_axis = np.empty(shape_axis, dtype=complex)
+        self.envelope_peak = np.empty(shape_peak, dtype=complex)
         self.density = np.empty(shape)
-        self.next_envelope = np.empty_like(self.envelope)
-        self.next_density = np.empty_like(self.density)
-        self.dist_envelope = np.empty(dist_shape, dtype=complex)
-        self.dist_density = np.empty(dist_shape)
-        self.axis_envelope = np.empty(axis_shape, dtype=complex)
-        self.axis_density = np.empty(axis_shape)
-        self.peak_envelope = np.empty(peak_shape, dtype=complex)
-        self.peak_density = np.empty(peak_shape)
-        self.w_array = np.empty_like(self.envelope)
-        self.next_w_array = np.empty_like(self.envelope)
-        self.b_array = np.empty_like(self.envelope)
+        self.density_distance = np.empty(shape_distance)
+        self.density_axis = np.empty(shape_axis)
+        self.density_peak = np.empty(shape_peak)
+        self.nlin_previous = np.empty_like(self.envelope)
+        self.nlin_current = np.empty_like(self.envelope)
 
-        self.field_op_args = (
-            self.media.n_photons_water,
-            self.equation.plasma_coef,
-            self.equation.mpa_coef,
-            self.equation.kerr_coef,
+        self.envelope_op_args = (
+            medium.photons_absorbed,
+            uppe.coef_plasma,
+            uppe.coef_mpa,
+            uppe.coef_kerr,
         )
-        self.dens_op_args = (
-            self.media.n_photons_water,
-            self.media.neutral_dens_water,
-            self.equation.ofi_coef,
-            self.equation.ava_coef,
+        self.density_op_args = (
+            medium.photons_absorbed,
+            medium.density_neutral,
+            uppe.coef_ofi,
+            uppe.coef_ava,
         )
 
-        self.n_temp = np.empty(self.domain.n_radi_nodes)
+        self.density_auxiliar = np.empty(self.grid.radial_nodes)
 
         # Setup tracking variables
-        self.k_array = np.empty(self.domain.dist_limit + 1, dtype=int)
+        self.indices_k = np.empty(self.grid.distance_limit + 1, dtype=int)
 
         # Setup operators and initial condition
         self.setup_operators()
-        self.set_initial_condition()
+        self.setup_initial_condition()
 
     def setup_operators(self):
         """Setup FCN operators."""
-        delta_r = (
+        delta_coef_radial = (
             0.25
-            * self.domain.dist_step_len
-            / (self.beam.wavenumber * self.domain.radi_step_len**2)
+            * self.grid.distance_step_len
+            / (self.laser.input_wavenumber * self.grid.radial_step_len**2)
         )
-        delta_t = (
+        delta_coef_time = (
             -0.25
-            * self.domain.dist_step_len
-            * self.media.gvd_coef_water
-            / self.domain.time_step_len**2
+            * self.grid.distance_step_len
+            * self.medium.coefficient_gvd
+            / self.grid.time_step_len**2
         )
 
         # Setup Fourier coefficient
-        self.fourier_coeff = np.exp(
+        self.fourier_coef = np.exp(
             -2
             * self.const.im_unit
-            * delta_t
-            * (self.domain.frq_array * self.domain.time_step_len) ** 2
+            * delta_coef_time
+            * (self.grid.frequency_grid * self.grid.time_step_len) ** 2
         )
 
         # Setup CN operators
-        mat_cnt = self.const.im_unit * delta_r
-        self.left_matrix = crank_nicolson_matrix(
-            self.domain.n_radi_nodes, "left", mat_cnt
+        mat_cnt = self.const.im_unit * delta_coef_radial
+        self.matrix_cn_left = create_crank_nicolson_matrix(
+            self.grid.radial_nodes, "left", mat_cnt
         )
-        self.right_matrix = crank_nicolson_matrix(
-            self.domain.n_radi_nodes, "right", -mat_cnt
+        self.matrix_cn_right = create_crank_nicolson_matrix(
+            self.grid.radial_nodes, "right", -mat_cnt
         )
-        self.left_matrix = splu(self.left_matrix)
+        self.matrix_cn_left = splu(self.matrix_cn_left)
 
-    def set_initial_condition(self):
-        """Set initial Gaussian beam and free electron density."""
-        self.envelope = initial_envelope(
-            self.domain.radi_2d_array,
-            self.domain.time_2d_array,
+    def setup_initial_condition(self):
+        """Setup initial condition."""
+        # Envelope initial condition at z=0
+        self.envelope = initialize_envelope(
+            self.grid.radial_2d_grid,
+            self.grid.time_2d_grid,
             self.const.im_unit,
-            self.beam.amplitude,
-            self.beam.wavenumber,
-            self.beam.waist_0,
-            self.beam.peak_time,
-            self.beam.chirp,
-            self.beam.focal_length,
+            self.laser.input_amplitude,
+            self.laser.input_wavenumber,
+            self.laser.input_waist,
+            self.laser.input_peak_time,
+            self.laser.input_chirp,
+            self.laser.input_focal_length,
         )
         # Store initial values for diagnostics
-        self.dist_envelope[:, 0, :] = self.envelope
-        self.dist_density[:, 0, :] = 0
-        self.axis_envelope[0, :] = self.envelope[self.domain.axis_node, :]
-        self.axis_density[0, :] = self.density[self.domain.axis_node, :]
-        self.peak_envelope[:, 0] = self.envelope[:, self.domain.peak_node]
-        self.peak_density[:, 0] = self.density[:, self.domain.peak_node]
-        self.k_array[0] = 0
+        self.envelope_distance[:, 0, :] = self.envelope
+        self.envelope_axis[0, :] = self.envelope[self.grid.node_axis, :]
+        self.envelope_peak[:, 0] = self.envelope[:, self.grid.node_peak]
+        self.density_distance[:, 0, :] = 0
+        self.density_axis[0, :] = self.density[self.grid.node_axis, :]
+        self.density_peak[:, 0] = self.density[:, self.grid.node_peak]
+        self.indices_k[0] = 0
 
     def solve_step(self, step):
         "Perform one propagation step."
         solve_density(
             self.envelope,
             self.density,
-            self.n_temp,
-            self.next_density,
-            self.domain.n_time_nodes,
-            self.dens_op_args,
+            self.density_auxiliar,
+            self.grid.time_nodes,
+            self.density_op_args,
             self.dt,
             self.dt_2,
             self.dt_6,
         )
-        solve_dispersion(self.fourier_coeff, self.envelope, self.b_array)
+        solve_dispersion(self.fourier_coef, self.envelope, self.envelope_split)
         solve_nonlinear(
-            self.b_array,
-            self.next_density,
-            self.next_w_array,
-            self.domain.n_time_nodes,
-            self.field_op_args,
+            self.envelope_split,
+            self.density,
+            self.nlin_current,
+            self.grid.time_nodes,
+            self.envelope_op_args,
         )
 
         # For step = 1, initialize Adam_Bashforth second condition
         if step == 1:
-            np.copyto(self.w_array, self.next_w_array)
-            self.axis_envelope[1] = self.envelope[self.domain.axis_node]
-            self.axis_density[1] = self.density[self.domain.axis_node]
-            self.peak_envelope[:, 1] = self.envelope[:, self.domain.peak_node]
-            self.peak_density[:, 1] = self.density[:, self.domain.peak_node]
+            np.copyto(self.nlin_previous, self.nlin_current)
+            self.envelope_axis[1] = self.envelope[self.grid.node_axis]
+            self.envelope_peak[:, 1] = self.envelope[:, self.grid.node_peak]
+            self.density_axis[1] = self.density[self.grid.node_axis]
+            self.density_peak[:, 1] = self.density[:, self.grid.node_peak]
         solve_envelope(
-            self.left_matrix,
-            self.right_matrix,
-            self.domain.n_time_nodes,
-            self.b_array,
-            self.w_array,
-            self.next_w_array,
-            self.next_envelope,
+            self.matrix_cn_left,
+            self.matrix_cn_right,
+            self.grid.time_nodes,
+            self.envelope_split,
+            self.nlin_current,
+            self.nlin_previous,
+            self.envelope_next,
         )
 
         # Update arrays
-        np.copyto(self.envelope, self.next_envelope)
-        np.copyto(self.density, self.next_density)
-        np.copyto(self.w_array, self.next_w_array)
+        self.envelope, self.envelope_next = self.envelope_next, self.envelope
+        self.nlin_previous, self.nlin_current = self.nlin_current, self.nlin_previous
 
-    def save_cheap_diagnostics(self, step):
+    def cheap_diagnostics(self, step):
         """Save memory cheap diagnostics data for current step."""
         if step > 1:
             # Cache accessed arrays and parameters
-            axis_node = self.domain.axis_node
+            node_axis = self.grid.node_axis
             envelope = self.envelope
             density = self.density
 
             # Cache axis data computations
-            axis_envelope_data = envelope[axis_node]
-            axis_density_data = density[axis_node]
-            axis_intensity_data = np.abs(axis_envelope_data)
+            axis_data_envelope = envelope[node_axis]
+            axis_data_density = density[node_axis]
+            axis_data_intensity = np.abs(axis_data_envelope)
 
-            intensity_peak_node = np.argmax(axis_intensity_data)
-            density_peak_node = np.argmax(axis_density_data)
+            peak_node_intensity = np.argmax(axis_data_intensity)
+            peak_node_density = np.argmax(axis_data_density)
 
-            self.axis_envelope[step] = axis_envelope_data
-            self.axis_density[step] = axis_density_data
-            self.peak_envelope[:, step] = envelope[:, intensity_peak_node]
-            self.peak_density[:, step] = density[:, density_peak_node]
+            self.envelope_axis[step] = axis_data_envelope
+            self.envelope_peak[:, step] = envelope[:, peak_node_intensity]
+            self.density_axis[step] = axis_data_density
+            self.density_peak[:, step] = density[:, peak_node_density]
 
         # Check for non-finite values
         if np.any(~np.isfinite(self.envelope)):
@@ -688,59 +722,59 @@ class FCNSolver:
             print("WARNING: Non-finite values detected in density")
             sys.exit(1)
 
-    def save_expensive_diagnostics(self, step):
+    def expensive_diagnostics(self, step):
         """Save memory expensive diagnostics data for current step."""
-        self.dist_envelope[:, step, :] = self.envelope
-        self.dist_density[:, step, :] = self.density
-        self.k_array[step] = self.k_array[step - 1] + self.domain.dist_limitin
+        self.envelope_distance[:, step, :] = self.envelope
+        self.density_distance[:, step, :] = self.density
+        self.indices_k[step] = self.indices_k[step - 1] + self.grid.distance_limitin
 
     def propagate(self):
         """Propagate beam through all steps."""
-        steps = self.domain.n_steps
+        steps = self.grid.distance_steps
 
         with tqdm(total=steps, desc="Progress") as pbar:
-            for mm in range(1, self.domain.dist_limit + 1):
-                for nn in range(1, self.domain.dist_limitin + 1):
-                    kk = (mm - 1) * self.domain.dist_limitin + nn
+            for mm in range(1, self.grid.distance_limit + 1):
+                for nn in range(1, self.grid.distance_limitin + 1):
+                    kk = (mm - 1) * self.grid.distance_limitin + nn
                     self.solve_step(kk)
-                    self.save_cheap_diagnostics(kk)
+                    self.cheap_diagnostics(kk)
                     pbar.update(1)
                     pbar.set_postfix({"m": mm, "n": nn, "k": kk})
-                self.save_expensive_diagnostics(mm)
+                self.expensive_diagnostics(mm)
 
 
 def main():
     "Main function."
     # Initialize classes
-    const = UniversalConstants()
-    media = MediaParameters()
-    domain = DomainParameters(const)
-    beam = BeamParameters(const, media)
-    equation = EquationParameters(const, media, beam, domain)
+    const = Constants()
+    medium = MediumParameters()
+    laser = LaserPulseParameters(const, medium)
+    grid = Grid(const)
+    uppe = UPPEParameters(const, medium, laser, grid)
 
     # Create and run solver
-    solver = FCNSolver(const, media, beam, domain, equation)
+    solver = FCNSolver(const, medium, laser, grid, uppe)
     solver.propagate()
 
     # Save to file
     np.savez(
         "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage/water_fcn_ab2_1",
-        e_dist=solver.dist_envelope,
-        e_axis=solver.axis_envelope,
-        e_peak=solver.peak_envelope,
-        elec_dist=solver.dist_density,
-        elec_axis=solver.axis_density,
-        elec_peak=solver.peak_density,
-        k_array=solver.k_array,
-        ini_radi_coor=domain.ini_radi_coor,
-        fin_radi_coor=domain.fin_radi_coor,
-        ini_dist_coor=domain.ini_dist_coor,
-        fin_dist_coor=domain.fin_dist_coor,
-        ini_time_coor=domain.ini_time_coor,
-        fin_time_coor=domain.fin_time_coor,
-        axis_node=domain.axis_node,
-        peak_node=domain.peak_node,
-        lin_ref_ind=media.lin_ref_ind_water,
+        e_dist=solver.envelope_distance,
+        e_axis=solver.envelope_axis,
+        e_peak=solver.envelope_peak,
+        elec_dist=solver.density_distance,
+        elec_axis=solver.density_axis,
+        elec_peak=solver.density_peak,
+        k_array=solver.indices_k,
+        ini_radi_coor=grid.radial_coor_ini,
+        fin_radi_coor=grid.radial_coor_fin,
+        ini_dist_coor=grid.distance_coor_ini,
+        fin_dist_coor=grid.distance_coor_fin,
+        ini_time_coor=grid.time_coor_ini,
+        fin_time_coor=grid.time_coor_fin,
+        axis_node=grid.node_axis,
+        peak_node=grid.node_peak,
+        lin_ref_ind=medium.ref_ind_linear,
     )
 
 
