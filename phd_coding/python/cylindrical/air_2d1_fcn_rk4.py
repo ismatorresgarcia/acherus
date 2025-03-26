@@ -535,13 +535,13 @@ class MediumParameters:
         self.constant_mpi = 1.9e-111
         self.intensity_units = 1
         # self.intensity_units = (
-        #    0.5 * const.light_speed * const.permittivity * self.lin_ref_ind
+        #    0.5 * const.light_speed * const.permittivity * self.ref_ind_linear
         # )
         self.energy_ionization = 1.76e-18  # 11 eV
         self.time_collisions = 3.5e-13
         self.density_neutral = 5.4e25
         self.raman_frq_resp = 16e12
-        self.ramam_damp_time = 77e-15
+        self.raman_damp_time = 77e-15
         self.raman_delay_frac_resp = 0.5
 
 
@@ -669,7 +669,7 @@ class UPPEParameters:
             * const.electron_mass
             * (self.omega / const.electron_charge) ** 2
         )
-        self.cross_sec_bremss = (laser.wavenumber * self.omega_tau) / (
+        self.cross_sec_bremss = (laser.input_wavenumber * self.omega_tau) / (
             (medium.lin_ref_ind**2 * self.dens_critical) * (1 + self.omega_tau**2)
         )
 
@@ -776,7 +776,7 @@ class FCNSolver:
         )
         self.density_op_args = (
             self.medium.photons_absorbed,
-            self.medium.neutral_dens,
+            self.medium.density_neutral,
             uppe.coef_ofi,
             uppe.coef_ava,
         )
