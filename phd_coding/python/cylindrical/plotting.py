@@ -3,7 +3,7 @@ Python script for plotting NumPy arrays saved during the simulations.
 The script uses the matplotlib library to plot the results with optimized memory usage.
 """
 
-__version__ = "0.1.0"
+__version__ = "0-1-0"
 
 import argparse
 import os
