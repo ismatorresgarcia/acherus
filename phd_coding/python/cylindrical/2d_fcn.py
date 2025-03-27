@@ -464,9 +464,9 @@ def create_cli_arguments():
     parser.add_argument(
         "-m",
         "--medium",
-        choices=["air", "water"],
-        default="air",
-        help="Propagation medium (default: air)",
+        choices=["air775", "air800", "water800"],
+        default="air775",
+        help="Propagation medium (default: air at 775 nm)",
     )
     parser.add_argument(
         "--method",
@@ -495,12 +495,17 @@ class Constants:
 class MediumParameters:
     "Medium parameters to be chosen."
 
-    def __init__(self, medium_opt="air"):
-        self.medium_type = "air" if medium_opt.upper() == "AIR" else "water"
+    def __init__(self, medium_opt="air775"):
+        if medium_opt.upper() == "AIR775":
+            self.medium_type = "air775"
+        elif medium_opt.upper() == "AIR800":
+            self.medium_type = "air800"
+        else:  # water at 800 nm
+            self.medium_type = "water800"
 
         # Define parameter sets
         parameters = {
-            "air": {
+            "air775": {
                 "refraction_index_linear": 1.003,
                 "refraction_index_nonlinear": 5.57e-23,
                 "constant_gvd": 2e-28,
@@ -515,7 +520,22 @@ class MediumParameters:
                 "raman_delay_fraction": 0.5,
                 "has_raman": True,
             },
-            "water": {
+            "air800": {
+                "refraction_index_linear": 1.003,
+                "refraction_index_nonlinear": 5.57e-23,
+                "constant_gvd": 2e-28,
+                "number_photons": 7,
+                "constant_mpa": 7.0e-104,
+                "constant_mpi": 2.0e-111,
+                "ionization_energy": 1.76e-18,  # 11 eV
+                "drude_collision_time": 3.5e-13,
+                "density_neutral": 5.4e25,
+                "raman_frequency_response": 16e12,
+                "raman_damping_time": 70e-15,
+                "raman_delay_fraction": 0.5,
+                "has_raman": True,
+            },
+            "water800": {
                 "refraction_index_linear": 1.334,
                 "refraction_index_nonlinear": 4.1e-20,
                 "constant_gvd": 248e-28,
