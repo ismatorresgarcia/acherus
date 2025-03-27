@@ -61,12 +61,13 @@ import numpy as np
 from scipy.fft import fft, fftfreq, ifft
 from scipy.sparse import diags_array
 from scipy.sparse.linalg import splu
+from scipy.special import gamma
 from tqdm import tqdm
 
 OUTPUT_DIR = "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage"
 
 
-def initialize_envelope(r_g, t_g, u_i, e_0, w_n, w_0, t_p, c_0, f_l):
+def initialize_envelope(r_g, t_g, u_i, e_0, w_n, w_0, t_p, c_0, f_l, g_n=1):
     """
     Set up the Gaussian beam.
 
@@ -80,11 +81,12 @@ def initialize_envelope(r_g, t_g, u_i, e_0, w_n, w_0, t_p, c_0, f_l):
     - t_p: initial peak time of the beam
     - c_0: chirp of the beam
     - f_l: focal length of the beam
+    - g_n: super-Gaussian beam order parameter (optional)
 
     Returns:
     - complex 2D-array: Initial envelope
     """
-    space_decaying_term = -((r_g / w_0) ** 2)
+    space_decaying_term = -((r_g / w_0) ** (2 * g_n))
     time_decaying_term = -(1 + u_i * c_0) * (t_g / t_p) ** 2
 
     if f_l != 0:
@@ -469,6 +471,20 @@ def create_cli_arguments():
         help="Propagation medium (default: air at 775 nm)",
     )
     parser.add_argument(
+        "-p",
+        "--pulse",
+        choices=["gauss", "supergauss"],
+        default="gauss",
+        help="Pulse type (default: gaussian)",
+    )
+    parser.add_argument(
+        "-g",
+        "--gauss_order",
+        type=float,
+        default=2.0,
+        help="Super-Gaussian order parameter (default: 2.0)",
+    )
+    parser.add_argument(
         "--method",
         choices=["rk4"],
         default="rk4",
@@ -567,13 +583,20 @@ class MediumParameters:
 class LaserPulseParameters:
     "Laser pulse physical parameters and derived properties."
 
-    def __init__(self, const, medium):
+    def __init__(self, const, medium, pulse_opt="gaussian", gauss_opt=2.0):
         self.input_wavelength = 775e-9
         self.input_waist = 7e-4
         self.input_peak_time = 85e-15
         self.input_energy = 0.71e-3
         self.input_chirp = 0
         self.input_focal_length = 0
+
+        if pulse_opt.upper() == "GAUSSIAN":
+            self.pulse_type = "gaussian"
+            self.input_gauss_order = 1.0
+        else:  # super-Gaussian pulses
+            self.pulse_type = "super-gaussian"
+            self.input_gauss_order = gauss_opt
 
         # Derived parameters
         self.input_wavenumber_0 = 2 * const.pi / self.input_wavelength
@@ -592,7 +615,12 @@ class LaserPulseParameters:
                 * medium.refraction_index_nonlinear
             )
         )
-        self.input_intensity = 2 * self.input_power / (const.pi * self.input_waist**2)
+        self.input_intensity = (
+            self.input_gauss_order
+            * self.input_power
+            * 2 ** (2 / self.input_gauss_order)
+            / (2 * const.pi * self.input_waist**2 * gamma(2 / self.input_gauss_order))
+        )
         self.input_amplitude = np.sqrt(self.input_intensity / medium.intensity_units)
 
 
@@ -854,7 +882,7 @@ class FCNSolver:
         # Envelope initial condition at z=0
         self.envelope_rt = initialize_envelope(
             self.grid.r_grid_2d,
-            self.grid.r_grid_2d,
+            self.grid.t_grid_2d,
             self.const.imaginary_unit,
             self.laser.input_amplitude,
             self.laser.input_wavenumber,
@@ -862,6 +890,7 @@ class FCNSolver:
             self.laser.input_peak_time,
             self.laser.input_chirp,
             self.laser.input_focal_length,
+            self.laser.input_gauss_order,
         )
         # Store initial values for diagnostics
         self.envelope_snapshot_rzt[:, 0, :] = self.envelope_rt
@@ -995,7 +1024,9 @@ def main():
     const = Constants()
     medium = MediumParameters(medium_opt=args.medium)
     grid = Grid(const)
-    laser = LaserPulseParameters(const, medium)
+    laser = LaserPulseParameters(
+        const, medium, pulse_opt=args.pulse, gauss_opt=args.gauss_order
+    )
     uppe = UPPEParameters(const, medium, laser)
 
     # Initialize and run solver class
