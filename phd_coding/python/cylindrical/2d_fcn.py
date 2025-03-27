@@ -52,6 +52,7 @@ U_i: ionization energy (for the interacting media).
 
 __version__ = "0-1-0"
 
+import argparse
 import sys
 from dataclasses import dataclass
 
@@ -452,6 +453,28 @@ def solve_envelope(m_l, m_r, n_t, env_c, nlin, env_n):
         rhs_linear = m_r @ env_c[:, ll]
         lhs = rhs_linear + nlin[:, ll]
         env_n[:, ll] = m_l.solve(lhs)
+
+
+def create_cli_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Cylindrical 2D Fourier Crank-Nicolson solver "
+        "for ultrashort filamentation in transparent media."
+    )
+    parser.add_argument(
+        "-m",
+        "--medium",
+        choices=["air", "water"],
+        default="air",
+        help="Propagation medium (default: air)",
+    )
+    parser.add_argument(
+        "--method",
+        choices=["rk4"],
+        default="rk4",
+        help="Integration method for nonlinear term (default: rk4)",
+    )
+    return parser.parse_args()
 
 
 @dataclass
@@ -945,22 +968,26 @@ class FCNSolver:
 
 def main():
     "Main function."
+    # Initialize CLI arguments
+    args = create_cli_arguments()
+
+    # Initialize classes
     const = Constants()
-    medium = MediumParameters()
+    medium = MediumParameters(medium_opt=args.medium)
     grid = Grid(const)
     laser = LaserPulseParameters(const, medium)
     uppe = UPPEParameters(const, medium, laser)
 
-    # Create and run solver
-    solver = FCNSolver(const, medium, laser, grid, uppe)
+    # Initialize and run solver class
+    solver = FCNSolver(const, medium, laser, grid, uppe, method_opt=args.method)
     solver.propagate()
 
-    # Save to file
-    output_path = (
+    # Save output data to file
+    output_path_file = (
         f"{OUTPUT_DIR}/{medium.medium_type}_fcn_{solver.method}_1_v{__version__}"
     )
     np.savez(
-        output_path,
+        output_path_file,
         e_dist=solver.envelope_snapshot_rzt,
         e_axis=solver.envelope_r0_zt,
         e_peak=solver.envelope_tp_rz,
