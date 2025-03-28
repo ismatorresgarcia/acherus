@@ -356,7 +356,7 @@ def _set_envelope_operator(env_s, dens_s, ram_s, n_k, coef_p, coef_m, coef_k, co
     - ram_s: Raman response at current time slice
     - n_k: number of photons for MPI
     - coef_p: plasma coefficient
-    - coef_mpa: MPA coefficient
+    - coef_m: MPA coefficient
     - coef_k: Kerr coefficient
     - coef_r: Raman coefficient
 
@@ -512,8 +512,8 @@ class Constants:
     "Physical and mathematical constants."
 
     def __init__(self):
-        self.light_speed = 299792458.0
-        self.permittivity = 8.8541878128e-12
+        self.light_speed_0 = 299792458.0
+        self.electric_permittivity_0 = 8.8541878128e-12
         self.electron_mass = 9.1093837139e-31
         self.electron_charge = 1.602176634e-19
         self.planck_bar = 1.05457182e-34
@@ -592,7 +592,7 @@ class MediumParameters:
 
         self.intensity_units = 1
         # self.intensity_units = (
-        #    0.5 * const.light_speed * const.permittivity * self.ref_ind_linear
+        #    0.5 * const.light_speed_0 * const.electric_permittivity_0 * self.refraction_index_linear
         # )
 
 
@@ -608,9 +608,9 @@ class LaserPulseParameters:
         self.input_chirp = 0
         self.input_focal_length = 0
 
-        self.pulse_type = pulse_opt.lower()
+        self.pulse_type = pulse_opt.upper()
 
-        if self.pulse_type == "gauss":
+        if self.pulse_type == "GAUSS":
             self.input_gauss_order = gauss_opt
         else:  # to be defined in the future
             pass
@@ -618,7 +618,7 @@ class LaserPulseParameters:
         # Derived parameters
         self.input_wavenumber_0 = 2 * const.pi / self.input_wavelength
         self.input_wavenumber = self.input_wavenumber_0 * medium.refraction_index_linear
-        self.input_frequency = self.input_wavenumber_0 * const.light_speed
+        self.input_frequency = self.input_wavenumber_0 * const.light_speed_0
         self.input_power = self.input_energy / (
             self.input_peak_time * np.sqrt(0.5 * const.pi)
         )
@@ -707,7 +707,7 @@ class UPPEParameters:
     parameters for the final numerical scheme."""
 
     def __init__(self, const, medium, laser):
-        # Cache common parameters
+        # Initialize typical parameters
         self.frequency = laser.input_frequency
         self.frequency_tau = self.frequency * medium.drude_collision_time
 
@@ -719,12 +719,14 @@ class UPPEParameters:
     def _init_densities(self, const, medium, laser):
         "Initialize density parameters."
         self.density_critical = (
-            const.permittivity
+            const.electric_permittivity_0
             * const.electron_mass
             * (self.frequency / const.electron_charge) ** 2
         )
-        self.bremsstrahlung_cs = (laser.input_wavenumber * self.frequency_tau) / (
-            (medium.refraction_index_linear**2 * self.density_critical)
+        self.bremsstrahlung_cross_section_0 = (
+            laser.input_wavenumber_0 * self.frequency_tau
+        ) / (
+            (medium.refraction_index_linear * self.density_critical)
             * (1 + self.frequency_tau**2)
         )
 
@@ -736,7 +738,9 @@ class UPPEParameters:
             medium.constant_mpi * medium.intensity_units**medium.number_photons
         )
         self.coefficient_ava = (
-            self.bremsstrahlung_cs * medium.intensity_units / medium.ionization_energy
+            self.bremsstrahlung_cross_section_0
+            * medium.intensity_units
+            / medium.ionization_energy
         )
 
         if medium.has_raman:
@@ -755,9 +759,8 @@ class UPPEParameters:
         # Plasma coefficient calculation
         self.coefficient_plasma = (
             -0.5
-            * const.imaginary_unit
-            * laser.input_wavenumber_0
-            / (medium.refraction_index_linear * self.density_critical)
+            * self.bremsstrahlung_cross_section_0
+            * (1 + const.imaginary_unit * self.frequency_tau)
         )
 
         # MPA coefficient calculation
@@ -909,9 +912,9 @@ class FCNSolver:
             self.laser.input_focal_length,
             self.laser.input_gauss_order,
         )
-        self.density_rt[:, 0] = initialize_density(
-            self.grid.r_grid, self.medium.density_initial
-        )
+        # self.density_rt[:, 0] = initialize_density(
+        #    self.grid.r_grid, self.medium.density_initial
+        # )
         # Store initial values for diagnostics
         self.envelope_snapshot_rzt[:, 0, :] = self.envelope_rt
         self.envelope_r0_zt[0, :] = self.envelope_rt[self.grid.node_r0, :]
@@ -1030,7 +1033,11 @@ class FCNSolver:
                     self.cheap_diagnostics(step_idx)
                     pbar.update(1)
                     pbar.set_postfix(
-                        {"m": snap_idx, "n": steps_snap_idx, "k": step_idx}
+                        {
+                            "snap": snap_idx,
+                            "step_per_snap": steps_snap_idx,
+                            "step": step_idx,
+                        }
                     )
                 self.expensive_diagnostics(snap_idx)
 
