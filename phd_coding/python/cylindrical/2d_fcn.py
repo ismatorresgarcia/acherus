@@ -11,7 +11,7 @@ This program includes:
 Numerical discretization: Finite Differences Method (FDM).
     - Method: Split-step Fourier Crank-Nicolson (FCN) scheme.
         *- Fast Fourier Transform (FFT) scheme (for GVD).
-        *- Extended Crank-Nicolson (CN-RK4/AB2) scheme (for diffraction, Kerr and MPA).
+        *- Extended Crank-Nicolson (CN-RK4) scheme (for diffraction, Kerr and MPA).
     - Method (DE): 4th order Runge-Kutta (RK4) scheme.
     - Initial condition:
         *- Gaussian envelope at initial z coordinate.
@@ -67,32 +67,46 @@ from tqdm import tqdm
 OUTPUT_DIR = "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage"
 
 
-def initialize_envelope(r_g, t_g, u_i, e_0, w_n, w_0, t_p, c_0, f_l, g_n=1):
+def initialize_envelope(r_g, t_g, i_u, e_0, w_n, w_0, t_p, c_0, f_l, g_n):
     """
-    Set up the Gaussian beam.
+    Set up the initial envelope at z = 0.
 
     Parameters:
     - r_g: radial coordinates array
     - t_g: time coordinates array
-    - u_i: square root of -1
+    - i_u: square root of -1
     - e_0: initial amplitude of the beam
     - w_n: initial wavenumber of the beam
     - w_0: initial waist of the beam
     - t_p: initial peak time of the beam
     - c_0: chirp of the beam
     - f_l: focal length of the beam
-    - g_n: super-Gaussian beam order parameter (optional)
+    - g_n: super-Gaussian beam order parameter
 
     Returns:
     - complex 2D-array: Initial envelope
     """
-    space_decaying_term = -((r_g / w_0) ** (2 * g_n))
-    time_decaying_term = -(1 + u_i * c_0) * (t_g / t_p) ** 2
+    space_decaying_term = -((r_g / w_0) ** g_n)
+    time_decaying_term = -(1 + i_u * c_0) * (t_g / t_p) ** 2
 
-    if f_l != 0:
-        space_decaying_term -= 0.5 * u_i * w_n * r_g**2 / f_l
+    if f_l != 0:  # phase curvature due to focusing lens
+        space_decaying_term -= 0.5 * i_u * w_n * r_g**2 / f_l
 
     return e_0 * np.exp(space_decaying_term + time_decaying_term)
+
+
+def initialize_density(dens_r, dens_i):
+    """
+    Set up the free electron density at t = 0.
+
+    Parameters:
+    - dens_r: radial free electron density array
+    - dens_i: initial free electron density
+
+    Returns:
+    - float 1D-array: Initial electron density
+    """
+    return np.full(dens_r, dens_i)
 
 
 def create_crank_nicolson_matrix(n_r, m_p, coef_d):
@@ -118,7 +132,7 @@ def create_crank_nicolson_matrix(n_r, m_p, coef_d):
 
     diag_lower = np.append(diag_lower, [0])
     diag_upper = np.insert(diag_upper, 0, [0])
-    if m_p == "LEFT":
+    if m_p.upper() == "LEFT":
         diag_main[0], diag_main[-1] = coef_main, 1
         diag_upper[0] = -2 * coef_d
     else:  # "RIGHT"
@@ -473,16 +487,16 @@ def create_cli_arguments():
     parser.add_argument(
         "-p",
         "--pulse",
-        choices=["gauss", "supergauss"],
+        choices=["gauss", "to_be_defined"],
         default="gauss",
-        help="Pulse type (default: gaussian)",
+        help="Pulse type (default: gaussian and super-Gaussian pulses)",
     )
     parser.add_argument(
         "-g",
         "--gauss_order",
-        type=float,
-        default=2.0,
-        help="Super-Gaussian order parameter (default: 2.0)",
+        type=int,
+        default=2,
+        help="Gaussian order parameter (2: regular Gaussian, > 2: super-Gaussian)",
     )
     parser.add_argument(
         "--method",
@@ -531,6 +545,7 @@ class MediumParameters:
                 "ionization_energy": 1.76e-18,  # 11 eV
                 "drude_collision_time": 3.5e-13,
                 "density_neutral": 5.4e25,
+                "density_initial": 1e22,
                 "raman_frequency_response": 16e12,
                 "raman_damping_time": 77e-15,
                 "raman_delay_fraction": 0.5,
@@ -546,6 +561,7 @@ class MediumParameters:
                 "ionization_energy": 1.76e-18,  # 11 eV
                 "drude_collision_time": 3.5e-13,
                 "density_neutral": 5.4e25,
+                "density_initial": 1e22,
                 "raman_frequency_response": 16e12,
                 "raman_damping_time": 70e-15,
                 "raman_delay_fraction": 0.5,
@@ -561,6 +577,7 @@ class MediumParameters:
                 "ionization_energy": 1.04e-18,  # 6.5 eV
                 "drude_collision_time": 3e-15,
                 "density_neutral": 6.68e28,
+                "density_initial": 1e25,
                 "raman_frequency_response": 0,
                 "raman_damping_time": 0,
                 "raman_delay_fraction": 0,
@@ -583,7 +600,7 @@ class MediumParameters:
 class LaserPulseParameters:
     "Laser pulse physical parameters and derived properties."
 
-    def __init__(self, const, medium, pulse_opt="gaussian", gauss_opt=2.0):
+    def __init__(self, const, medium, pulse_opt="gauss", gauss_opt=2):
         self.input_wavelength = 775e-9
         self.input_waist = 7e-4
         self.input_peak_time = 85e-15
@@ -591,12 +608,12 @@ class LaserPulseParameters:
         self.input_chirp = 0
         self.input_focal_length = 0
 
-        if pulse_opt.upper() == "GAUSSIAN":
-            self.pulse_type = "gaussian"
-            self.input_gauss_order = 1.0
-        else:  # super-Gaussian pulses
-            self.pulse_type = "super-gaussian"
+        self.pulse_type = pulse_opt.lower()
+
+        if self.pulse_type == "gauss":
             self.input_gauss_order = gauss_opt
+        else:  # to be defined in the future
+            pass
 
         # Derived parameters
         self.input_wavenumber_0 = 2 * const.pi / self.input_wavelength
@@ -790,7 +807,7 @@ class FCNSolver:
 
         self.method = "rk4" if method_opt.upper() == "RK4" else "to_be_defined"
 
-        # Compute frequent constants
+        # Compute Runge-Kutta constants
         self.del_z = grid.del_z
         self.del_z_2 = self.del_z * 0.5
         self.del_z_6 = self.del_z / 6
@@ -870,16 +887,16 @@ class FCNSolver:
         # Setup CN operators
         matrix_constant = self.const.imaginary_unit * coefficient_diffraction
         self.matrix_cn_left = create_crank_nicolson_matrix(
-            self.grid.nodes_r, "LEFT", matrix_constant
+            self.grid.nodes_r, "left", matrix_constant
         )
         self.matrix_cn_right = create_crank_nicolson_matrix(
-            self.grid.nodes_r, "RIGHT", -matrix_constant
+            self.grid.nodes_r, "right", -matrix_constant
         )
         self.matrix_cn_left = splu(self.matrix_cn_left)
 
     def setup_initial_condition(self):
         """Setup initial conditions."""
-        # Envelope initial condition at z=0
+        # Envelope and density initial conditions
         self.envelope_rt = initialize_envelope(
             self.grid.r_grid_2d,
             self.grid.t_grid_2d,
@@ -891,6 +908,9 @@ class FCNSolver:
             self.laser.input_chirp,
             self.laser.input_focal_length,
             self.laser.input_gauss_order,
+        )
+        self.density_rt[:, 0] = initialize_density(
+            self.grid.r_grid, self.medium.density_initial
         )
         # Store initial values for diagnostics
         self.envelope_snapshot_rzt[:, 0, :] = self.envelope_rt
@@ -930,7 +950,7 @@ class FCNSolver:
         else:
             self.raman_rt.fill(0)
         solve_dispersion(self.propagator_fft, self.envelope_rt, self.envelope_split_rt)
-        if self.method == "rk4":
+        if self.method.upper() == "RK4":
             solve_nonlinear_rk4(
                 self.envelope_split_rt,
                 self.density_rt,
@@ -943,7 +963,7 @@ class FCNSolver:
                 self.del_z_2,
                 self.del_z_6,
             )
-        else:  # to be defined
+        else:  # to be defined in the future
             pass
         solve_envelope(
             self.matrix_cn_left,
@@ -1034,9 +1054,7 @@ def main():
     solver.propagate()
 
     # Save output data to file
-    output_path_file = (
-        f"{OUTPUT_DIR}/{medium.medium_type}_fcn_{solver.method}_1_v{__version__}"
-    )
+    output_path_file = f"{OUTPUT_DIR}/{medium.medium_type}_fcn_{solver.method}_1"
     np.savez(
         output_path_file,
         e_dist=solver.envelope_snapshot_rzt,
