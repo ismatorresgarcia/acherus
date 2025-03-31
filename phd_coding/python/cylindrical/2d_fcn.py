@@ -64,7 +64,8 @@ from scipy.sparse.linalg import splu
 from scipy.special import gamma
 from tqdm import tqdm
 
-OUTPUT_DIR = "/Users/ytoga/projects/phd_thesis/phd_coding/python/storage"
+DEFAULT_SAVE_PATH = "./python/storage"
+DEFAULT_DATA_SAVE_PATH = f"{DEFAULT_SAVE_PATH}/_air_fcn_rk4_1"
 
 
 def initialize_envelope(r_g, t_g, i_u, e_0, w_n, w_0, t_p, c_0, f_l, g_n):
@@ -1060,10 +1061,8 @@ def main():
     solver = FCNSolver(const, medium, laser, grid, uppe, method_opt=args.method)
     solver.propagate()
 
-    # Save output data to file
-    output_path_file = f"{OUTPUT_DIR}/{medium.medium_type}_fcn_{solver.method}_1"
     np.savez(
-        output_path_file,
+        DEFAULT_DATA_SAVE_PATH,
         e_dist=solver.envelope_snapshot_rzt,
         e_axis=solver.envelope_r0_zt,
         e_peak=solver.envelope_tp_rz,

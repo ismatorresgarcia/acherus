@@ -16,6 +16,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
+DEFAULT_DATA_FILE_PATH = "./storage/data.npz"
+DEFAULT_SAVE_PATH = "./storage/figures_/"
+
 
 @dataclass
 class PlotConfiguration:
@@ -733,12 +736,12 @@ def parse_cli_options():
     )
     parser.add_argument(
         "--file",
-        default="./storage/data.npz",
+        default="DEFAULT_DATA_FILE_PATH",
         help="Path to data file (.npz format)",
     )
     parser.add_argument(
         "--save-path",
-        default="./storage/figures_/",
+        default="DEFAULT_SAVE_PATH",
         help="Directory to save plots instead of displaying",
     )
     parser.add_argument(
