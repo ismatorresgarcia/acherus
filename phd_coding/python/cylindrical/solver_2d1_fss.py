@@ -1,5 +1,5 @@
 """
-This program solves the Unidirectional Pulse Propagation Equation (UPPE) of an ultra-intense
+This program solves the Nonlinear Envelope Equation (NEE) of an ultra-intense
 and ultra-short laser pulse in cylindrical coordinates with radial symmetry.
 This program includes:
     - Diffraction (for the transverse direction).
@@ -9,7 +9,7 @@ This program includes:
     - Nonlinear optical Kerr effect (for a third-order centrosymmetric medium).
 
 Numerical discretization: Finite Differences Method (FDM).
-    - Method: Split-step Fourier Crank-Nicolson (FCN) scheme.
+    - Method: Split-step Fourier Crank-Nicolson (FSS) scheme.
         *- Fast Fourier Transform (FFT) scheme (for GVD).
         *- Extended Crank-Nicolson (CN-RK4) scheme (for diffraction, Kerr and MPA).
     - Method (DE): 4th order Runge-Kutta (RK4) scheme.
@@ -22,8 +22,8 @@ DE:          ∂N/∂t = S_K|E|^(2K)(N_n - N) + S_w N|E|^2 / U_i
 UPPE:          ∂E/∂z = i/(2k) ∇²E - ik''/2 ∂²E/∂t² - i(k_0/2n_0)(N/N_c)E - iB_K|E|^(2K-2)E
                      + ik_0n_2(1-a)|E|^2 E + ik_0n_2a (∫R(t-t')|E(t')|^2 dt') E
 
-DISCLAIMER: UPPE uses "natural" units, where envelope intensity and its square module are the same.
-            This is equivalent to setting 0.5*c*e_0*n_0 = 1 in the UPPE when using the SI system.
+DISCLAIMER: NEE uses "natural" units, where envelope intensity and its square module are the same.
+            This is equivalent to setting 0.5*c*e_0*n_0 = 1 in the NEE when using the SI system.
             The result obtained is identical since the consistency is mantained throught the code.
             This way, the number of operations is reduced, and the code is more readable.
             However, the dictionary "MEDIA" has an entry "INT_FACTOR" where the conversion
@@ -54,7 +54,6 @@ __version__ = "0-1-0"
 
 import argparse
 import sys
-from dataclasses import dataclass
 
 import numba as nb
 import numpy as np
@@ -65,7 +64,7 @@ from scipy.special import gamma
 from tqdm import tqdm
 
 DEFAULT_SAVE_PATH = "./python/storage"
-DEFAULT_DATA_SAVE_PATH = f"{DEFAULT_SAVE_PATH}/_air_fcn_rk4_1"
+DEFAULT_DATA_SAVE_PATH = f"{DEFAULT_SAVE_PATH}/air_fcn_rk4_1"
 
 
 def initialize_envelope(r_g, t_g, i_u, e_0, w_n, w_0, t_p, c_0, f_l, g_n):
@@ -415,9 +414,9 @@ def solve_nonlinear_rk4(env, dens, ram, env_rk4, nlin, n_t, env_args, dz, dz_2, 
     time steps.
 
     Parameters:
-    - env: envelope at current time slice
-    - dens: density at current time slice
-    - ram: raman response at current time slice
+    - env: envelope at current propagation step
+    - dens: density at current propagation step
+    - ram: raman response at current propagation step
     - env_rk4: auxiliary envelope array for RK4 integration
     - nlin: pre-allocated array for the nonlinear terms
     - n_t: number of time nodes
@@ -475,15 +474,15 @@ def solve_envelope(m_l, m_r, n_t, env_c, nlin, env_n):
 def create_cli_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Cylindrical 2D Fourier Crank-Nicolson solver "
+        description="Cylindrical 2D Fourier Split-step solver "
         "for ultrashort filamentation in transparent media."
     )
     parser.add_argument(
         "-m",
         "--medium",
-        choices=["air775", "air800", "water800"],
-        default="air775",
-        help="Propagation medium (default: air at 775 nm)",
+        choices=["air800", "air775", "water800"],
+        default="air800",
+        help="Propagation medium (default: air at 800 nm)",
     )
     parser.add_argument(
         "-p",
@@ -508,7 +507,6 @@ def create_cli_arguments():
     return parser.parse_args()
 
 
-@dataclass
 class Constants:
     "Physical and mathematical constants."
 
@@ -522,22 +520,37 @@ class Constants:
         self.imaginary_unit = 1j
 
 
-@dataclass
 class MediumParameters:
     "Medium parameters to be chosen."
 
-    def __init__(self, medium_opt="air775"):
-        if medium_opt.upper() == "AIR775":
-            self.medium_type = "air775"
-        elif medium_opt.upper() == "AIR800":
+    def __init__(self, medium_opt="air800"):
+        if medium_opt.upper() == "AIR800":
             self.medium_type = "air800"
+        elif medium_opt.upper() == "AIR775":
+            self.medium_type = "air775"
         else:  # water at 800 nm
             self.medium_type = "water800"
 
         # Define parameter sets
         parameters = {
+            "air800": {
+                "refraction_index_linear": 1.0,
+                "refraction_index_nonlinear": 3.2e-23,
+                "constant_gvd": 2e-28,
+                "number_photons": 8,
+                "constant_mpa": 3.7e-121,
+                "constant_mpi": 3.7e-128,
+                "ionization_energy": 1.932e-18,  # 12.06 eV
+                "drude_collision_time": 3.5e-13,
+                "density_neutral": 5.4e24,
+                "density_initial": 1e22,
+                "raman_frequency_response": 16e12,
+                "raman_damping_time": 70e-15,
+                "raman_delay_fraction": 0.5,
+                "has_raman": True,
+            },
             "air775": {
-                "refraction_index_linear": 1.003,
+                "refraction_index_linear": 1.0,
                 "refraction_index_nonlinear": 5.57e-23,
                 "constant_gvd": 2e-28,
                 "number_photons": 7,
@@ -545,26 +558,10 @@ class MediumParameters:
                 "constant_mpi": 1.9e-111,
                 "ionization_energy": 1.76e-18,  # 11 eV
                 "drude_collision_time": 3.5e-13,
-                "density_neutral": 5.4e25,
+                "density_neutral": 5.4e24,
                 "density_initial": 1e22,
                 "raman_frequency_response": 16e12,
                 "raman_damping_time": 77e-15,
-                "raman_delay_fraction": 0.5,
-                "has_raman": True,
-            },
-            "air800": {
-                "refraction_index_linear": 1.003,
-                "refraction_index_nonlinear": 5.57e-23,
-                "constant_gvd": 2e-28,
-                "number_photons": 7,
-                "constant_mpa": 7.0e-104,
-                "constant_mpi": 2.0e-111,
-                "ionization_energy": 1.76e-18,  # 11 eV
-                "drude_collision_time": 3.5e-13,
-                "density_neutral": 5.4e25,
-                "density_initial": 1e22,
-                "raman_frequency_response": 16e12,
-                "raman_damping_time": 70e-15,
                 "raman_delay_fraction": 0.5,
                 "has_raman": True,
             },
@@ -597,7 +594,6 @@ class MediumParameters:
         # )
 
 
-@dataclass
 class LaserPulseParameters:
     "Laser pulse physical parameters and derived properties."
 
@@ -605,7 +601,7 @@ class LaserPulseParameters:
         self.input_wavelength = 775e-9
         self.input_waist = 7e-4
         self.input_peak_time = 85e-15
-        self.input_energy = 0.71e-3
+        self.input_energy = 0.995e-3
         self.input_chirp = 0
         self.input_focal_length = 0
 
@@ -619,7 +615,7 @@ class LaserPulseParameters:
         # Derived parameters
         self.input_wavenumber_0 = 2 * const.pi / self.input_wavelength
         self.input_wavenumber = self.input_wavenumber_0 * medium.refraction_index_linear
-        self.input_frequency = self.input_wavenumber_0 * const.light_speed_0
+        self.input_frequency_0 = self.input_wavenumber_0 * const.light_speed_0
         self.input_power = self.input_energy / (
             self.input_peak_time * np.sqrt(0.5 * const.pi)
         )
@@ -702,15 +698,14 @@ class Grid:
         )
 
 
-@dataclass
-class UPPEParameters:
+class NEEParameters:
     """Pulse propagation and electron density evolution
     parameters for the final numerical scheme."""
 
     def __init__(self, const, medium, laser):
         # Initialize typical parameters
-        self.frequency = laser.input_frequency
-        self.frequency_tau = self.frequency * medium.drude_collision_time
+        self.frequency_0 = laser.input_frequency_0
+        self.frequency_tau = self.frequency_0 * medium.drude_collision_time
 
         # Initialize main function parameters
         self._init_densities(const, medium, laser)
@@ -722,7 +717,7 @@ class UPPEParameters:
         self.density_critical = (
             const.electric_permittivity_0
             * const.electron_mass
-            * (self.frequency / const.electron_charge) ** 2
+            * (self.frequency_0 / const.electron_charge) ** 2
         )
         self.bremsstrahlung_cross_section_0 = (
             laser.input_wavenumber_0 * self.frequency_tau
@@ -799,15 +794,15 @@ class UPPEParameters:
             self.coefficient_raman = 0
 
 
-class FCNSolver:
-    """FCN solver class for beam propagation."""
+class FSSSolver:
+    """Fourier Split-Step solver class for beam propagation."""
 
-    def __init__(self, const, medium, laser, grid, uppe, method_opt="rk4"):
+    def __init__(self, const, medium, laser, grid, nee, method_opt="rk4"):
         self.const = const
         self.medium = medium
         self.laser = laser
         self.grid = grid
-        self.uppe = uppe
+        self.nee = nee
 
         self.method = "rk4" if method_opt.upper() == "RK4" else "to_be_defined"
 
@@ -844,16 +839,16 @@ class FCNSolver:
 
         self.envelope_arguments = (
             self.medium.number_photons,
-            uppe.coefficient_plasma,
-            uppe.coefficient_mpa,
-            uppe.coefficient_kerr,
-            uppe.coefficient_raman,
+            nee.coefficient_plasma,
+            nee.coefficient_mpa,
+            nee.coefficient_kerr,
+            nee.coefficient_raman,
         )
         self.density_arguments = (
             self.medium.number_photons,
             self.medium.density_neutral,
-            uppe.coefficient_ofi,
-            uppe.coefficient_ava,
+            nee.coefficient_ofi,
+            nee.coefficient_ava,
         )
 
         self.envelope_rk4_stage = np.empty(self.grid.nodes_r, dtype=complex)
@@ -872,7 +867,7 @@ class FCNSolver:
         self.setup_initial_condition()
 
     def setup_operators(self):
-        """Setup FCN operators."""
+        """Setup FSS operators."""
         coefficient_diffraction = (
             0.25 * self.grid.del_z / (self.laser.input_wavenumber * self.grid.del_r**2)
         )
@@ -913,9 +908,9 @@ class FCNSolver:
             self.laser.input_focal_length,
             self.laser.input_gauss_order,
         )
-        # self.density_rt[:, 0] = initialize_density(
-        #    self.grid.r_grid, self.medium.density_initial
-        # )
+        self.density_rt[:, 0] = initialize_density(
+            (self.grid.nodes_r,), self.medium.density_initial
+        )
         # Store initial values for diagnostics
         self.envelope_snapshot_rzt[:, 0, :] = self.envelope_rt
         self.envelope_r0_zt[0, :] = self.envelope_rt[self.grid.node_r0, :]
@@ -945,8 +940,8 @@ class FCNSolver:
                 self.raman_rk4_stage,
                 self.draman_rk4_stage,
                 self.grid.nodes_t,
-                self.uppe.raman_coefficient_1,
-                self.uppe.raman_coefficient_2,
+                self.nee.raman_coefficient_1,
+                self.nee.raman_coefficient_2,
                 self.del_t,
                 self.del_t_2,
                 self.del_t_6,
@@ -1055,10 +1050,10 @@ def main():
     laser = LaserPulseParameters(
         const, medium, pulse_opt=args.pulse, gauss_opt=args.gauss_order
     )
-    uppe = UPPEParameters(const, medium, laser)
+    nee = NEEParameters(const, medium, laser)
 
     # Initialize and run solver class
-    solver = FCNSolver(const, medium, laser, grid, uppe, method_opt=args.method)
+    solver = FSSSolver(const, medium, laser, grid, nee, method_opt=args.method)
     solver.propagate()
 
     np.savez(

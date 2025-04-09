@@ -10,7 +10,7 @@ import os
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -24,15 +24,16 @@ DEFAULT_SAVE_PATH = "./storage/figures_/"
 class PlotConfiguration:
     """Plot style configuration."""
 
-    style: str = "dark_background"
-    font: bool = False
-    figsize: Tuple[int, int] = (13, 7)
     colors: Dict[str, str] = field(
         default_factory=lambda: {
-            "blue": "#1E90FF",  # Electric Blue
-            "green": "#32CD32",  # Lime green
-            "magenta": "#FF00FF",  # Magenta
-            "yellow": "#FFFF00",  # Pure yellow
+            "blue_dark": "#1E90FF",  # Electric Blue
+            "green_dark": "#32CD32",  # Lime green
+            "magenta_dark": "#FF00FF",  # Magenta
+            "yellow_dark": "#FFFF00",  # Pure yellow
+            "blue_white": "#0066CC",  # Electric Blue
+            "green_white": "#007F00",  # Lime green
+            "magenta_white": "#CC00CC",  # Magenta
+            "yellow_white": "#CC9900",  # Pure yellow
         }
     )
     cmaps: Dict[str, Any] = field(
@@ -41,6 +42,39 @@ class PlotConfiguration:
             "intensity": mpl.colormaps["plasma"],
         }
     )
+
+    def __post_init__(self):
+        """Customize figure styling."""
+        plt.style.use("default")
+
+        plt.rcParams.update(
+            {
+                # Figure size
+                "figure.figsize": (13, 7),
+                # Background colors
+                "figure.facecolor": "white",
+                "axes.facecolor": "white",
+                "savefig.facecolor": "white",
+                # Grid options
+                "axes.grid": False,
+                # Axis options
+                "axes.edgecolor": "#888888",
+                "axes.linewidth": 0.8,
+                # Line options
+                "lines.linewidth": 1.5,
+                # Font options
+                "font.family": "serif",
+                "font.serif": ["Times New Roman"],
+                "font.size": 10,
+                "axes.labelsize": 11,
+                "axes.titlesize": 12,
+                # Legend options
+                "legend.framealpha": 0.8,
+                "legend.edgecolor": "#CCCCCC",
+                "legend.facecolor": "white",
+                "legend.loc": "upper right",
+            }
+        )
 
     def get_plot_config(self, plot_type: str, dimension: str = "all") -> Dict:
         """
@@ -53,36 +87,25 @@ class PlotConfiguration:
         Returns:
         - Dictionary with plot configuration settings
         """
-        # Base configuration shared across all plot types
-        if self.font:
-            plt.rcParams.update(
-                {
-                    "font.family": "serif",
-                    "font.serif": ["Times New Roman"],
-                    "font.size": 10,
-                    "axes.titlesize": 12,
-                    "axes.labelsize": 10,
-                }
-            )
         base_config = {
             "intensity": {
                 "cmap": self.cmaps["intensity"],
                 "zlabel": r"$I$ ($\mathrm{W/cm^2}$)",
                 "colors": {
-                    "init": self.colors["green"],
-                    "final": self.colors["blue"],
-                    "peak": self.colors["yellow"],
+                    "init": self.colors["green_white"],
+                    "final": self.colors["blue_white"],
+                    "peak": self.colors["yellow_white"],
                 },
                 "titles": {
-                    "zt": r"On-axis intensity $I(z,t)$",
-                    "rt": r"Intensity $I(r,t)$ at $z = {:.2f}$ $\mathrm{cm}$",
-                    "rz": r"Maximum intensity $\max\,I(r,z)$",
+                    "zt": r"On-axis intensity $I(r=0,z,t)$",
+                    "rt": r"Intensity $I(r,t)$ at $z = {:.2f}$ $\mathrm{m}$",
+                    "rz": r"Maximum intensity $\max_t\,I(r,z,t)$",
                 },
                 "labels": {
-                    "ylabel_t": r"$I(t)$ ($\mathrm{W/cm^2}$)",
-                    "ylabel_z": r"$\max\,I(z)$ ($\mathrm{W/cm^2}$)",
-                    "xlabel_r": r"$r$ ($\mathrm{\mu m}$)",
-                    "xlabel_z": r"$z$ ($\mathrm{cm}$)",
+                    "ylabel_t": r"$I(r=0,t)$ ($\mathrm{W/cm^2}$)",
+                    "ylabel_z": r"$\max_t\,I(r=0,z,t)$ ($\mathrm{W/cm^2}$)",
+                    "xlabel_r": r"$r$ ($\mathrm{mm}$)",
+                    "xlabel_z": r"$z$ ($\mathrm{m}$)",
                     "xlabel_t": r"$t$ ($\mathrm{fs}$)",
                 },
                 "legend_labels": {
@@ -98,20 +121,20 @@ class PlotConfiguration:
                 "cmap": self.cmaps["density"],
                 "zlabel": r"$\rho$ ($\mathrm{cm^{-3}}$)",
                 "colors": {
-                    "init": self.colors["green"],
-                    "final": self.colors["blue"],
-                    "peak": self.colors["magenta"],
+                    "init": self.colors["green_white"],
+                    "final": self.colors["blue_white"],
+                    "peak": self.colors["magenta_white"],
                 },
                 "titles": {
-                    "zt": r"On-axis density $\rho(z,t)$",
-                    "rt": r"Density $\rho(r,t)$ at $z = {:.2f}$ $\mathrm{cm}$",
-                    "rz": r"Maximum density $\max\,\rho(r,z)$",
+                    "zt": r"On-axis density $\rho(r=0,z,t)$",
+                    "rt": r"Density $\rho(r,t)$ at $z = {:.2f}$ $\mathrm{m}$",
+                    "rz": r"Maximum density $\max_t\,\rho(r,z,t)$",
                 },
                 "labels": {
-                    "ylabel_t": r"$\rho(t)$ ($\mathrm{cm^{-3}}$)",
-                    "ylabel_z": r"$max\,\rho(z)$ ($\mathrm{cm^{-3}}$)",
-                    "xlabel_r": r"$r$ ($\mathrm{\mu m}$)",
-                    "xlabel_z": r"$z$ ($\mathrm{cm}$)",
+                    "ylabel_t": r"$\rho(r=0,t)$ ($\mathrm{cm^{-3}}$)",
+                    "ylabel_z": r"$max_t\,\rho(r=0,z,t)$ ($\mathrm{cm^{-3}}$)",
+                    "xlabel_r": r"$r$ ($\mathrm{mm}$)",
+                    "xlabel_z": r"$z$ ($\mathrm{m}$)",
                     "xlabel_t": r"$t$ ($\mathrm{fs}$)",
                 },
                 "legend_labels": {
@@ -127,24 +150,14 @@ class PlotConfiguration:
 
         # Dimension-specific configuration
         dimension_config = {
-            "1d": {
-                "figsize": self.figsize,
-                "legend_settings": {"facecolor": "black", "edgecolor": "white"},
-                "dpi": 150,
-            },
-            "2d": {"figsize": self.figsize, "dpi": 150},
+            "1d": {"dpi": 150},
+            "2d": {"dpi": 150},
             "3d": {
                 "resolutions": {
                     "low": {"stride": (5, 5), "dpi": 100, "antialiased": False},
                     "medium": {"stride": (2, 2), "dpi": 150, "antialiased": True},
                     "high": {"stride": (1, 1), "dpi": 300, "antialiased": True},
                 },
-                "legend_settings": {
-                    "facecolor": "black",
-                    "edgecolor": "white",
-                    "loc": "upper right",
-                },
-                "figsize": self.figsize,
             },
         }
 
@@ -158,34 +171,50 @@ class PlotConfiguration:
         return {**base_config[plot_type], **dimension_config.get(dimension, {})}
 
 
-@dataclass
 class Constants:
     "Physical and mathematical constants."
 
-    permittivity: float = 8.8541878128e-12
-    light_speed: float = 299792458
+    def __init__(
+        self,
+        intensity_units=1,
+        factor_radial=1e3,
+        factor_distance=1,
+        factor_time=1e15,
+        factor_area=1e-4,
+        factor_volume=1e-6,
+    ):
 
-    intensity_units: float = 1
-    factor_radial: float = 1e6
-    factor_distance: float = 100
-    factor_time: float = 1e15
-    factor_area: float = 1e-4
-    factor_volume: float = 1e-6
+        self.permittivity = 8.8541878128e-12
+        self.light_speed = 299792458
+
+        self.intensity_units = intensity_units
+        self.factor_radial = factor_radial
+        self.factor_distance = factor_distance
+        self.factor_time = factor_time
+        self.factor_area = factor_area
+        self.factor_volume = factor_volume
 
 
 class PlotGrid:
     """Plotting grid box-sizing."""
 
-    def __init__(self, const: Constants, data: Dict[str, Any]):
+    def __init__(self, const: Constants, data: Dict[str, Any], symmetry: bool = False):
         self.const = const
         self.data = data
+        self.symmetry = symmetry
         self._initialize_boundaries()
         self._initialize_grid_nodes()
         self._initialize_sliced_arrays()
 
     def _initialize_boundaries(self):
         """Set up the plotting box boundary."""
-        self.boundary_radial = (self.data["ini_radi_coor"], self.data["fin_radi_coor"])
+        if self.symmetry:
+            self.data["ini_radi_coor"] = -self.data["fin_radi_coor"]
+
+        self.boundary_radial = (
+            self.data["ini_radi_coor"],
+            self.data["fin_radi_coor"],
+        )
         self.boundary_distance = (
             self.data["ini_dist_coor"],
             self.data["fin_dist_coor"],
@@ -198,11 +227,14 @@ class PlotGrid:
         self.nodes_distance = self.data["e_axis"].shape[0]
         self.nodes_time = self.data["e_axis"].shape[1]
 
+        if self.symmetry:
+            self.nodes_radial_sym = 2 * self.nodes_radial - 1
+
         self.nodes = {}
         for dim, (start, end, n_nodes, ini, fin) in {
             "radi": (
                 *self.boundary_radial,
-                self.nodes_radial,
+                self.nodes_radial if not self.symmetry else self.nodes_radial_sym,
                 self.data["ini_radi_coor"],
                 self.data["fin_radi_coor"],
             ),
@@ -223,18 +255,11 @@ class PlotGrid:
             end_val = (end - ini) * (n_nodes - 1) / (fin - ini)
             self.nodes[dim] = (int(start_val), int(end_val) + 1)
 
-        self.axis_node = self.data["axis_node"]
+        if self.symmetry:
+            self.axis_node = self.data["axis_node"] - 1
+        else:
+            self.axis_node = self.data["axis_node"]
         self.peak_node = self.data["peak_node"]
-
-    def calculate_z_coordinate(self, indices):
-        """Convert k-indices to their corresponding z-coordinates with caching."""
-        # Calculate the z coordinate position
-        ini_dist_coor = self.data["ini_dist_coor"] * self.const.factor_distance
-        fin_dist_coor = self.data["fin_dist_coor"] * self.const.factor_distance
-        z_coor = ini_dist_coor + (
-            indices * (fin_dist_coor - ini_dist_coor) / (self.nodes_distance - 1)
-        )
-        return z_coor
 
     def _initialize_sliced_arrays(self):
         """Set up computational arrays"""
@@ -244,13 +269,22 @@ class PlotGrid:
             "t": slice(*self.nodes["time"]),
         }
 
-        # Create 1D sliced grids
-        self.sliced_grids = {
-            "radi": np.linspace(
+        if self.symmetry:
+            radi_slice_positive = np.linspace(
+                0, self.data["fin_radi_coor"], self.nodes_radial
+            )[self.slices["r"]]
+            radi_slice_negative = -np.flip(radi_slice_positive[:-1])
+            radi_slice = np.concatenate((radi_slice_negative, radi_slice_positive))
+        else:
+            radi_slice = np.linspace(
                 self.data["ini_radi_coor"],
                 self.data["fin_radi_coor"],
                 self.nodes_radial,
-            )[self.slices["r"]],
+            )[self.slices["r"]]
+
+        # Create 1D sliced grids
+        self.sliced_grids = {
+            "radi": radi_slice,
             "dist": np.linspace(
                 self.data["ini_dist_coor"],
                 self.data["fin_dist_coor"],
@@ -272,6 +306,27 @@ class PlotGrid:
             self.sliced_grids["radi"], self.sliced_grids["dist"], indexing="ij"
         )
 
+    def calculate_z_coordinate(self, indices):
+        """Convert k-indices to their corresponding z-coordinates."""
+        indices = np.array(indices)  # make sure it's a numpy array
+        ini_dist_coor = self.data["ini_dist_coor"] * self.const.factor_distance
+        fin_dist_coor = self.data["fin_dist_coor"] * self.const.factor_distance
+        z_coor = ini_dist_coor + (
+            indices * (fin_dist_coor - ini_dist_coor) / (self.nodes_distance - 1)
+        )
+        return z_coor
+
+    def mirror_radial_data(self, data, radi_axis=0):
+        """Mirror radial data for symmetry."""
+        if not self.symmetry:
+            return data
+
+        data_flip = np.flip(data, axis=radi_axis)
+        if data.shape[radi_axis] > 1:
+            return np.concatenate((data_flip[:-1], data), axis=radi_axis)
+        else:
+            return np.concatenate((data, data), axis=radi_axis)
+
 
 class ScaledGrid:
     """Plotting grid box with custom units."""
@@ -280,7 +335,6 @@ class ScaledGrid:
         self.const = const
         self.box = box
         self.config = config
-        plt.style.use(self.config.style)
         self._scaled_1d_grid = {}
         self._scaled_2d_grid = {}
 
@@ -341,7 +395,6 @@ class BasePlotter:
         self.box = box
         self.config = config
         self.box_scaled = box_scaled
-        plt.style.use(self.config.style)
 
     def calculate_intensity_values(self, envelope_dist, envelope_axis, envelope_peak):
         """Set up intensities for plotting."""
@@ -377,9 +430,9 @@ class BasePlotter:
             fig.tight_layout()
             plt.show()
 
-    def get_1d_grid(self, name):
+    def get_1d_grid(self, grid_type):
         """Access box-scaled 1d-grids."""
-        return self.box_scaled.create_scaled_1d_grid(name)
+        return self.box_scaled.create_scaled_1d_grid(grid_type)
 
     def get_2d_grid(self, grid_type):
         """Access box-scaled 2d-grid."""
@@ -401,7 +454,7 @@ class Plotter1D(BasePlotter):
         """
         plot_config = self.config.get_plot_config(plot_type, "1d")
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=self.config.figsize)
+        fig, (ax1, ax2) = plt.subplots(2, 1)
 
         # Get scaled arrays only when needed
         time_array = self.get_1d_grid("time")
@@ -426,7 +479,7 @@ class Plotter1D(BasePlotter):
             xlabel=plot_config["labels"]["xlabel_t"],
             ylabel=plot_config["labels"]["ylabel_t"],
         )
-        ax1.legend(**plot_config["legend_settings"])
+        ax1.legend()
 
         # Second subplot - spatial on_axis evolution
         ax2.plot(
@@ -440,7 +493,7 @@ class Plotter1D(BasePlotter):
             xlabel=plot_config["labels"]["xlabel_z"],
             ylabel=plot_config["labels"]["ylabel_z"],
         )
-        ax2.legend(**plot_config["legend_settings"])
+        ax2.legend()
 
         self.save_or_display(fig, f"1d_{plot_type}.png", save_path, plot_config["dpi"])
 
@@ -469,7 +522,7 @@ class Plotter2D(BasePlotter):
             if coord_sys == "rt" and k_array is not None:
                 # Plot for each z node
                 for idx in range(len(k_array)):
-                    fig, ax = plt.subplots(figsize=plot_config["figsize"])
+                    fig, ax = plt.subplots()
 
                     # Lazily get the meshgrid
                     x, y = self.get_2d_grid("radi_time")
@@ -495,7 +548,10 @@ class Plotter2D(BasePlotter):
 
                     if save_path:
                         save_path = Path(save_path)
-                        filename = f"2d_{plot_type}_{coord_sys}_{z_pos:.2f}.png"
+                        filename = (
+                            f"2d_{plot_type}_{coord_sys}_{z_pos:.2f}".replace(".", "-")
+                            + ".png"
+                        )
                         filepath = save_path / filename
                         fig.tight_layout()
                         fig.savefig(filepath, dpi=plot_config["dpi"])
@@ -505,7 +561,7 @@ class Plotter2D(BasePlotter):
                         plt.show()
             else:
                 # Plots for zt and rz
-                fig, ax = plt.subplots(figsize=self.config.figsize)
+                fig, ax = plt.subplots()
 
                 if coord_sys == "zt":
                     x, y = self.get_2d_grid("dist_time")
@@ -572,12 +628,10 @@ class Plotter3D(BasePlotter):
             if coord_sys == "rt" and k_array is not None:
                 # Plot for each z node
                 for idx in range(len(k_array)):
-                    fig = plt.figure(
-                        figsize=plot_config["figsize"], dpi=resolution_config["dpi"]
-                    )
+                    fig = plt.figure(dpi=resolution_config["dpi"])
                     ax = fig.add_subplot(projection="3d")
 
-                    # Get meshgrid lazily
+                    # Get meshgrid
                     x, y = self.get_2d_grid("radi_time")
                     xlabel = plot_config["labels"]["xlabel_r"]
                     ylabel = plot_config["labels"]["xlabel_t"]
@@ -605,10 +659,13 @@ class Plotter3D(BasePlotter):
                         "{:.2f}", z_pos_format
                     )
                     ax.set_title(title)
-                    ax.legend(**plot_config["legend_settings"])
+                    ax.legend()
 
                     if save_path:
-                        filename = f"3d_{plot_type}_{coord_sys}_{z_pos:.2f}.png"
+                        filename = (
+                            f"3d_{plot_type}_{coord_sys}_{z_pos:.2f}".replace(".", "-")
+                            + ".png"
+                        )
                         filepath = os.path.join(save_path, filename)
                         fig.tight_layout()
                         fig.savefig(filepath, dpi=resolution_config["dpi"])
@@ -619,9 +676,7 @@ class Plotter3D(BasePlotter):
 
             else:
                 # Plots for zt and rz
-                fig = plt.figure(
-                    figsize=plot_config["figsize"], dpi=resolution_config["dpi"]
-                )
+                fig = plt.figure(dpi=resolution_config["dpi"])
                 ax = fig.add_subplot(projection="3d")
 
                 if coord_sys == "zt":
@@ -654,7 +709,7 @@ class Plotter3D(BasePlotter):
                     zlabel=plot_config["zlabel"],
                 )
                 ax.set_title(plot_config["titles"][coord_sys])
-                ax.legend(**plot_config["legend_settings"])
+                ax.legend()
 
                 if save_path:
                     filename = f"3d_{plot_type}_{coord_sys}.png"
@@ -724,7 +779,7 @@ class VisualManager:
 def parse_cli_options():
     """Parse and validate CLI options."""
     parser = argparse.ArgumentParser(
-        description="Plot simulation data",
+        description="Plot simulation data.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
@@ -732,32 +787,38 @@ def parse_cli_options():
         "--verbose",
         action="count",
         default=0,
-        help="Increase output verbosity (can be used multiple times)",
+        help="Increase output verbosity (can be used multiple times).",
     )
     parser.add_argument(
         "--file",
-        default="DEFAULT_DATA_FILE_PATH",
-        help="Path to data file (.npz format)",
+        default=DEFAULT_DATA_FILE_PATH,
+        help="Path to data file (.npz format).",
     )
     parser.add_argument(
         "--save-path",
-        default="DEFAULT_SAVE_PATH",
-        help="Directory to save plots instead of displaying",
+        default=DEFAULT_SAVE_PATH,
+        help="Directory to save plots instead of displaying.",
     )
     parser.add_argument(
         "--data-types",
         default="intensity,density",
-        help="Data types to plot: intensity,density (comma-separated)",
+        help="Data types to plot: intensity,density (comma-separated).",
     )
     parser.add_argument(
         "--plot-types",
         default="1d,2d,3d",
-        help="Plot types to generate: 1d,2d,3d (comma-separated)",
+        help="Plot types to generate: 1d,2d,3d (comma-separated).",
     )
     parser.add_argument(
         "--resolution",
         default="medium",
-        help="Plot quality for 3D plots: low, medium, high",
+        help="Plot quality for 3D plots: low, medium, high.",
+    )
+    parser.add_argument(
+        "--symmetric",
+        action="store_true",
+        default=False,
+        help="Plot radial data symmetrically.",
     )
 
     args = parser.parse_args()
@@ -771,7 +832,7 @@ def parse_cli_options():
 
 def setup_output_directory(args):
     """Setup environment for plotting based on arguments."""
-    # Ensure we have a save path if needed
+    # Ask if we have a save path when required
     if args.save_path:
         save_path = Path(args.save_path)
         save_path.mkdir(parents=True, exist_ok=True)
@@ -789,7 +850,7 @@ def load_simulation_data(file_path, args):
         file_size = os.path.getsize(file_path) / (1024**2)
 
         # Process data based on file size
-        if file_size > 500:  # If file is larger than 500 MB
+        if file_size > 500:  # larger than 500 MB
             print("Using memory-mapped file loading for large file")
             with np.load(file_path, mmap_mode="r") as npz:
                 data = {
@@ -922,7 +983,7 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
     """Process a specific data type (intensity or density) and generate plots."""
     print(f"Processing {data_type} data...")
 
-    # Confirm required arrays exist
+    # Ask if required arrays exist
     required_arrays = []
     if data_type == "intensity":
         required_arrays = ["e_dist", "e_axis", "e_peak"]
@@ -954,9 +1015,9 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
         print(f"Omitting {data_type} plots")
         return
 
-    # Get propagation indices
-    k_array = np.array(data["k_array"])
-    z_coor = np.array([box.calculate_z_coordinate(k) for k in k_array])
+    # Load snapshot data
+    k_array = data["k_array"]
+    z_coor = box.calculate_z_coordinate(k_array)
 
     # For simplicity
     slices = box.slices
@@ -977,14 +1038,19 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
     else:
         raise ValueError(f"Unsupported data type: {data_type}")
 
-    # Prepare data dictionary for plotting functions
+    # Set up data for plotting if radial symmetry is enabled
+    if box.symmetry:
+        plot_data_dist = box.mirror_radial_data(plot_data_dist)
+        plot_data_peak = box.mirror_radial_data(plot_data_peak)
+
+    # Set up data dictionary for plotting functions
     plot_data = {
         "rt": plot_data_dist,
         "zt": plot_data_axis,
         "rz": plot_data_peak,
     }
 
-    # Generate requested plot types
+    # Create requested plot types
     create_plot(data_type, plot_data, plot_types, plot, k_array, z_coor, args)
 
 
@@ -992,10 +1058,10 @@ def main():
     """Main execution function."""
     print(f"Simulation plotter v{__version__}")
 
-    # Parse CLI arguments
+    # Initialize CLI arguments parsing
     args = parse_cli_options()
 
-    # Setup environment (paths, etc.)
+    # Initialize output directory
     setup_output_directory(args)
 
     # Load data
@@ -1005,13 +1071,14 @@ def main():
         print("Data file contents:")
         print("   Data available:", ", ".join(data.keys()))
         print(
-            f"  Data dimensions: {data["e_axis"].shape if "e_axis" in data else "unknown"}"
+            f"   Data dimensions: {data["e_axis"].shape if "e_axis" in data else "unknown"}"
         )
+        print(f"   Radial symmetry: {'enabled' if args.symmetric else 'disabled'}")
 
     # Initialize classes
     const = Constants()
     config = PlotConfiguration()
-    box = PlotGrid(const, data)
+    box = PlotGrid(const, data, symmetry=args.symmetric)
     box_scaled = ScaledGrid(const, box, config)
     plot = VisualManager(const, box, config, box_scaled)
 
