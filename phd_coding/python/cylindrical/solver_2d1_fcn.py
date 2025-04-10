@@ -50,7 +50,7 @@ U_i: ionization energy (for the interacting media).
 ∇²: laplace operator (for the transverse direction).
 """
 
-__version__ = "0-1-0"
+__version__ = "0.1.0"
 
 import argparse
 import sys
@@ -367,7 +367,7 @@ def solve_scattering(
 
 
 def _set_envelope_operator(
-    env, dens, ram, steep_op, n_k, coef_p, coef_m, coef_k, coef_r
+    env, dens, ram, steep_op, n_k, dens_n, coef_p, coef_m, coef_k, coef_r
 ):
     """Set up all nonlinear operators together.
 
@@ -377,12 +377,13 @@ def _set_envelope_operator(
     # Calculate shared quantities
     env_2 = np.abs(env) ** 2
     env_2k2 = env_2 ** (n_k - 1)
+    dens_sat = 1 - (dens / dens_n)
 
     # Plasma term
     nlin_p = coef_p * frequency_domain(dens * env) / steep_op
 
     # MPA term
-    nlin_m = coef_m * frequency_domain(env * env_2k2)
+    nlin_m = coef_m * frequency_domain(dens_sat * env * env_2k2)
 
     # Kerr term
     nlin_k = steep_op * coef_k * frequency_domain(env * env_2)
@@ -497,9 +498,9 @@ def create_cli_arguments():
     parser.add_argument(
         "-m",
         "--medium",
-        choices=["air800", "air775", "water800"],
-        default="air800",
-        help="Propagation medium (default: air at 800 nm)",
+        choices=["ox800", "airDSR", "water800"],
+        default="oxDSR",
+        help="Propagation medium (default: airDSR at 800 nm)",
     )
     parser.add_argument(
         "-p",
@@ -540,17 +541,17 @@ class Constants:
 class MediumParameters:
     "Medium parameters to be chosen."
 
-    def __init__(self, medium_opt="air800"):
-        if medium_opt.upper() == "AIR800":
-            self.medium_type = "air800"
-        elif medium_opt.upper() == "AIR775":
-            self.medium_type = "air775"
+    def __init__(self, medium_opt="ox800"):
+        if medium_opt.upper() == "OX800":
+            self.medium_type = "ox800"
+        elif medium_opt.upper() == "AIRDSR":
+            self.medium_type = "airDSR"
         else:  # water at 800 nm
             self.medium_type = "water800"
 
         # Define parameter sets
         parameters = {
-            "air800": {
+            "ox800": {
                 "refraction_index_linear": 1.0,
                 "refraction_index_nonlinear": 3.2e-23,
                 "constant_gvd": 2e-28,
@@ -566,7 +567,7 @@ class MediumParameters:
                 "raman_delay_fraction": 0.5,
                 "has_raman": True,
             },
-            "air775": {
+            "airDSR": {
                 "refraction_index_linear": 1.0,
                 "refraction_index_nonlinear": 5.57e-23,
                 "constant_gvd": 2e-28,
@@ -861,6 +862,7 @@ class FCNSolver:
 
         self.envelope_arguments = (
             self.medium.number_photons,
+            self.medium.density_neutral,
             nee.coefficient_plasma,
             nee.coefficient_mpa,
             nee.coefficient_kerr,

@@ -51,27 +51,21 @@ class PlotConfiguration:
             {
                 # Figure size
                 "figure.figsize": (13, 7),
-                # Background colors
-                "figure.facecolor": "white",
-                "axes.facecolor": "white",
-                "savefig.facecolor": "white",
                 # Grid options
                 "axes.grid": False,
                 # Axis options
-                "axes.edgecolor": "#888888",
                 "axes.linewidth": 0.8,
                 # Line options
                 "lines.linewidth": 1.5,
-                # Font options
+                # Font configuration
+                "text.usetex": True,
                 "font.family": "serif",
-                "font.serif": ["Times New Roman"],
+                # Font options
                 "font.size": 10,
                 "axes.labelsize": 11,
                 "axes.titlesize": 12,
                 # Legend options
                 "legend.framealpha": 0.8,
-                "legend.edgecolor": "#CCCCCC",
-                "legend.facecolor": "white",
                 "legend.loc": "upper right",
             }
         )
@@ -256,13 +250,15 @@ class PlotGrid:
             self.nodes[dim] = (int(start_val), int(end_val) + 1)
 
         if self.symmetry:
-            self.axis_node = self.data["axis_node"] - 1
+            self.axis_node = self.nodes_radial - 1
         else:
             self.axis_node = self.data["axis_node"]
+
         self.peak_node = self.data["peak_node"]
 
     def _initialize_sliced_arrays(self):
         """Set up computational arrays"""
+        self.sliced_data = {}
         self.slices = {
             "r": slice(*self.nodes["radi"]),
             "z": slice(*self.nodes["dist"]),
@@ -282,7 +278,7 @@ class PlotGrid:
                 self.nodes_radial,
             )[self.slices["r"]]
 
-        # Create 1D sliced grids
+        # Create sliced grids
         self.sliced_grids = {
             "radi": radi_slice,
             "dist": np.linspace(
@@ -295,16 +291,33 @@ class PlotGrid:
             )[self.slices["t"]],
         }
 
-        # Create 2D sliced grids
-        self.sliced_grids["dist_2d_1"], self.sliced_grids["time_2d_1"] = np.meshgrid(
-            self.sliced_grids["dist"], self.sliced_grids["time"], indexing="ij"
-        )
-        self.sliced_grids["radi_2d_2"], self.sliced_grids["time_2d_2"] = np.meshgrid(
-            self.sliced_grids["radi"], self.sliced_grids["time"], indexing="ij"
-        )
-        self.sliced_grids["radi_2d_3"], self.sliced_grids["dist_2d_3"] = np.meshgrid(
-            self.sliced_grids["radi"], self.sliced_grids["dist"], indexing="ij"
-        )
+        # Slice electric field data if present
+        if "e_dist" in self.data:
+            self.sliced_data["e_dist"] = self.data["e_dist"][
+                self.slices["r"], :, self.slices["t"]
+            ]
+        if "e_axis" in self.data:
+            self.sliced_data["e_axis"] = self.data["e_axis"][
+                self.slices["z"], self.slices["t"]
+            ]
+        if "e_peak" in self.data:
+            self.sliced_data["e_peak"] = self.data["e_peak"][
+                self.slices["r"], self.slices["z"]
+            ]
+
+        # Slice electron density data if present
+        if "elec_dist" in self.data:
+            self.sliced_data["elec_dist"] = self.data["elec_dist"][
+                self.slices["r"], :, self.slices["t"]
+            ]
+        if "elec_axis" in self.data:
+            self.sliced_data["elec_axis"] = self.data["elec_axis"][
+                self.slices["z"], self.slices["t"]
+            ]
+        if "elec_peak" in self.data:
+            self.sliced_data["elec_peak"] = self.data["elec_peak"][
+                self.slices["r"], self.slices["z"]
+            ]
 
     def calculate_z_coordinate(self, indices):
         """Convert k-indices to their corresponding z-coordinates."""
@@ -442,60 +455,72 @@ class BasePlotter:
 class Plotter1D(BasePlotter):
     """Plotting class for 1D solutions."""
 
-    def create_plot(self, data_axis, data_peak, plot_type="intensity", save_path=None):
+    def create_plot(
+        self,
+        data_dist,
+        data_peak,
+        k_array=None,
+        z_coor=None,
+        plot_type="intensity",
+        save_path=None,
+    ):
         """
         Create 1D solution plots for intensity or density.
 
         Arguments:
-            data_axis: Array containing the on-axis data to plot.
+            data_dist: Array containing the data to plot for different z-snapshots.
             data_peak: Array containing the peak data to plot.
             plot_type: "intensity" or "density".
             save_path: Path to save figures instead of displaying them.
         """
         plot_config = self.config.get_plot_config(plot_type, "1d")
 
-        fig, (ax1, ax2) = plt.subplots(2, 1)
-
-        # Get scaled arrays only when needed
         time_array = self.get_1d_grid("time")
         dist_array = self.get_1d_grid("dist")
 
-        # First subplot - temporal evolution
-        ax1.plot(
-            time_array,
-            data_axis[0, :],
-            color=plot_config["colors"]["init"],
-            linestyle="--",
-            label=plot_config["legend_labels"]["axis_init"],
-        )
-        ax1.plot(
-            time_array,
-            data_axis[-1, :],
-            color=plot_config["colors"]["final"],
-            linestyle="-",
-            label=plot_config["legend_labels"]["axis_final"],
-        )
-        ax1.set(
-            xlabel=plot_config["labels"]["xlabel_t"],
-            ylabel=plot_config["labels"]["ylabel_t"],
-        )
-        ax1.legend()
+        # Plot for each z node
+        if k_array is not None and z_coor is not None:
+            for idx in range(len(k_array)):
+                fig, ax = plt.subplots()
+                ax.plot(
+                    time_array,
+                    data_dist[self.box.axis_node, idx, :],
+                    linestyle="-",
+                )
 
-        # Second subplot - spatial on_axis evolution
-        ax2.plot(
+                # Get actual z-position
+                z_pos = z_coor[idx]
+                z_pos_format = f"{z_pos:.2f}"
+                title = f"Time evolution at z = {z_pos_format} m"
+                ax.set_title(title)
+
+                ax.set(
+                    xlabel=plot_config["labels"]["xlabel_t"],
+                    ylabel=plot_config["labels"]["ylabel_t"],
+                )
+
+                filename = f"1d_{plot_type}_t_{z_pos:.2f}".replace(".", "-") + ".png"
+                self.save_or_display(fig, filename, save_path, plot_config["dpi"])
+
+        # Plot peak on-axis spatial evolution
+        fig, ax = plt.subplots()
+
+        ax.plot(
             dist_array,
             data_peak[self.box.axis_node, :],
             color=plot_config["colors"]["peak"],
             linestyle="-",
             label=plot_config["legend_labels"]["axis_max"],
         )
-        ax2.set(
+        ax.set(
             xlabel=plot_config["labels"]["xlabel_z"],
             ylabel=plot_config["labels"]["ylabel_z"],
         )
-        ax2.legend()
+        ax.legend()
+        ax.set_title("Maximum evolution along z on-axis")
 
-        self.save_or_display(fig, f"1d_{plot_type}.png", save_path, plot_config["dpi"])
+        filename = f"1d_{plot_type}_z.png"
+        self.save_or_display(fig, filename, save_path, plot_config["dpi"])
 
 
 class Plotter2D(BasePlotter):
@@ -524,7 +549,7 @@ class Plotter2D(BasePlotter):
                 for idx in range(len(k_array)):
                     fig, ax = plt.subplots()
 
-                    # Lazily get the meshgrid
+                    # Get the meshgrid
                     x, y = self.get_2d_grid("radi_time")
                     xlabel = plot_config["labels"]["xlabel_r"]
                     ylabel = plot_config["labels"]["xlabel_t"]
@@ -538,7 +563,7 @@ class Plotter2D(BasePlotter):
                     fig.colorbar(mesh, ax=ax, label=plot_config["zlabel"])
                     ax.set(xlabel=xlabel, ylabel=ylabel)
 
-                    # Get actual z-position in cm
+                    # Get actual z-position
                     z_pos = z_coor[idx]
                     z_pos_format = f"{z_pos:.2f}"
                     title = plot_config["titles"][coord_sys].replace(
@@ -546,19 +571,12 @@ class Plotter2D(BasePlotter):
                     )
                     ax.set_title(title)
 
-                    if save_path:
-                        save_path = Path(save_path)
-                        filename = (
-                            f"2d_{plot_type}_{coord_sys}_{z_pos:.2f}".replace(".", "-")
-                            + ".png"
-                        )
-                        filepath = save_path / filename
-                        fig.tight_layout()
-                        fig.savefig(filepath, dpi=plot_config["dpi"])
-                        plt.close(fig)
-                    else:
-                        fig.tight_layout()
-                        plt.show()
+                    filename = (
+                        f"2d_{plot_type}_{coord_sys}_{z_pos:.2f}".replace(".", "-")
+                        + ".png"
+                    )
+                    self.save_or_display(fig, filename, save_path, plot_config["dpi"])
+
             else:
                 # Plots for zt and rz
                 fig, ax = plt.subplots()
@@ -577,16 +595,8 @@ class Plotter2D(BasePlotter):
                 ax.set(xlabel=xlabel, ylabel=ylabel)
                 ax.set_title(plot_config["titles"][coord_sys])
 
-                if save_path:
-                    save_path = Path(save_path)
-                    filename = f"2d_{plot_type}_{coord_sys}.png"
-                    filepath = save_path / filename
-                    fig.tight_layout()
-                    fig.savefig(filepath, dpi=plot_config["dpi"])
-                    plt.close(fig)
-                else:
-                    fig.tight_layout()
-                    plt.show()
+                filename = f"2d_{plot_type}_{coord_sys}.png"
+                self.save_or_display(fig, filename, save_path, plot_config["dpi"])
 
 
 class Plotter3D(BasePlotter):
@@ -652,7 +662,7 @@ class Plotter3D(BasePlotter):
                         ylabel=ylabel,
                         zlabel=plot_config["zlabel"],
                     )
-                    # Get actual z position in cm
+                    # Get actual z position
                     z_pos = z_coor[idx]
                     z_pos_format = f"{z_pos:.2f}"
                     title = plot_config["titles"][coord_sys].replace(
@@ -661,18 +671,13 @@ class Plotter3D(BasePlotter):
                     ax.set_title(title)
                     ax.legend()
 
-                    if save_path:
-                        filename = (
-                            f"3d_{plot_type}_{coord_sys}_{z_pos:.2f}".replace(".", "-")
-                            + ".png"
-                        )
-                        filepath = os.path.join(save_path, filename)
-                        fig.tight_layout()
-                        fig.savefig(filepath, dpi=resolution_config["dpi"])
-                        plt.close(fig)
-                    else:
-                        fig.tight_layout()
-                        plt.show()
+                    filename = (
+                        f"3d_{plot_type}_{coord_sys}_{z_pos:.2f}".replace(".", "-")
+                        + ".png"
+                    )
+                    self.save_or_display(
+                        fig, filename, save_path, resolution_config["dpi"]
+                    )
 
             else:
                 # Plots for zt and rz
@@ -680,13 +685,13 @@ class Plotter3D(BasePlotter):
                 ax = fig.add_subplot(projection="3d")
 
                 if coord_sys == "zt":
-                    # Get meshgrid lazily
+                    # Get meshgrid
                     x, y = self.get_2d_grid("dist_time")
                     xlabel = plot_config["labels"]["xlabel_z"]
                     ylabel = plot_config["labels"]["xlabel_t"]
                     label = plot_config["legend_labels"]["on_axis"]
                 else:
-                    # Get meshgrid lazily
+                    # Get meshgrid
                     x, y = self.get_2d_grid("radi_dist")
                     xlabel = plot_config["labels"]["xlabel_r"]
                     ylabel = plot_config["labels"]["xlabel_z"]
@@ -711,15 +716,8 @@ class Plotter3D(BasePlotter):
                 ax.set_title(plot_config["titles"][coord_sys])
                 ax.legend()
 
-                if save_path:
-                    filename = f"3d_{plot_type}_{coord_sys}.png"
-                    filepath = os.path.join(save_path, filename)
-                    fig.tight_layout()
-                    fig.savefig(filepath, dpi=resolution_config["dpi"])
-                    plt.close(fig)
-                else:
-                    fig.tight_layout()
-                    plt.show()
+                filename = f"3d_{plot_type}_{coord_sys}.png"
+                self.save_or_display(fig, filename, save_path, resolution_config["dpi"])
 
 
 class VisualManager:
@@ -750,10 +748,18 @@ class VisualManager:
         )
 
     def create_1d_plot(
-        self, data_axis, data_peak, plot_type="intensity", save_path=None
+        self,
+        data_dist,
+        data_peak,
+        k_array=None,
+        z_coor=None,
+        plot_type="intensity",
+        save_path=None,
     ):
         """Create 1D solution plots."""
-        self.plot_1d.create_plot(data_axis, data_peak, plot_type, save_path)
+        self.plot_1d.create_plot(
+            data_dist, data_peak, k_array, z_coor, plot_type, save_path
+        )
 
     def create_2d_plot(
         self, data, k_array=None, z_coor=None, plot_type="intensity", save_path=None
@@ -918,8 +924,10 @@ def create_plot(data_type, plot_data, plot_types, plot, k_array, z_coor, args):
     if plot_types.get("1d", False):
         print(f"Generating 1D {data_type} plots...")
         plot.create_1d_plot(
-            plot_data["zt"],
+            plot_data["rt"],
             plot_data["rz"],
+            k_array,
+            z_coor,
             plot_type=data_type,
             save_path=args.save_path,
         )
@@ -1019,21 +1027,18 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
     k_array = data["k_array"]
     z_coor = box.calculate_z_coordinate(k_array)
 
-    # For simplicity
-    slices = box.slices
-
     # Calculate data based on type
     if data_type == "intensity":
         plot_data_dist, plot_data_axis, plot_data_peak = plot.calculate_intensities(
-            data["e_dist"][slices["r"], :, slices["t"]],
-            data["e_axis"][slices["z"], slices["t"]],
-            data["e_peak"][slices["r"], slices["z"]],
+            box.sliced_data["e_dist"],
+            box.sliced_data["e_axis"],
+            box.sliced_data["e_peak"],
         )
     elif data_type == "density":
         plot_data_dist, plot_data_axis, plot_data_peak = plot.calculate_densities(
-            data["elec_dist"][slices["r"], :, slices["t"]],
-            data["elec_axis"][slices["z"], slices["t"]],
-            data["elec_peak"][slices["r"], slices["z"]],
+            box.sliced_data["elec_dist"],
+            box.sliced_data["elec_axis"],
+            box.sliced_data["elec_peak"],
         )
     else:
         raise ValueError(f"Unsupported data type: {data_type}")

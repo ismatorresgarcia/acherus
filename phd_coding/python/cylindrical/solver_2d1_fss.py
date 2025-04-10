@@ -50,7 +50,7 @@ U_i: ionization energy (for the interacting media).
 ∇²: laplace operator (for the transverse direction).
 """
 
-__version__ = "0-1-0"
+__version__ = "0.1.0"
 
 import argparse
 import sys
@@ -347,7 +347,9 @@ def solve_scattering(
 
 
 @nb.njit
-def _set_envelope_operator(env_s, dens_s, ram_s, n_k, coef_p, coef_m, coef_k, coef_r):
+def _set_envelope_operator(
+    env_s, dens_s, ram_s, n_k, dens_n, coef_p, coef_m, coef_k, coef_r
+):
     """Set up the envelope propagation nonlinear terms.
 
     Parameters:
@@ -355,6 +357,7 @@ def _set_envelope_operator(env_s, dens_s, ram_s, n_k, coef_p, coef_m, coef_k, co
     - dens_s: electron density at current time slice
     - ram_s: Raman response at current time slice
     - n_k: number of photons for MPI
+    - dens_n: neutral density of the medium
     - coef_p: plasma coefficient
     - coef_m: MPA coefficient
     - coef_k: Kerr coefficient
@@ -365,9 +368,13 @@ def _set_envelope_operator(env_s, dens_s, ram_s, n_k, coef_p, coef_m, coef_k, co
     """
     env_s_2 = np.abs(env_s) ** 2
     env_s_2k2 = env_s_2 ** (n_k - 1)
+    dens_s_sat = 1 - (dens_s / dens_n)
 
     nlin_s = env_s * (
-        coef_p * dens_s + coef_m * env_s_2k2 + coef_k * env_s_2 + coef_r * ram_s
+        coef_p * dens_s
+        + coef_m * dens_s_sat * env_s_2k2
+        + coef_k * env_s_2
+        + coef_r * ram_s
     )
 
     return nlin_s
@@ -480,9 +487,9 @@ def create_cli_arguments():
     parser.add_argument(
         "-m",
         "--medium",
-        choices=["air800", "air775", "water800"],
-        default="air800",
-        help="Propagation medium (default: air at 800 nm)",
+        choices=["ox800", "airDSR", "water800"],
+        default="ox800",
+        help="Propagation medium (default: oxygen at 800 nm)",
     )
     parser.add_argument(
         "-p",
@@ -523,17 +530,17 @@ class Constants:
 class MediumParameters:
     "Medium parameters to be chosen."
 
-    def __init__(self, medium_opt="air800"):
-        if medium_opt.upper() == "AIR800":
-            self.medium_type = "air800"
-        elif medium_opt.upper() == "AIR775":
-            self.medium_type = "air775"
+    def __init__(self, medium_opt="ox800"):
+        if medium_opt.upper() == "OX800":
+            self.medium_type = "ox800"
+        elif medium_opt.upper() == "AIRDSR":
+            self.medium_type = "airDSR"
         else:  # water at 800 nm
             self.medium_type = "water800"
 
         # Define parameter sets
         parameters = {
-            "air800": {
+            "ox800": {
                 "refraction_index_linear": 1.0,
                 "refraction_index_nonlinear": 3.2e-23,
                 "constant_gvd": 2e-28,
@@ -549,7 +556,7 @@ class MediumParameters:
                 "raman_delay_fraction": 0.5,
                 "has_raman": True,
             },
-            "air775": {
+            "airDSR": {
                 "refraction_index_linear": 1.0,
                 "refraction_index_nonlinear": 5.57e-23,
                 "constant_gvd": 2e-28,
@@ -839,6 +846,7 @@ class FSSSolver:
 
         self.envelope_arguments = (
             self.medium.number_photons,
+            self.medium.density_neutral,
             nee.coefficient_plasma,
             nee.coefficient_mpa,
             nee.coefficient_kerr,
