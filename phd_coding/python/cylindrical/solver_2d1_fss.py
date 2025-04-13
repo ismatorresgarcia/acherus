@@ -26,8 +26,6 @@ DISCLAIMER: NEE uses "natural" units, where envelope intensity and its square mo
             This is equivalent to setting 0.5*c*e_0*n_0 = 1 in the NEE when using the SI system.
             The result obtained is identical since the consistency is mantained throught the code.
             This way, the number of operations is reduced, and the code is more readable.
-            However, the dictionary "MEDIA" has an entry "INT_FACTOR" where the conversion
-            factor can be changed at will between the two unit systems.
 
 E: envelope.
 N: electron density (in the interacting media).
@@ -90,6 +88,7 @@ def initialize_envelope(r_g, t_g, i_u, e_0, w_n, w_0, t_p, c_0, f_l, g_n):
     time_decaying_term = -(1 + i_u * c_0) * (t_g / t_p) ** 2
 
     if f_l != 0:  # phase curvature due to focusing lens
+        space_decaying_term = space_decaying_term.astype(complex)
         space_decaying_term -= 0.5 * i_u * w_n * r_g**2 / f_l
 
     return e_0 * np.exp(space_decaying_term + time_decaying_term)
@@ -487,8 +486,8 @@ def create_cli_arguments():
     parser.add_argument(
         "-m",
         "--medium",
-        choices=["ox800", "airDSR", "water800"],
-        default="ox800",
+        choices=["oxygen800", "airDSR", "water800"],
+        default="oxygen800",
         help="Propagation medium (default: oxygen at 800 nm)",
     )
     parser.add_argument(
@@ -530,9 +529,9 @@ class Constants:
 class MediumParameters:
     "Medium parameters to be chosen."
 
-    def __init__(self, medium_opt="ox800"):
-        if medium_opt.upper() == "OX800":
-            self.medium_type = "ox800"
+    def __init__(self, medium_opt="oxygen800"):
+        if medium_opt.upper() == "OXYGEN800":
+            self.medium_type = "oxygen800"
         elif medium_opt.upper() == "AIRDSR":
             self.medium_type = "airDSR"
         else:  # water at 800 nm
@@ -540,20 +539,20 @@ class MediumParameters:
 
         # Define parameter sets
         parameters = {
-            "ox800": {
+            "oxygen800": {
                 "refraction_index_linear": 1.0,
                 "refraction_index_nonlinear": 3.2e-23,
-                "constant_gvd": 2e-28,
+                "constant_gvd": 0.2e-28,
                 "number_photons": 8,
-                "constant_mpa": 3.7e-121,
-                "constant_mpi": 3.7e-128,
+                "constant_mpa": 3e-121,
+                "constant_mpi": 2.81e-128,
                 "ionization_energy": 1.932e-18,  # 12.06 eV
                 "drude_collision_time": 3.5e-13,
-                "density_neutral": 5.4e24,
+                "density_neutral": 0.54e25,
                 "density_initial": 1e22,
-                "raman_frequency_response": 16e12,
-                "raman_damping_time": 70e-15,
-                "raman_delay_fraction": 0.5,
+                "raman_rotational_frequency": 16e12,
+                "raman_response_time": 70e-15,
+                "raman_partition": 0.5,
                 "has_raman": True,
             },
             "airDSR": {
@@ -562,14 +561,14 @@ class MediumParameters:
                 "constant_gvd": 2e-28,
                 "number_photons": 7,
                 "constant_mpa": 6.5e-104,
-                "constant_mpi": 1.9e-111,
+                "constant_mpi": 1.3e-111,
                 "ionization_energy": 1.76e-18,  # 11 eV
                 "drude_collision_time": 3.5e-13,
-                "density_neutral": 5.4e24,
+                "density_neutral": 2.7e25,
                 "density_initial": 1e22,
-                "raman_frequency_response": 16e12,
-                "raman_damping_time": 77e-15,
-                "raman_delay_fraction": 0.5,
+                "raman_rotational_frequency": 16e12,
+                "raman_response_time": 77e-15,
+                "raman_partition": 0.5,
                 "has_raman": True,
             },
             "water800": {
@@ -583,9 +582,9 @@ class MediumParameters:
                 "drude_collision_time": 3e-15,
                 "density_neutral": 6.68e28,
                 "density_initial": 1e25,
-                "raman_frequency_response": 0,
-                "raman_damping_time": 0,
-                "raman_delay_fraction": 0,
+                "raman_rotational_frequency": 0,
+                "raman_response_time": 0,
+                "raman_partition": 0,
                 "has_raman": False,
             },
         }
@@ -594,11 +593,6 @@ class MediumParameters:
         medium_params = parameters[self.medium_type]
         for key, value in medium_params.items():
             setattr(self, key, value)
-
-        self.intensity_units = 1
-        # self.intensity_units = (
-        #    0.5 * const.light_speed_0 * const.electric_permittivity_0 * self.refraction_index_linear
-        # )
 
 
 class LaserPulseParameters:
@@ -642,7 +636,7 @@ class LaserPulseParameters:
             * 2 ** (2 / self.input_gauss_order)
             / (2 * const.pi * self.input_waist**2 * gamma(2 / self.input_gauss_order))
         )
-        self.input_amplitude = np.sqrt(self.input_intensity / medium.intensity_units)
+        self.input_amplitude = np.sqrt(self.input_intensity)
 
 
 class Grid:
@@ -737,23 +731,18 @@ class NEEParameters:
         "Initialize equation coefficients."
         self.exponent_mpi = 2 * medium.number_photons
         self.exponent_mpa = self.exponent_mpi - 2
-        self.coefficient_ofi = (
-            medium.constant_mpi * medium.intensity_units**medium.number_photons
-        )
+        self.coefficient_ofi = medium.constant_mpi
         self.coefficient_ava = (
-            self.bremsstrahlung_cross_section_0
-            * medium.intensity_units
-            / medium.ionization_energy
+            self.bremsstrahlung_cross_section_0 / medium.ionization_energy
         )
 
         if medium.has_raman:
-            self.raman_damping_frequency = 1 / medium.raman_damping_time
+            self.raman_response_frequency = 1 / medium.raman_response_time
             self.raman_coefficient_1 = (
-                self.raman_damping_frequency**2 + medium.raman_frequency_response**2
-            ) * medium.intensity_units
-            self.raman_coefficient_2 = -2 * self.raman_damping_frequency
+                self.raman_response_frequency**2 + medium.raman_rotational_frequency**2
+            )
+            self.raman_coefficient_2 = -2 * self.raman_response_frequency
         else:
-            self.raman_damping_frequency = 0
             self.raman_coefficient_1 = 0
             self.raman_coefficient_2 = 0
 
@@ -767,36 +756,29 @@ class NEEParameters:
         )
 
         # MPA coefficient calculation
-        self.coefficient_mpa = (
-            -0.5
-            * medium.constant_mpa
-            * medium.intensity_units ** (medium.number_photons - 1)
-        )
+        self.coefficient_mpa = -0.5 * medium.constant_mpa
 
         # Kerr coefficient calculation
         if medium.has_raman:
             self.coefficient_kerr = (
                 const.imaginary_unit
                 * laser.input_wavenumber_0
-                * (1 - medium.raman_delay_fraction)
+                * (1 - medium.raman_partition)
                 * medium.refraction_index_nonlinear
-                * medium.intensity_units
             )
 
             # Raman coefficient calculation
             self.coefficient_raman = (
                 const.imaginary_unit
                 * laser.input_wavenumber_0
-                * medium.raman_delay_fraction
+                * medium.raman_partition
                 * medium.refraction_index_nonlinear
-                * medium.intensity_units
             )
         else:
             self.coefficient_kerr = (
                 const.imaginary_unit
                 * laser.input_wavenumber_0
                 * medium.refraction_index_nonlinear
-                * medium.intensity_units
             )
             self.coefficient_raman = 0
 
@@ -1079,8 +1061,6 @@ def main():
         fin_dist_coor=grid.z_max,
         ini_time_coor=grid.t_min,
         fin_time_coor=grid.t_max,
-        axis_node=grid.node_r0,
-        peak_node=grid.node_t0,
     )
 
 
