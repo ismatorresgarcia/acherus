@@ -94,20 +94,6 @@ def initialize_envelope(r_g, t_g, i_u, e_0, w_n, w_0, t_p, c_0, f_l, g_n):
     return e_0 * np.exp(space_decaying_term + time_decaying_term)
 
 
-def initialize_density(dens_r, dens_i):
-    """
-    Set up the free electron density at t = 0.
-
-    Parameters:
-    - dens_r: radial free electron density array
-    - dens_i: initial free electron density
-
-    Returns:
-    - float 1D-array: Initial electron density
-    """
-    return np.full(dens_r, dens_i)
-
-
 def create_crank_nicolson_matrix(n_r, m_p, coef_d):
     """
     Set the three diagonals for the
@@ -600,8 +586,8 @@ class LaserPulseParameters:
 
     def __init__(self, const, medium, pulse_opt="gauss", gauss_opt=2):
         self.input_wavelength = 775e-9
-        self.input_waist = 7e-4
-        self.input_peak_time = 85e-15
+        self.input_waist = 7e-4  # half-width at 1/e^2
+        self.input_duration = 85e-15  # half-width at 1/e^2
         self.input_energy = 0.995e-3
         self.input_chirp = 0
         self.input_focal_length = 0
@@ -618,7 +604,7 @@ class LaserPulseParameters:
         self.input_wavenumber = self.input_wavenumber_0 * medium.refraction_index_linear
         self.input_frequency_0 = self.input_wavenumber_0 * const.light_speed_0
         self.input_power = self.input_energy / (
-            self.input_peak_time * np.sqrt(0.5 * const.pi)
+            self.input_duration * np.sqrt(0.5 * const.pi)
         )
         self.critical_power = (
             3.77
@@ -885,7 +871,7 @@ class FSSSolver:
 
     def setup_initial_condition(self):
         """Setup initial conditions."""
-        # Envelope and density initial conditions
+        # Initial conditions
         self.envelope_rt = initialize_envelope(
             self.grid.r_grid_2d,
             self.grid.t_grid_2d,
@@ -893,14 +879,13 @@ class FSSSolver:
             self.laser.input_amplitude,
             self.laser.input_wavenumber,
             self.laser.input_waist,
-            self.laser.input_peak_time,
+            self.laser.input_duration,
             self.laser.input_chirp,
             self.laser.input_focal_length,
             self.laser.input_gauss_order,
         )
-        self.density_rt[:, 0] = initialize_density(
-            (self.grid.nodes_r,), self.medium.density_initial
-        )
+        self.density_rt[:, 0] = 0
+
         # Store initial values for diagnostics
         self.envelope_snapshot_rzt[:, 0, :] = self.envelope_rt
         self.envelope_r0_zt[0, :] = self.envelope_rt[self.grid.node_r0, :]
