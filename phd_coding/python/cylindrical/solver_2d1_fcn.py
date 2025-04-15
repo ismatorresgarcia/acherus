@@ -48,7 +48,7 @@ U_i: ionization energy (for the interacting media).
 ∇²: laplace operator (for the transverse direction).
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.5"
 
 import argparse
 import sys
@@ -56,6 +56,7 @@ import sys
 import numba as nb
 import numpy as np
 from scipy.fft import fft, fftfreq, ifft
+from scipy.integrate import trapezoid
 from scipy.sparse import diags_array
 from scipy.sparse.linalg import spsolve
 from scipy.special import gamma
@@ -135,7 +136,6 @@ def frequency_domain(nlin):
     Parameters:
     - nlin: pre-allocated array for the nonlinear terms
     """
-
     return fft(nlin, axis=1, workers=-1)
 
 
@@ -474,6 +474,61 @@ def solve_envelope(
     env_n[:] = time_domain(fenv_n)
 
 
+def calculate_fluence(env, flu=None, dt=None):
+    """
+    Calculate fluence distribution for the current step.
+
+    Parameters:
+    - env: envelope at current propagation step
+    - flu: fluence at current propagation step
+    - dt: time step
+    """
+    env_2 = np.abs(env) ** 2
+    fluence = trapezoid(env_2, dx=dt, axis=1)
+
+    if flu is not None:
+        flu[:] = fluence
+
+    return fluence
+
+
+def calculate_radius(flu, rad=None, r_g=None):
+    """
+    Calculate the beam radius (HWHM of fluence
+    distribution) at the current step.
+
+    Parameters:
+    - flu: fluence at current propagation step
+    - rad: beam radius at current propagation step
+    - r_g: radial coordinates array
+
+    Returns:
+    - float: beam radius
+    """
+    maximum = np.max(flu)
+    half_max = 0.5 * maximum
+
+    half_max_idx = np.argmin(np.abs(flu - half_max))
+
+    if half_max_idx == 0 or half_max_idx == len(flu) - 1:
+        return r_g[half_max_idx]
+
+    if flu[half_max_idx] > half_max:
+        i_low, i_high = half_max_idx, half_max_idx + 1
+    else:
+        i_low, i_high = half_max_idx - 1, half_max_idx
+
+    r_low, r_high = r_g[i_low], r_g[i_high]
+    flu_low, flu_high = flu[i_low], flu[i_high]
+
+    hwhm = r_low + (half_max - flu_low) * (r_high - r_low) / (flu_high - flu_low)
+
+    if rad is not None:
+        rad[0] = hwhm
+
+    return hwhm
+
+
 def create_cli_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
@@ -546,7 +601,6 @@ class MediumParameters:
                 "ionization_energy": 1.932e-18,  # 12.06 eV
                 "drude_collision_time": 3.5e-13,
                 "density_neutral": 0.54e25,
-                "density_initial": 1e22,
                 "raman_rotational_frequency": 16e12,
                 "raman_response_time": 70e-15,
                 "raman_partition": 0.5,
@@ -562,7 +616,6 @@ class MediumParameters:
                 "ionization_energy": 1.76e-18,  # 11 eV
                 "drude_collision_time": 3.5e-13,
                 "density_neutral": 2.7e25,
-                "density_initial": 1e22,
                 "raman_rotational_frequency": 16e12,
                 "raman_response_time": 77e-15,
                 "raman_partition": 0.5,
@@ -578,7 +631,6 @@ class MediumParameters:
                 "ionization_energy": 1.04e-18,  # 6.5 eV
                 "drude_collision_time": 3e-15,
                 "density_neutral": 6.68e28,
-                "density_initial": 1e25,
                 "raman_rotational_frequency": 0,
                 "raman_response_time": 0,
                 "raman_partition": 0,
@@ -808,6 +860,7 @@ class FCNSolver:
         self.del_t_6 = self.del_t / 6
 
         # Initialize arrays and operators
+        shape_r = (self.grid.nodes_r,)
         shape_rt = (self.grid.nodes_r, self.grid.nodes_t)
         shape_rzt = (
             self.grid.nodes_r,
@@ -825,6 +878,10 @@ class FCNSolver:
         self.density_snapshot_rzt = np.empty(shape_rzt)
         self.density_r0_zt = np.empty(shape_zt)
         self.density_tp_rz = np.empty(shape_rz)
+        self.fluence_r = np.empty(shape_r)
+        self.fluence_rz = np.empty(shape_rz)
+        self.radius = np.empty(1)
+        self.radius_z = np.empty(self.grid.number_steps + 1)
         self.raman_rt = np.empty(shape_rt, dtype=complex)
         self.draman_rt = np.empty_like(self.raman_rt)
         self.nonlinear_rt = np.empty_like(self.envelope_rt)
@@ -906,6 +963,8 @@ class FCNSolver:
             self.laser.input_gauss_order,
         )
         self.density_rt[:, 0] = 0
+        self.fluence_rz[:, 0] = calculate_fluence(self.envelope_rt, dt=self.grid.del_t)
+        self.radius_z[0] = calculate_radius(self.fluence_rz[:, 0], r_g=self.grid.r_grid)
 
         # Store initial values for diagnostics
         self.envelope_snapshot_rzt[:, 0, :] = self.envelope_rt
@@ -973,6 +1032,8 @@ class FCNSolver:
             self.envelope_rt,
             self.envelope_next_rt,
         )
+        calculate_fluence(self.envelope_next_rt, self.fluence_r, self.grid.del_t)
+        calculate_radius(self.fluence_r, self.radius, self.grid.r_grid)
 
         # Update arrays
         self.envelope_rt, self.envelope_next_rt = (
@@ -986,7 +1047,6 @@ class FCNSolver:
         envelope_rt = self.envelope_rt
         density_rt = self.density_rt
 
-        # Cache axis data computations
         axis_data_envelope = envelope_rt[node_r0]
         axis_data_density = density_rt[node_r0]
         axis_data_intensity = np.abs(axis_data_envelope)
@@ -998,6 +1058,8 @@ class FCNSolver:
         self.envelope_tp_rz[:, step] = envelope_rt[:, peak_node_intensity]
         self.density_r0_zt[step] = axis_data_density
         self.density_tp_rz[:, step] = density_rt[:, peak_node_density]
+        self.fluence_rz[:, step] = self.fluence_r
+        self.radius_z[step] = self.radius[0]
 
         # Check for non-finite values
         if np.any(~np.isfinite(self.envelope_rt)):
@@ -1065,6 +1127,8 @@ def main():
         elec_dist=solver.density_snapshot_rzt,
         elec_axis=solver.density_r0_zt,
         elec_peak=solver.density_tp_rz,
+        b_fluence=solver.fluence_rz,
+        b_radius=solver.radius_z,
         k_array=solver.snapshot_z_index,
         ini_radi_coor=grid.r_min,
         fin_radi_coor=grid.r_max,

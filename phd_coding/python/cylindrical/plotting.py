@@ -3,7 +3,7 @@ Python script for plotting NumPy arrays saved during the simulations.
 The script uses the matplotlib library to plot the results with optimized memory usage.
 """
 
-__version__ = "0.1.2"
+__version__ = "0.1.5"
 
 import argparse
 import os
@@ -41,7 +41,8 @@ class PlotConfiguration:
         default_factory=lambda: {
             "density": mpl.colormaps["viridis"],
             "intensity": mpl.colormaps["plasma"],
-            "intensity_log": mpl.colormaps["turbo"],
+            "fluence": mpl.colormaps["turbo"],
+            "intensity_log": mpl.colormaps["inferno"],
         }
     )
 
@@ -62,6 +63,7 @@ class PlotConfiguration:
                 # Font configuration
                 "text.usetex": True,
                 "font.family": "serif",
+                "text.latex.preamble": r"\usepackage{amsmath}",
                 # Font options
                 "font.size": 10,
                 "axes.labelsize": 11,
@@ -78,7 +80,7 @@ class PlotConfiguration:
 
         Args:
         - plot_type: Type of data ("intensity" or "density")
-        - dimension: Plot dimension ("line", "map", "3d", or "all" for complete config)
+        - dimension: Plot dimension ("1d", "2d", "3d", or "all" for complete config)
 
         Returns:
         - Dictionary with plot configuration settings
@@ -86,7 +88,7 @@ class PlotConfiguration:
         base_config = {
             "intensity": {
                 "cmap": self.colormaps["intensity"],
-                "colorbar_label": r"Intensity $\left[\mathrm{W/cm^2}\right]$",
+                "colorbar_label": r"Intensity $\Bigl[\mathrm{W/cm^2}\Bigr]$",
                 "titles": {
                     "z": "On-axis peak intensity over time",
                     "t": r"On-axis intensity at $z = {:.2f}$ $\mathrm{m}$",
@@ -98,13 +100,13 @@ class PlotConfiguration:
                     "x_r": r"$r$ $[\mathrm{mm}]$",
                     "x_z": r"$z$ $[\mathrm{m}]$",
                     "x_t": r"$t$ $[\mathrm{fs}]$",
-                    "y_t": r"$I(r=0,t)$ $\left[\mathrm{W/cm^2}\right]$",
-                    "y_z": r"$\max_t$ $I(r=0,z,t)$ $\left[\mathrm{W/cm^2}\right]$",
+                    "y_t": r"$I(r=0,t)$ $\Bigl[\mathrm{W/cm^2}\Bigr]$",
+                    "y_z": r"$\max_t$ $I(r=0,z,t)$ $\Bigl[\mathrm{W/cm^2}\Bigr]$",
                 },
             },
             "density": {
                 "cmap": self.colormaps["density"],
-                "colorbar_label": r"Electron density $\left[\mathrm{cm^{-3}}\right]$",
+                "colorbar_label": r"Electron density $\Bigl[\mathrm{cm^{-3}}\Bigr]$",
                 "titles": {
                     "z": "On-axis peak electron density over time",
                     "t": r"On-axis electron density at $z = {:.2f}$ $\mathrm{m}$",
@@ -116,21 +118,61 @@ class PlotConfiguration:
                     "x_r": r"$r$ $[\mathrm{mm}]$",
                     "x_z": r"$z$ $[\mathrm{m}]$",
                     "x_t": r"$t$ $[\mathrm{fs}]$",
-                    "y_t": r"$\rho(r=0,t)$ $\left[\mathrm{cm^{-3}}\right]$",
-                    "y_z": r"$\max_t$ $\rho(r=0,z,t)$ $\left[\mathrm{cm^{-3}}\right]$",
+                    "y_t": r"$\rho(r=0,t)$ $\Bigl[\mathrm{cm^{-3}}\Bigr]$",
+                    "y_z": r"$\max_t$ $\rho(r=0,z,t)$ $\Bigl[\mathrm{cm^{-3}}\Bigr]$",
+                },
+            },
+            "fluence": {
+                "cmap": self.colormaps["fluence"],
+                "colorbar_label": r"Fluence $\Bigl[\mathrm{mJ/cm^2}\Bigr]$",
+                "titles": {
+                    "z": "On-axis fluence distribution",
+                    "rz": "Fluence distribution",
+                },
+                "labels": {
+                    "x_r": r"$r$ $[\mathrm{mm}]$",
+                    "x_z": r"$z$ $[\mathrm{m}]$",
+                    "y_z": r"$F(r=0,z)$ $\Bigl[\mathrm{mJ/cm^2}\Bigr]$",
+                },
+            },
+            "radius": {
+                "cmap": self.colormaps["fluence"],
+                "titles": {
+                    "z": "Beam radius",
+                },
+                "labels": {
+                    "x_z": r"$z$ $[\mathrm{m}]$",
+                    "y_z": r"$R(z)$ $[\mathrm{mm}]$",
                 },
             },
         }
 
         # Dimension-specific configuration
         dimension_config = {
-            "line": {"dpi": 150},
-            "map": {"dpi": 150},
+            "1d": {"dpi": 150},
+            "2d": {"dpi": 150},
             "3d": {
                 "resolutions": {
                     "low": {"stride": (5, 5), "dpi": 100, "antialiased": False},
                     "medium": {"stride": (2, 2), "dpi": 150, "antialiased": True},
                     "high": {"stride": (1, 1), "dpi": 300, "antialiased": True},
+                },
+                "view_angles": {
+                    "rt": {
+                        "elevation": 15,
+                        "azimuth": 200,
+                        "rotation": 0,
+                    },
+                    "zt": {
+                        "elevation": 10,
+                        "azimuth": 235,
+                        "rotation": 0,
+                    },
+                    "rz": {
+                        "elevation": 10,
+                        "azimuth": 325,
+                        "rotation": 0,
+                    },
                 },
             },
         }
@@ -149,7 +191,13 @@ class Units:
     "Unit constants for converting between SI multiples and subdivisions."
 
     def __init__(
-        self, factor_r=1e3, factor_z=1, factor_t=1e15, factor_m2=1e-4, factor_m3=1e-6
+        self,
+        factor_r=1e3,
+        factor_z=1,
+        factor_t=1e15,
+        factor_m2=1e-4,
+        factor_m3=1e-6,
+        factor_e=1e3,
     ):
 
         self.factor_r = factor_r
@@ -157,6 +205,7 @@ class Units:
         self.factor_t = factor_t
         self.factor_m2 = factor_m2
         self.factor_m3 = factor_m3
+        self.factor_e = factor_e
 
 
 class SimulationBox:
@@ -336,6 +385,21 @@ class SimulationBox:
                     self.sliced_obj["r"], self.sliced_obj["z"]
                 ]
 
+        # Slice beam fluence distribution data if present
+        if "b_fluence" in self.data:
+            if self.symmetry:
+                self.sliced_data["b_fluence"] = self.flip_radial_data(
+                    self.data["b_fluence"], axis_r=0
+                )[self.sliced_obj["r"], self.sliced_obj["z"]]
+            else:
+                self.sliced_data["b_fluence"] = self.data["b_fluence"][
+                    self.sliced_obj["r"], self.sliced_obj["z"]
+                ]
+
+        # Slice beam radius data if present
+        if "b_radius" in self.data:
+            self.sliced_data["b_radius"] = self.data["b_radius"][self.sliced_obj["z"]]
+
     def set_snapshot_points(self, indices):
         """Convert k-indices to their corresponding z-coordinates."""
         indices = np.array(indices)  # make sure it's a numpy array
@@ -440,6 +504,14 @@ class BasePlotter:
             self.units.factor_m3 * density_peak,
         )
 
+    def calculate_fluence(self, b_fluence):
+        """Set up fluence distribution for plotting."""
+        return self.units.factor_m2 * self.units.factor_e * b_fluence
+
+    def calculate_radius(self, b_radius):
+        """Set up beam radius for plotting."""
+        return self.units.factor_r * b_radius
+
     def save_or_display(self, fig, filename, save_path, dpi=150):
         """Save figure or display it."""
         if save_path:
@@ -461,10 +533,10 @@ class BasePlotter:
         return self.box_units.create_unit_scaled_2d_grid(grid_type)
 
 
-class PlotterLine(BasePlotter):
-    """Plotting class for line plots."""
+class Plotter1D(BasePlotter):
+    """Plotting class for 1D (line) plots."""
 
-    def render_line_data(
+    def render_1d_data(
         self,
         data,
         k_array=None,
@@ -473,19 +545,20 @@ class PlotterLine(BasePlotter):
         save_path=None,
     ):
         """
-        Create line plots for intensity or density.
+        Create 1D (line) plots for different coordinate systems.
 
         Arguments:
             data: Dictionary containing the datasets for different coordinates:
-            plot_type: "intensity" or "density".
+            plot_type: "intensity", "density" or "radius".
             save_path: Path to save figures instead of displaying them.
         """
-        plot_config = self.config.get_plot_config(plot_type, "line")
+        plot_config = self.config.get_plot_config(plot_type, "1d")
 
         # Plot each coordinate system in a separate figure
         for coord_sys, plot_data in data.items():
             if coord_sys == "rt" and k_array is not None:
-                # Plot intensity or density for each z-position with respect to time
+                # Plot intensity or density for each z-position
+                # with respect to time
                 time_array = self.get_1d_grid("t")
                 for idx in range(len(k_array)):
                     fig, ax = plt.subplots()
@@ -506,12 +579,13 @@ class PlotterLine(BasePlotter):
                     )
 
                     filename = (
-                        f"line_{plot_type}_t_{z_pos:.2f}".replace(".", "-") + ".png"
+                        f"1d_{plot_type}_t_{z_pos:.2f}".replace(".", "-") + ".png"
                     )
                     self.save_or_display(fig, filename, save_path, plot_config["dpi"])
 
             elif coord_sys == "rz":
-                # Plot intensity or density peak value on-axis with respect to distance
+                # Plot intensity or density peak value on-axis
+                # with respect to distance
                 dist_array = self.get_1d_grid("z")
                 fig, ax = plt.subplots()
 
@@ -525,14 +599,55 @@ class PlotterLine(BasePlotter):
                 )
                 ax.set_title(plot_config["titles"]["z"])
 
-                filename = f"line_{plot_type}_z.png"
+                filename = f"1d_{plot_type}_z.png"
+                self.save_or_display(fig, filename, save_path, plot_config["dpi"])
+
+            elif coord_sys == "z" and plot_type == "radius":
+                # Plot beam radius with respect to distance
+                dist_array = self.get_1d_grid("z")
+                fig, ax = plt.subplots()
+
+                if self.box.symmetry:
+                    y_max = np.max(plot_data)
+                    num_bands = 50
+                    cmap = plot_config["cmap"]
+
+                    for i in range(num_bands):
+                        fraction = i / num_bands
+                        scale = 1.0 - fraction
+                        y_pos = plot_data * scale
+                        y_neg = -plot_data * scale
+                        gradient = cmap(fraction)
+                        ax.fill_between(
+                            dist_array,
+                            y_pos,
+                            y_neg,
+                            color=gradient,
+                            alpha=0.8 / num_bands * 3,
+                        )
+
+                    ax.plot(dist_array, plot_data, "k-", lw=1, alpha=0.7)
+                    ax.plot(dist_array, -plot_data, "k-", lw=1, alpha=0.7)
+
+                    ax.set_ylim(-1.1 * y_max, 1.1 * y_max)
+                    ax.axhline(y=0, color="gray", linestyle="--", alpha=0.5)
+                else:
+                    ax.plot(dist_array, plot_data)
+
+                ax.set(
+                    xlabel=plot_config["labels"]["x_z"],
+                    ylabel=plot_config["labels"]["y_z"],
+                )
+                ax.set_title(plot_config["titles"]["z"])
+
+                filename = f"1d_{plot_type}_z.png"
                 self.save_or_display(fig, filename, save_path, plot_config["dpi"])
 
 
-class PlotterMap(BasePlotter):
-    """Plotting class for map plots."""
+class Plotter2D(BasePlotter):
+    """Plotting class for 2D (colormap) plots."""
 
-    def render_map_data(
+    def render_2d_data(
         self,
         data,
         k_array=None,
@@ -542,7 +657,7 @@ class PlotterMap(BasePlotter):
         log_scale=False,
     ):
         """
-        Create map plots for different coordinate systems.
+        Create 2D (colormap) plots for different coordinate systems.
 
         Arguments:
             data: Dictionary containing the datasets for different coordinates.
@@ -552,7 +667,7 @@ class PlotterMap(BasePlotter):
             save_path: Path to save figures instead of displaying them.
         """
         # Configuration for different plot types
-        plot_config = self.config.get_plot_config(plot_type, "map")
+        plot_config = self.config.get_plot_config(plot_type, "2d")
 
         # Plot each coordinate system in a separate figure
         for coord_sys, plot_data in data.items():
@@ -572,7 +687,7 @@ class PlotterMap(BasePlotter):
                             x,
                             y,
                             plot_data[:, idx, :],
-                            cmap=self.config.colormaps["intensity_log"],
+                            cmap=plot_config["cmap"],
                             norm=LogNorm(
                                 vmin=plot_data[:, idx, :].min(),
                                 vmax=plot_data[:, idx, :].max(),
@@ -600,7 +715,7 @@ class PlotterMap(BasePlotter):
                     ax.set_title(title)
 
                     filename = (
-                        f"map_{plot_type}_{coord_sys}_{z_pos:.2f}".replace(".", "-")
+                        f"2d_{plot_type}_{coord_sys}_{z_pos:.2f}".replace(".", "-")
                         + ".png"
                     )
                     self.save_or_display(fig, filename, save_path, plot_config["dpi"])
@@ -613,8 +728,9 @@ class PlotterMap(BasePlotter):
                     x, y = self.get_2d_grid("zt")
                     xlabel = plot_config["labels"]["x_z"]
                     ylabel = plot_config["labels"]["x_t"]
-                else:
-                    # Plot intensity or density peak value
+                elif coord_sys == "rz":
+                    # Plot intensity or density peak values
+                    # or fluence distribution
                     x, y = self.get_2d_grid("rz")
                     xlabel = plot_config["labels"]["x_r"]
                     ylabel = plot_config["labels"]["x_z"]
@@ -624,12 +740,12 @@ class PlotterMap(BasePlotter):
                 ax.set(xlabel=xlabel, ylabel=ylabel)
                 ax.set_title(plot_config["titles"][coord_sys])
 
-                filename = f"map_{plot_type}_{coord_sys}.png"
+                filename = f"2d_{plot_type}_{coord_sys}.png"
                 self.save_or_display(fig, filename, save_path, plot_config["dpi"])
 
 
 class Plotter3D(BasePlotter):
-    """Plotting class for 3D plots."""
+    """Plotting class for 3D (surface) plots."""
 
     def render_3d_data(
         self,
@@ -637,11 +753,11 @@ class Plotter3D(BasePlotter):
         k_array,
         z_coor=None,
         plot_type="intensity",
-        resolution="medium",
+        res_type="medium",
         save_path=None,
     ):
         """
-        Create 3D plots for different coordinate systems.
+        Create 3D (surface) plots for different coordinate systems.
 
         Arguments:
             data: Dictionary containing the datasets for different coordinates.
@@ -654,20 +770,23 @@ class Plotter3D(BasePlotter):
         """
         # Set configuration
         plot_config = self.config.get_plot_config(plot_type, "3d")
-        resolution_config = plot_config["resolutions"].get(
-            resolution, plot_config["resolutions"]["medium"]
+        resolution_config = plot_config.get("resolutions", {})
+        view_angles = plot_config.get("view_angles", {})
+        resolution = resolution_config.get(
+            res_type, resolution_config.get("medium", {})
         )
-        stride = resolution_config["stride"]
+        stride = resolution.get("stride", (2, 2))
 
         # Disable interactive mode if saving
         if save_path and plt.isinteractive():
             plt.ioff()
 
         for coord_sys, plot_data in data.items():
+            view_curr = view_angles[coord_sys]
             if coord_sys == "rt" and k_array is not None:
                 # Plot intensity or density for each z position
                 for idx in range(len(k_array)):
-                    fig = plt.figure(dpi=resolution_config["dpi"])
+                    fig = plt.figure(dpi=resolution["dpi"])
                     ax = fig.add_subplot(projection="3d")
 
                     # Get the meshgrid
@@ -681,8 +800,9 @@ class Plotter3D(BasePlotter):
                         plot_data[:: stride[0], idx, :: stride[1]],
                         cmap=plot_config["cmap"],
                         linewidth=0,
-                        antialiased=resolution_config["antialiased"],
+                        antialiased=resolution["antialiased"],
                     )
+                    ax.view_init(elev=view_curr["elevation"], azim=view_curr["azimuth"])
                     # fig.colorbar(surf, label=plot_config["colorbar_label"])
                     ax.set(
                         xlabel=xlabel,
@@ -701,12 +821,10 @@ class Plotter3D(BasePlotter):
                         f"3d_{plot_type}_{coord_sys}_{z_pos:.2f}".replace(".", "-")
                         + ".png"
                     )
-                    self.save_or_display(
-                        fig, filename, save_path, resolution_config["dpi"]
-                    )
+                    self.save_or_display(fig, filename, save_path, resolution["dpi"])
 
             else:
-                fig = plt.figure(dpi=resolution_config["dpi"])
+                fig = plt.figure(dpi=resolution["dpi"])
                 ax = fig.add_subplot(projection="3d")
 
                 if coord_sys == "zt":
@@ -727,8 +845,9 @@ class Plotter3D(BasePlotter):
                     plot_data[:: stride[0], :: stride[1]],
                     cmap=plot_config["cmap"],
                     linewidth=0,
-                    antialiased=resolution_config["antialiased"],
+                    antialiased=resolution["antialiased"],
                 )
+                ax.view_init(elev=view_curr["elevation"], azim=view_curr["azimuth"])
                 # fig.colorbar(surf, label=plot_config["colorbar_label"])
                 ax.set(
                     xlabel=xlabel,
@@ -738,7 +857,7 @@ class Plotter3D(BasePlotter):
                 ax.set_title(plot_config["titles"][coord_sys])
 
                 filename = f"3d_{plot_type}_{coord_sys}.png"
-                self.save_or_display(fig, filename, save_path, resolution_config["dpi"])
+                self.save_or_display(fig, filename, save_path, resolution["dpi"])
 
 
 class VisualManager:
@@ -752,8 +871,8 @@ class VisualManager:
 
         # Initialize specialized plotters
         self.base_plotter = BasePlotter(units, box, config, box_units)
-        self.plot_line = PlotterLine(units, box, config, box_units)
-        self.plot_map = PlotterMap(units, box, config, box_units)
+        self.plot_1d = Plotter1D(units, box, config, box_units)
+        self.plot_2d = Plotter2D(units, box, config, box_units)
         self.plot_3d = Plotter3D(units, box, config, box_units)
 
     def get_intensity_data(self, envelope_dist, envelope_axis, envelope_peak):
@@ -768,13 +887,21 @@ class VisualManager:
             density_dist, density_axis, density_peak
         )
 
-    def create_line_plot(
+    def get_fluence_data(self, b_fluence):
+        """Calculate fluence data."""
+        return self.base_plotter.calculate_fluence(b_fluence)
+
+    def get_radius_data(self, b_radius):
+        """Calculate beam radius data."""
+        return self.base_plotter.calculate_radius(b_radius)
+
+    def create_1d_plot(
         self, data, k_array=None, z_coor=None, plot_type="intensity", save_path=None
     ):
         """Create line plots."""
-        self.plot_line.render_line_data(data, k_array, z_coor, plot_type, save_path)
+        self.plot_1d.render_1d_data(data, k_array, z_coor, plot_type, save_path)
 
-    def create_map_plot(
+    def create_2d_plot(
         self,
         data,
         k_array=None,
@@ -783,8 +910,8 @@ class VisualManager:
         save_path=None,
         log_scale=False,
     ):
-        """Create map plots."""
-        self.plot_map.render_map_data(
+        """Create colormap plots."""
+        self.plot_2d.render_2d_data(
             data, k_array, z_coor, plot_type, save_path, log_scale
         )
 
@@ -828,13 +955,13 @@ def parse_cli_options():
     )
     parser.add_argument(
         "--data-types",
-        default="intensity,density",
-        help="Data types to plot: intensity,density (comma-separated).",
+        default="intensity,density,fluence,radius",
+        help="Data types to plot: intensity,density,fluence,radius (comma-separated).",
     )
     parser.add_argument(
         "--plot-types",
-        default="line,map,3d",
-        help="Plot types to generate: line,map,3d (comma-separated).",
+        default="1d,2d,3d",
+        help="Plot types to generate: 1d,2d,3d (comma-separated).",
     )
     parser.add_argument(
         "--resolution",
@@ -920,6 +1047,8 @@ def load_simulation_data(file_path, args):
                     "elec_dist",
                     "elec_axis",
                     "elec_peak",
+                    "b_fluence",
+                    "b_radius",
                 ]:
                     if key in npz.files:
                         data[key] = npz[key]  # Memory-mapped reference
@@ -960,9 +1089,9 @@ def process_plot_request(
 ):
     """Generate requested plot types for the specified data."""
 
-    if plot_types.get("line", False):
-        print(f"Generating line plots for {data_type} ...")
-        plot.create_line_plot(
+    if plot_types.get("1d", False):
+        print(f"Generating 1D (line) plots for {data_type} ...")
+        plot.create_1d_plot(
             plot_data,
             z_snap_idx,
             z_snap_coor,
@@ -970,9 +1099,9 @@ def process_plot_request(
             args.save_path,
         )
 
-    if plot_types.get("map", False):
-        print(f"Generating map plots for {data_type}")
-        plot.create_map_plot(
+    if plot_types.get("2d", False) and data_type != "radius":
+        print(f"Generating 2D (colormap) plots for {data_type} ...")
+        plot.create_2d_plot(
             plot_data,
             z_snap_idx,
             z_snap_coor,
@@ -981,8 +1110,8 @@ def process_plot_request(
             args.log_scale,
         )
 
-    if plot_types.get("3d", False):
-        print(f"Generating 3D plots for {data_type}")
+    if plot_types.get("3d", False) and data_type != "radius":
+        print(f"Generating 3D (surface) plots for {data_type} ...")
         try:
             plot.create_3d_plot(
                 plot_data,
@@ -1036,12 +1165,16 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
     """Process a specific data type (intensity or density) and generate plots."""
     print(f"Processing {data_type} data...")
 
-    # Ask if required arrays exist
+    # Ask if the data arrays exist
     required_arrays = []
     if data_type == "intensity":
         required_arrays = ["e_dist", "e_axis", "e_peak"]
-    else:
+    elif data_type == "density":
         required_arrays = ["elec_dist", "elec_axis", "elec_peak"]
+    elif data_type == "fluence":
+        required_arrays = ["b_fluence"]
+    elif data_type == "radius":
+        required_arrays = ["b_radius"]
 
     for key in required_arrays:
         if key in data:
@@ -1054,8 +1187,10 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
                 )
             elif key.endswith("_axis"):
                 expected_shape = (box.nodes_z, box.nodes_t)
-            elif key.endswith("_peak"):
+            elif key.endswith("_peak") or key.endswith("_fluence"):
                 expected_shape = (box.nodes_r, box.nodes_z)
+            elif key.endswith("_radius"):
+                expected_shape = (box.nodes_z,)
 
             if expected_shape and data[key].shape != expected_shape:
                 print(
@@ -1079,21 +1214,36 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
             box.sliced_data["e_axis"],
             box.sliced_data["e_peak"],
         )
+        plot_data = {
+            "rt": plot_data_dist,
+            "zt": plot_data_axis,
+            "rz": plot_data_peak,
+        }
     elif data_type == "density":
         plot_data_dist, plot_data_axis, plot_data_peak = plot.get_density_data(
             box.sliced_data["elec_dist"],
             box.sliced_data["elec_axis"],
             box.sliced_data["elec_peak"],
         )
+        plot_data = {
+            "rt": plot_data_dist,
+            "zt": plot_data_axis,
+            "rz": plot_data_peak,
+        }
+    elif data_type == "fluence":
+        plot_data_fluence = plot.get_fluence_data(box.sliced_data["b_fluence"])
+        plot_data = {
+            "rz": plot_data_fluence,
+        }
+    elif data_type == "radius":
+        plot_data_radius = plot.get_radius_data(box.sliced_data["b_radius"])
+        plot_data = {
+            "z": plot_data_radius,
+        }
     else:
         raise ValueError(f"Unsupported data type: {data_type}")
 
     # Set up data dictionary for plotting functions
-    plot_data = {
-        "rt": plot_data_dist,
-        "zt": plot_data_axis,
-        "rz": plot_data_peak,
-    }
 
     # Generate requested plot types
     process_plot_request(
@@ -1137,7 +1287,7 @@ def main():
 
     # Process each requested data type
     for data_type, enabled in args.data_types.items():
-        if enabled and data_type in ["intensity", "density"]:
+        if enabled and data_type in ["intensity", "density", "fluence", "radius"]:
             process_simulation_data(data_type, data, plot, box, args.plot_types, args)
 
     print("Plotting complete!")
