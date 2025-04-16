@@ -3,7 +3,7 @@ Python script for plotting NumPy arrays saved during the simulations.
 The script uses the matplotlib library to plot the results with optimized memory usage.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.1.5"
 
 import argparse
 import os
@@ -12,14 +12,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
 
-import h5py
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LogNorm
 
-DEFAULT_DATA_FILE_PATH = "./storage/simulation_1"
-DEFAULT_FIGURES_SAVE_PATH = "./storage/simulation_1/figures/"
+DEFAULT_DATA_FILE_PATH = "./storage/data.npz"
+DEFAULT_SAVE_PATH = "./storage/figures_/"
 
 
 @dataclass
@@ -64,6 +63,7 @@ class PlotConfiguration:
                 # Font configuration
                 "text.usetex": True,
                 "font.family": "serif",
+                "text.latex.preamble": r"\usepackage{amsmath}",
                 # Font options
                 "font.size": 10,
                 "axes.labelsize": 11,
@@ -150,13 +150,7 @@ class PlotConfiguration:
         # Dimension-specific configuration
         dimension_config = {
             "1d": {"dpi": 150},
-            "2d": {
-                "resolutions": {
-                    "low": {"stride": (5, 5), "dpi": 100, "antialiased": False},
-                    "medium": {"stride": (2, 2), "dpi": 150, "antialiased": True},
-                    "high": {"stride": (1, 1), "dpi": 300, "antialiased": True},
-                },
-            },
+            "2d": {"dpi": 150},
             "3d": {
                 "resolutions": {
                     "low": {"stride": (5, 5), "dpi": 100, "antialiased": False},
@@ -408,6 +402,7 @@ class SimulationBox:
 
     def set_snapshot_points(self, indices):
         """Convert k-indices to their corresponding z-coordinates."""
+        indices = np.array(indices)  # make sure it's a numpy array
         z_min = self.data["ini_dist_coor"] * self.units.factor_z
         z_max = self.data["fin_dist_coor"] * self.units.factor_z
         z_snap_coor = z_min + (indices * (z_max - z_min) / (self.nodes_z - 1))
@@ -658,9 +653,7 @@ class Plotter2D(BasePlotter):
         k_array=None,
         z_coor=None,
         plot_type="intensity",
-        resolution="medium",
         save_path=None,
-        stride_pair=None,
         log_scale=False,
     ):
         """
@@ -671,20 +664,10 @@ class Plotter2D(BasePlotter):
             k_array: List of z indices to plot (for rt plots).
             z_coor: List of z coordinates corresponding to the k indices saved.
             plot_type: "intensity" or "density".
-            resolution: Plot quality (low, medium, high).
-            stride_pair: Tuple specifying the stride for mesh plotting (faster rendering).
             save_path: Path to save figures instead of displaying them.
-            log_scale: Whether to use logarithmic scale.
         """
         # Configuration for different plot types
         plot_config = self.config.get_plot_config(plot_type, "2d")
-
-        dimension_config = self.config.get_plot_config(plot_type, "all")
-        resolution_config = dimension_config.get("2d", {}).get("resolutions", {})
-        resolution_opt = resolution_config.get(
-            resolution, resolution_config.get("medium", {})
-        )
-        stride = stride_pair or resolution_opt.get("stride", (1, 1))
 
         # Plot each coordinate system in a separate figure
         for coord_sys, plot_data in data.items():
@@ -695,31 +678,27 @@ class Plotter2D(BasePlotter):
 
                     # Get the meshgrid
                     x, y = self.get_2d_grid("rt")
-                    x_strided = x[:: stride[0], :: stride[1]]
-                    y_strided = y[:: stride[0], :: stride[1]]
-                    data_strided = plot_data[:, idx, :][:: stride[0], :: stride[1]]
                     xlabel = plot_config["labels"]["x_r"]
                     ylabel = plot_config["labels"]["x_t"]
 
                     # Plot in logarithmic scale if requested
                     if log_scale and plot_type == "intensity":
                         mesh = ax.pcolormesh(
-                            x_strided,
-                            y_strided,
-                            data_strided,
+                            x,
+                            y,
+                            plot_data[:, idx, :],
                             cmap=plot_config["cmap"],
                             norm=LogNorm(
-                                vmin=data_strided.min(),
-                                vmax=data_strided.max(),
+                                vmin=plot_data[:, idx, :].min(),
+                                vmax=plot_data[:, idx, :].max(),
                             ),
                         )
                         colorbar_label = plot_config["colorbar_label"] + " (log scale)"
                     else:
-                        # Apply stride to mesh plotting
                         mesh = ax.pcolormesh(
-                            x_strided,
-                            y_strided,
-                            data_strided,
+                            x,
+                            y,
+                            plot_data[:, idx, :],
                             cmap=plot_config["cmap"],
                         )
                         colorbar_label = plot_config["colorbar_label"]
@@ -739,9 +718,7 @@ class Plotter2D(BasePlotter):
                         f"2d_{plot_type}_{coord_sys}_{z_pos:.2f}".replace(".", "-")
                         + ".png"
                     )
-                    self.save_or_display(
-                        fig, filename, save_path, resolution_opt["dpi"]
-                    )
+                    self.save_or_display(fig, filename, save_path, plot_config["dpi"])
 
             else:
                 fig, ax = plt.subplots()
@@ -749,30 +726,22 @@ class Plotter2D(BasePlotter):
                 if coord_sys == "zt":
                     # Plot intensity or density on-axis
                     x, y = self.get_2d_grid("zt")
-                    x_strided = x[:: stride[0], :: stride[1]]
-                    y_strided = y[:: stride[0], :: stride[1]]
-                    data_strided = plot_data[:: stride[0], :: stride[1]]
                     xlabel = plot_config["labels"]["x_z"]
                     ylabel = plot_config["labels"]["x_t"]
                 elif coord_sys == "rz":
                     # Plot intensity or density peak values
                     # or fluence distribution
                     x, y = self.get_2d_grid("rz")
-                    x_strided = x[:: stride[0], :: stride[1]]
-                    y_strided = y[:: stride[0], :: stride[1]]
-                    data_strided = plot_data[:: stride[0], :: stride[1]]
                     xlabel = plot_config["labels"]["x_r"]
                     ylabel = plot_config["labels"]["x_z"]
 
-                mesh = ax.pcolormesh(
-                    x_strided, y_strided, data_strided, cmap=plot_config["cmap"]
-                )
+                mesh = ax.pcolormesh(x, y, plot_data, cmap=plot_config["cmap"])
                 fig.colorbar(mesh, ax=ax, label=plot_config["colorbar_label"])
                 ax.set(xlabel=xlabel, ylabel=ylabel)
                 ax.set_title(plot_config["titles"][coord_sys])
 
                 filename = f"2d_{plot_type}_{coord_sys}.png"
-                self.save_or_display(fig, filename, save_path, resolution_opt["dpi"])
+                self.save_or_display(fig, filename, save_path, plot_config["dpi"])
 
 
 class Plotter3D(BasePlotter):
@@ -784,9 +753,8 @@ class Plotter3D(BasePlotter):
         k_array,
         z_coor=None,
         plot_type="intensity",
-        resolution="medium",
+        res_type="medium",
         save_path=None,
-        stride_pair=None,
     ):
         """
         Create 3D (surface) plots for different coordinate systems.
@@ -796,19 +764,18 @@ class Plotter3D(BasePlotter):
             k_array: List of z indices to plot (for rt plots).
             z_coor: List of z coordinates corresponding to the k indices saved.
             plot_type: "intensity" or "density".
-            resolution: Plot quality (low, medium, high).
             stride: Tuple specifying the stride for mesh plotting (faster rendering).
+            resolution: Plot quality (low, medium, high).
             save_path: Path to save figures instead of displaying them.
         """
         # Set configuration
         plot_config = self.config.get_plot_config(plot_type, "3d")
-        dimension_config = self.config.get_plot_config(plot_type, "all")
-        resolution_config = dimension_config.get("3d", {}).get("resolutions", {})
+        resolution_config = plot_config.get("resolutions", {})
         view_angles = plot_config.get("view_angles", {})
-        resolution_opt = resolution_config.get(
-            resolution, resolution_config.get("medium", {})
+        resolution = resolution_config.get(
+            res_type, resolution_config.get("medium", {})
         )
-        stride = stride_pair or resolution_opt.get("stride", (1, 1))
+        stride = resolution.get("stride", (2, 2))
 
         # Disable interactive mode if saving
         if save_path and plt.isinteractive():
@@ -819,24 +786,21 @@ class Plotter3D(BasePlotter):
             if coord_sys == "rt" and k_array is not None:
                 # Plot intensity or density for each z position
                 for idx in range(len(k_array)):
-                    fig = plt.figure(dpi=resolution_opt["dpi"])
+                    fig = plt.figure(dpi=resolution["dpi"])
                     ax = fig.add_subplot(projection="3d")
 
                     # Get the meshgrid
                     x, y = self.get_2d_grid("rt")
-                    x_strided = x[:: stride[0], :: stride[1]]
-                    y_strided = y[:: stride[0], :: stride[1]]
-                    data_strided = plot_data[:, idx, :][:: stride[0], :: stride[1]]
                     xlabel = plot_config["labels"]["x_r"]
                     ylabel = plot_config["labels"]["x_t"]
 
                     ax.plot_surface(
-                        x_strided,
-                        y_strided,
-                        data_strided,
+                        x[:: stride[0], :: stride[1]],
+                        y[:: stride[0], :: stride[1]],
+                        plot_data[:: stride[0], idx, :: stride[1]],
                         cmap=plot_config["cmap"],
                         linewidth=0,
-                        antialiased=resolution_opt["antialiased"],
+                        antialiased=resolution["antialiased"],
                     )
                     ax.view_init(elev=view_curr["elevation"], azim=view_curr["azimuth"])
                     # fig.colorbar(surf, label=plot_config["colorbar_label"])
@@ -857,39 +821,31 @@ class Plotter3D(BasePlotter):
                         f"3d_{plot_type}_{coord_sys}_{z_pos:.2f}".replace(".", "-")
                         + ".png"
                     )
-                    self.save_or_display(
-                        fig, filename, save_path, resolution_opt["dpi"]
-                    )
+                    self.save_or_display(fig, filename, save_path, resolution["dpi"])
 
             else:
-                fig = plt.figure(dpi=resolution_opt["dpi"])
+                fig = plt.figure(dpi=resolution["dpi"])
                 ax = fig.add_subplot(projection="3d")
 
                 if coord_sys == "zt":
                     # Plot intensity or density on-axis
                     x, y = self.get_2d_grid("zt")
-                    x_strided = x[:: stride[0], :: stride[1]]
-                    y_strided = y[:: stride[0], :: stride[1]]
-                    data_strided = plot_data[:: stride[0], :: stride[1]]
                     xlabel = plot_config["labels"]["x_z"]
                     ylabel = plot_config["labels"]["x_t"]
                 else:
                     # Plot intensity or density peak value
                     x, y = self.get_2d_grid("rz")
-                    x_strided = x[:: stride[0], :: stride[1]]
-                    y_strided = y[:: stride[0], :: stride[1]]
-                    data_strided = plot_data[:: stride[0], :: stride[1]]
                     xlabel = plot_config["labels"]["x_r"]
                     ylabel = plot_config["labels"]["x_z"]
 
                 # Apply stride for better performance
                 ax.plot_surface(
-                    x_strided,
-                    y_strided,
-                    data_strided,
+                    x[:: stride[0], :: stride[1]],
+                    y[:: stride[0], :: stride[1]],
+                    plot_data[:: stride[0], :: stride[1]],
                     cmap=plot_config["cmap"],
                     linewidth=0,
-                    antialiased=resolution_opt["antialiased"],
+                    antialiased=resolution["antialiased"],
                 )
                 ax.view_init(elev=view_curr["elevation"], azim=view_curr["azimuth"])
                 # fig.colorbar(surf, label=plot_config["colorbar_label"])
@@ -901,7 +857,7 @@ class Plotter3D(BasePlotter):
                 ax.set_title(plot_config["titles"][coord_sys])
 
                 filename = f"3d_{plot_type}_{coord_sys}.png"
-                self.save_or_display(fig, filename, save_path, resolution_opt["dpi"])
+                self.save_or_display(fig, filename, save_path, resolution["dpi"])
 
 
 class VisualManager:
@@ -951,14 +907,12 @@ class VisualManager:
         k_array=None,
         z_coor=None,
         plot_type="intensity",
-        resolution="medium",
         save_path=None,
-        stride=None,
         log_scale=False,
     ):
         """Create colormap plots."""
         self.plot_2d.render_2d_data(
-            data, k_array, z_coor, plot_type, resolution, save_path, stride, log_scale
+            data, k_array, z_coor, plot_type, save_path, log_scale
         )
 
     def create_3d_plot(
@@ -969,18 +923,17 @@ class VisualManager:
         plot_type="intensity",
         resolution="medium",
         save_path=None,
-        stride=None,
     ):
         """Create 3D solution plots."""
         self.plot_3d.render_3d_data(
-            data, k_array, z_coor, plot_type, resolution, save_path, stride
+            data, k_array, z_coor, plot_type, resolution, save_path
         )
 
 
 def parse_cli_options():
     """Parse and validate CLI options."""
     parser = argparse.ArgumentParser(
-        description="Plot simulation data from HDF5 or NPZ files.",
+        description="Plot simulation data.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
@@ -997,7 +950,7 @@ def parse_cli_options():
     )
     parser.add_argument(
         "--save-path",
-        default=DEFAULT_FIGURES_SAVE_PATH,
+        default=DEFAULT_SAVE_PATH,
         help="Directory to save plots instead of displaying.",
     )
     parser.add_argument(
@@ -1014,11 +967,6 @@ def parse_cli_options():
         "--resolution",
         default="medium",
         help="Plot quality for 3D plots: low, medium, high.",
-    )
-    parser.add_argument(
-        "--stride",
-        default="1,1",
-        help="Data stride (x,y format) for plotting 2D and 3D plots.",
     )
     parser.add_argument(
         "--radial-limit",
@@ -1048,10 +996,8 @@ def parse_cli_options():
     args = parser.parse_args()
 
     # Convert comma-separated strings to dictionaries for easier access
-    stride_pair = [int(s) for s in args.stride.split(",")]
     args.data_types = {dtype: True for dtype in args.data_types.split(",")}
     args.plot_types = {ptype: True for ptype in args.plot_types.split(",")}
-    args.stride = (stride_pair[0], stride_pair[1])
 
     return args
 
@@ -1062,133 +1008,80 @@ def setup_output_directory(args):
     if args.save_path:
         save_path = Path(args.save_path)
         save_path.mkdir(parents=True, exist_ok=True)
-        print(f"Saving plots to: {save_path.absolute()}")
-    else:
-        print("Displaying plots interactively.")
+        print(f"Saving plots to: {args.save_path}")
 
 
-def load_simulation_data(base_file_path, args):
-    """Load data from HDF5 or NPZ files."""
-    snapshots_path = f"{base_file_path}/snapshots.h5"
-    diagnostic_path = f"{base_file_path}/final_diagnostic.h5"
-    npz_path = f"{base_file_path}"
+def load_simulation_data(file_path, args):
+    """Load data with memory optimization based on file size."""
+    print(f"Loading data from {file_path}...")
 
-    data = {}
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Data file not found: {file_path}")
 
-    if os.path.exists(snapshots_path) and os.path.exists(diagnostic_path):
-        print(
-            f"Loading data from HDF5 files: {snapshots_path} and {diagnostic_path} ..."
-        )
-        try:
-            # Load the data from snapshot file using memory mapping
-            with h5py.File(snapshots_path, "r") as f:
-                data["k_array"] = np.array(f["snap_z_idx"])
-                snapshot_size = os.path.getsize(snapshots_path) / (1024**2)  # in MB
-                if snapshot_size > 500:
-                    print("Using memory-mapped file loading for the snapshots")
-                    if "envelope_snapshot_rzt" in f:
-                        data["e_dist"] = f["envelope_snapshot_rzt"]
-                    if "density_snapshot_rzt" in f:
-                        data["elec_dist"] = f["density_snapshot_rzt"]
-                else:
-                    if "envelope_snapshot_rzt" in f:
-                        data["e_dist"] = np.array(f["envelope_snapshot_rzt"])
-                    if "density_snapshot_rzt" in f:
-                        data["elec_dist"] = np.array(f["density_snapshot_rzt"])
+    try:
+        file_size = os.path.getsize(file_path) / (1024**2)
 
-            # Load the data from diagnostic file
-            with h5py.File(diagnostic_path, "r") as f:
-                coords = f["coordinates"]
-                data["ini_radi_coor"] = coords["r_min"][()]
-                data["fin_radi_coor"] = coords["r_max"][()]
-                data["ini_dist_coor"] = coords["z_min"][()]
-                data["fin_dist_coor"] = coords["z_max"][()]
-                data["ini_time_coor"] = coords["t_min"][()]
-                data["fin_time_coor"] = coords["t_max"][()]
+        # Process data based on file size
+        if file_size > 500:  # larger than 500 MB
+            print("Using memory-mapped file loading for large file")
+            with np.load(file_path, mmap_mode="r") as npz:
+                data = {
+                    key: np.array(npz[key])
+                    for key in npz.files
+                    if key
+                    in [
+                        "ini_radi_coor",
+                        "fin_radi_coor",
+                        "ini_dist_coor",
+                        "fin_dist_coor",
+                        "ini_time_coor",
+                        "fin_time_coor",
+                        "k_array",
+                    ]
+                }
+                # Reference large arrays without loading fully
+                for key in [
+                    "e_dist",
+                    "e_axis",
+                    "e_peak",
+                    "elec_dist",
+                    "elec_axis",
+                    "elec_peak",
+                    "b_fluence",
+                    "b_radius",
+                ]:
+                    if key in npz.files:
+                        data[key] = npz[key]  # Memory-mapped reference
+        else:
+            print("Loading full data file")
+            data = dict(np.load(file_path))
 
-                if "envelope" in f:
-                    envelope = f["envelope"]
-                    if "axis_zt" in envelope:
-                        data["e_axis"] = np.array(envelope["axis_zt"])
-                    if "peak_rz" in envelope:
-                        data["e_peak"] = np.array(envelope["peak_rz"])
+        return data
 
-                if "density" in f:
-                    density = f["density"]
-                    if "axis_zt" in density:
-                        data["elec_axis"] = np.array(density["axis_zt"])
-                    if "peak_rz" in density:
-                        data["elec_peak"] = np.array(density["peak_rz"])
-
-                if "pulse" in f:
-                    pulse = f["pulse"]
-                    if "fluence_rz" in pulse:
-                        data["b_fluence"] = np.array(pulse["fluence_rz"])
-                    if "radius_z" in pulse:
-                        data["b_radius"] = np.array(pulse["radius_z"])
-
-            return data
-
-        except Exception as e:
-            print(f"Error loading HDF5 data: {type(e).__name__}: {e}")
-            if args.verbose > 0:
-                traceback.print_exc()
-            else:
-                print("Run with -v for more information")
-            raise
-
-    elif os.path.exists(npz_path):
-        print(f"Loading data from NPZ file: {npz_path} ...")
-        try:
-            npz_size = os.path.getsize(npz_path) / (1024**2)  # in MB
-
-            # Load the data from file using memory mapping
-            if npz_size > 500:
-                print("Using memory-mapped file loading")
-                with np.load(npz_path, mmap_mode="r") as npz:
-                    data = {
-                        key: np.array(npz[key])
-                        for key in npz.files
-                        if key
-                        in [
-                            "ini_radi_coor",
-                            "fin_radi_coor",
-                            "ini_dist_coor",
-                            "fin_dist_coor",
-                            "ini_time_coor",
-                            "fin_time_coor",
-                            "k_array",
-                        ]
-                    }
-                    # Reference large arrays without loading fully
-                    for key in [
-                        "e_dist",
-                        "e_axis",
-                        "e_peak",
-                        "elec_dist",
-                        "elec_axis",
-                        "elec_peak",
-                        "b_fluence",
-                        "b_radius",
-                    ]:
-                        if key in npz.files:
-                            data[key] = npz[key]  # Memory-mapped reference
-            else:
-                print("Loading full data file")
-                data = dict(np.load(npz_path))
-
-            return data
-
-        except Exception as e:
-            print(f"Error loading NPZ file: {type(e).__name__}: {e}")
-            if args.verbose > 0:
-                traceback.print_exc()
-            else:
-                print("Run with -v for more information")
-            raise
-
-    else:
-        raise FileNotFoundError(f"No HDF5 or NPZ files found at {base_file_path}")
+    except FileNotFoundError as e:
+        print(f"Error: Data file not found: {e}")
+        raise
+    except PermissionError as e:
+        print(f"Error: No permission to read file: {e}")
+        raise
+    except ValueError as e:
+        print(f"Error: Invalid NPZ file format: {e}")
+        print("The data file may be corrupted or have an incorrect format")
+        raise
+    except MemoryError:
+        print("Error: Not enough memory to load data file")
+        print("Try using a machine with more RAM or reduce the file size")
+        raise
+    except OSError as e:
+        print(f"I/O error when accessing file: {e}")
+        raise
+    except BaseException as e:
+        print(f"Unexpected error loading data: {type(e).__name__}: {e}")
+        if args.verbose > 0:
+            traceback.print_exc()
+        else:
+            print("Run with -v for more information")
+        raise
 
 
 def process_plot_request(
@@ -1213,9 +1106,7 @@ def process_plot_request(
             z_snap_idx,
             z_snap_coor,
             data_type,
-            args.resolution,
             args.save_path,
-            args.stride,
             args.log_scale,
         )
 
@@ -1229,7 +1120,6 @@ def process_plot_request(
                 data_type,
                 resolution=args.resolution,
                 save_path=args.save_path,
-                stride=args.stride,
             )
         except MemoryError:
             print(
@@ -1257,6 +1147,10 @@ def process_plot_request(
         except OSError as e:
             print(f"I/O error in 3D plots: {e}")
             print("Check disk space and write permissions in the save directory")
+            raise
+        except mpl.MatplotlibError as e:
+            print(f"Matplotlib error: {e}")
+            print("This may indicate an issue with the plotting configuration")
             raise
         except BaseException as e:
             print(f"Unexpected error in 3D plot: {type(e).__name__}: {e}")
@@ -1374,9 +1268,9 @@ def main():
         print("Data file contents:")
         print("   Data available:", ", ".join(data.keys()))
         print(
-            f"   Data dimensions: {data['e_axis'].shape if 'e_axis' in data else 'unknown'}"
+            f"   Data dimensions: {data["e_axis"].shape if "e_axis" in data else "unknown"}"
         )
-        print(f"   Duplicate radius: {'enabled' if args.symmetric else 'disabled'}")
+        print(f"   Radial symmetry: {'enabled' if args.symmetric else 'disabled'}")
 
     # Initialize classes
     units = Units()

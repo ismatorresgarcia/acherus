@@ -48,11 +48,12 @@ U_i: ionization energy (for the interacting media).
 ∇²: laplace operator (for the transverse direction).
 """
 
-__version__ = "0.1.5"
+__version__ = "0.2.0"
 
 import argparse
 import sys
 
+import h5py
 import numba as nb
 import numpy as np
 from scipy.fft import fft, fftfreq, ifft
@@ -63,7 +64,6 @@ from scipy.special import gamma
 from tqdm import tqdm
 
 DEFAULT_SAVE_PATH = "./python/storage"
-DEFAULT_DATA_SAVE_PATH = f"{DEFAULT_SAVE_PATH}/air_fcn_rk4_1"
 
 
 def initialize_envelope(r_g, t_g, i_u, e_0, w_n, w_0, t_p, c_0, f_l, g_n):
@@ -89,7 +89,7 @@ def initialize_envelope(r_g, t_g, i_u, e_0, w_n, w_0, t_p, c_0, f_l, g_n):
     time_decaying_term = -(1 + i_u * c_0) * (t_g / t_p) ** 2
 
     if f_l != 0:  # phase curvature due to focusing lens
-        space_decaying_term = space_decaying_term.astype(complex)
+        space_decaying_term = space_decaying_term + i_u * 0
         space_decaying_term -= 0.5 * i_u * w_n * r_g**2 / f_l
 
     return e_0 * np.exp(space_decaying_term + time_decaying_term)
@@ -500,7 +500,7 @@ def calculate_radius(flu, rad=None, r_g=None):
 
     half_max_idx = np.argmin(np.abs(flu - half_max))
 
-    if half_max_idx == 0 or half_max_idx == len(flu) - 1:
+    if half_max_idx in (0, len(flu) - 1):
         return r_g[half_max_idx]
 
     if flu[half_max_idx] > half_max:
@@ -1094,24 +1094,55 @@ def main():
     solver = FSSSolver(const, medium, laser, grid, nee, method_opt=args.method)
     solver.propagate()
 
-    np.savez(
-        DEFAULT_DATA_SAVE_PATH,
-        e_dist=solver.envelope_snapshot_rzt,
-        e_axis=solver.envelope_r0_zt,
-        e_peak=solver.envelope_tp_rz,
-        elec_dist=solver.density_snapshot_rzt,
-        elec_axis=solver.density_r0_zt,
-        elec_peak=solver.density_tp_rz,
-        b_fluence=solver.fluence_rz,
-        b_radius=solver.radius_z,
-        k_array=solver.snapshot_z_index,
-        ini_radi_coor=grid.r_min,
-        fin_radi_coor=grid.r_max,
-        ini_dist_coor=grid.z_min,
-        fin_dist_coor=grid.z_max,
-        ini_time_coor=grid.t_min,
-        fin_time_coor=grid.t_max,
-    )
+    # Store snapshot data
+    with h5py.File(f"{DEFAULT_SAVE_PATH}/snapshots.h5", "w") as f:
+        f.create_dataset(
+            "envelope_snapshot_rzt",
+            data=solver.envelope_snapshot_rzt,
+            compression="gzip",
+            chunks=True,
+        )
+        f.create_dataset(
+            "density_snapshot_rzt",
+            data=solver.density_snapshot_rzt,
+            compression="gzip",
+            chunks=True,
+        )
+        f.create_dataset("snap_z_idx", data=solver.snapshot_z_index, compression="gzip")
+
+        # Store smaller datasets together
+        with h5py.File(f"{DEFAULT_SAVE_PATH}/final_diagnostic.h5", "w") as f:
+            envelope_grp = f.create_group("envelope")
+            envelope_grp.create_dataset(
+                "axis_zt", data=solver.envelope_r0_zt, compression="gzip"
+            )
+            envelope_grp.create_dataset(
+                "peak_rz", data=solver.envelope_tp_rz, compression="gzip"
+            )
+
+            density_grp = f.create_group("density")
+            density_grp.create_dataset(
+                "axis_zt", data=solver.density_r0_zt, compression="gzip"
+            )
+            density_grp.create_dataset(
+                "peak_rz", data=solver.density_tp_rz, compression="gzip"
+            )
+
+            pulse_grp = f.create_group("pulse")
+            pulse_grp.create_dataset(
+                "fluence_rz", data=solver.fluence_rz, compression="gzip"
+            )
+            pulse_grp.create_dataset(
+                "radius_z", data=solver.radius_z, compression="gzip"
+            )
+
+            coords_grp = f.create_group("coordinates")
+            coords_grp.create_dataset("r_min", data=grid.r_min)
+            coords_grp.create_dataset("r_max", data=grid.r_max)
+            coords_grp.create_dataset("z_min", data=grid.z_min)
+            coords_grp.create_dataset("z_max", data=grid.z_max)
+            coords_grp.create_dataset("t_min", data=grid.t_min)
+            coords_grp.create_dataset("t_max", data=grid.t_max)
 
 
 if __name__ == "__main__":
