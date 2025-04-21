@@ -1,6 +1,6 @@
 """
-Python script for plotting NumPy arrays saved during the simulations.
-The script uses the matplotlib library to plot the results with optimized memory usage.
+Python tool for plotting NumPy arrays saved after
+the simulations have finished execution.
 """
 
 __version__ = "0.2.0"
@@ -203,7 +203,7 @@ class Units:
         factor_t=1e15,
         factor_m2=1e-4,
         factor_m3=1e-6,
-        factor_e=1e3,
+        factor_j=1e3,
     ):
 
         self.factor_r = factor_r
@@ -211,7 +211,7 @@ class Units:
         self.factor_t = factor_t
         self.factor_m2 = factor_m2
         self.factor_m3 = factor_m3
-        self.factor_e = factor_e
+        self.factor_j = factor_j
 
 
 class SimulationBox:
@@ -511,7 +511,7 @@ class BasePlotter:
 
     def calculate_fluence(self, b_fluence):
         """Set up fluence distribution for plotting."""
-        return self.units.factor_m2 * self.units.factor_e * b_fluence
+        return self.units.factor_m2 * self.units.factor_j * b_fluence
 
     def calculate_radius(self, b_radius):
         """Set up beam radius for plotting."""
@@ -628,11 +628,10 @@ class Plotter1D(BasePlotter):
                             y_pos,
                             y_neg,
                             color=gradient,
-                            alpha=0.8 / num_bands * 1.5,
                         )
 
-                    ax.plot(dist_array, plot_data, "k-", lw=1, alpha=0.7)
-                    ax.plot(dist_array, -plot_data, "k-", lw=1, alpha=0.7)
+                    ax.plot(dist_array, plot_data)
+                    ax.plot(dist_array, -plot_data)
 
                     ax.set_ylim(-1.1 * y_max, 1.1 * y_max)
                     ax.axhline(y=0, color="gray", linestyle="--", alpha=0.5)
@@ -1071,30 +1070,30 @@ def load_simulation_data(base_file_path, args):
     """Load data from HDF5 or NPZ files."""
     snapshots_path = f"{base_file_path}/snapshots.h5"
     diagnostic_path = f"{base_file_path}/final_diagnostic.h5"
-    npz_path = f"{base_file_path}"
+    npz_path = f"{base_file_path}/data.npz"
 
     data = {}
 
-    if os.path.exists(snapshots_path) and os.path.exists(diagnostic_path):
+    has_snapshots = os.path.exists(snapshots_path)
+    has_final_diag = os.path.exists(diagnostic_path)
+
+    if has_snapshots and has_final_diag:
         print(
             f"Loading data from HDF5 files: {snapshots_path} and {diagnostic_path} ..."
         )
+
         try:
-            # Load the data from snapshot file using memory mapping
+            print(f"Using diagnostic file: {os.path.basename(diagnostic_path)}")
+
+            # Load the data from snapshot file
             with h5py.File(snapshots_path, "r") as f:
                 data["k_array"] = np.array(f["snap_z_idx"])
-                snapshot_size = os.path.getsize(snapshots_path) / (1024**2)  # in MB
-                if snapshot_size > 500:
-                    print("Using memory-mapped file loading for the snapshots")
-                    if "envelope_snapshot_rzt" in f:
-                        data["e_dist"] = f["envelope_snapshot_rzt"]
-                    if "density_snapshot_rzt" in f:
-                        data["elec_dist"] = f["density_snapshot_rzt"]
-                else:
-                    if "envelope_snapshot_rzt" in f:
-                        data["e_dist"] = np.array(f["envelope_snapshot_rzt"])
-                    if "density_snapshot_rzt" in f:
-                        data["elec_dist"] = np.array(f["density_snapshot_rzt"])
+                if "envelope_snapshot_rzt" in f:
+                    data["e_dist"] = np.array(f["envelope_snapshot_rzt"])
+                if "density_snapshot_rzt" in f:
+                    data["elec_dist"] = np.array(f["density_snapshot_rzt"])
+
+            print(f"Using diagnostic file: {os.path.basename(diagnostic_path)}")
 
             # Load the data from diagnostic file
             with h5py.File(diagnostic_path, "r") as f:
@@ -1348,8 +1347,6 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
         }
     else:
         raise ValueError(f"Unsupported data type: {data_type}")
-
-    # Set up data dictionary for plotting functions
 
     # Generate requested plot types
     process_plot_request(

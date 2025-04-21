@@ -64,6 +64,7 @@ from scipy.special import gamma
 from tqdm import tqdm
 
 DEFAULT_SAVE_PATH = "./python/storage"
+SAVE_INTERVAL = 100
 
 
 def initialize_envelope(r_g, t_g, i_u, e_0, w_n, w_0, t_p, c_0, f_l, g_n):
@@ -224,6 +225,7 @@ def solve_density(env, dens, dens_rk4, n_t, dens_args, dt, dt_2, dt_6):
     dens[:, 0] = 0
 
     # Solve the electron density evolution
+    # pylint: disable=not-an-iterable
     for ll in nb.prange(n_t - 1):
         env_s = env[:, ll]
         dens_s = dens[:, ll]
@@ -329,6 +331,7 @@ def solve_scattering(
     ram[:, 0], dram[:, 0] = 0, 0
 
     # Solve the raman scattering response
+    # pylint: disable=not-an-iterable
     for ll in nb.prange(n_t - 1):
         ram_s = ram[:, ll]
         dram_s = dram[:, ll]
@@ -505,28 +508,79 @@ def calculate_radius(flu, rad=None, r_g=None):
     Returns:
     - float: beam radius
     """
-    maximum = np.max(flu)
-    half_max = 0.5 * maximum
+    peak_idx = np.argmax(flu)
+    half_peak = 0.5 * np.max(flu)
 
-    half_max_idx = np.argmin(np.abs(flu - half_max))
+    diff = flu - half_peak
+    idx_sgn = []
 
-    if half_max_idx in (0, len(flu) - 1):
-        return r_g[half_max_idx]
+    for i in range(peak_idx + 1, len(flu) - 1):
+        if diff[i] * diff[i + 1] <= 0:
+            idx_sgn.append(i)
+            break
 
-    if flu[half_max_idx] > half_max:
-        i_low, i_high = half_max_idx, half_max_idx + 1
-    else:
-        i_low, i_high = half_max_idx - 1, half_max_idx
+    if not idx_sgn:
+        return r_g[-1]
 
-    r_low, r_high = r_g[i_low], r_g[i_high]
-    flu_low, flu_high = flu[i_low], flu[i_high]
+    i_1 = idx_sgn[0]
+    i_2 = i_1 + 1
 
-    hwhm = r_low + (half_max - flu_low) * (r_high - r_low) / (flu_high - flu_low)
+    r_1, r_2 = r_g[i_1], r_g[i_2]
+    f_1, f_2 = flu[i_1], flu[i_2]
+
+    hwhm = r_1 + (half_peak - f_1) * (r_2 - r_1) / (f_2 - f_1)
 
     if rad is not None:
         rad[0] = hwhm
 
     return hwhm
+
+
+def save_progressive_diagnostics(solver, step):
+    """Save diagnostics progressively every
+    desired number of steps.
+
+    Parameters:
+    - solver: Solver class containing the data to save
+    - step: Current propagation step
+    """
+
+    temp_diagnostic = f"{DEFAULT_SAVE_PATH}/temp_diagnostic.h5"
+
+    if step == 1:
+        with h5py.File(temp_diagnostic, "w") as f:
+            envelope_grp = f.create_group("envelope")
+            envelope_grp.create_dataset(
+                "peak_rz",
+                shape=(solver.grid.nodes_r, solver.grid.number_steps + 1),
+                maxshape=(solver.grid.nodes_r, None),
+                dtype=complex,
+                compression="gzip",
+                chunks=(solver.grid.nodes_r, min(100, solver.grid.number_steps + 1)),
+            )
+
+            coords = f.create_group("coordinates")
+            coords.create_dataset("r_min", data=solver.grid.r_min)
+            coords.create_dataset("r_max", data=solver.grid.r_max)
+            coords.create_dataset("z_min", data=solver.grid.z_min)
+            coords.create_dataset("z_max", data=solver.grid.z_max)
+            coords.create_dataset("r_grid", data=solver.grid.r_grid)
+            coords.create_dataset("z_grid", data=solver.grid.z_grid)
+
+            # Add metadata
+            meta = f.create_group("metadata")
+            meta.create_dataset("last_step", data=0, dtype=int)
+
+    # Update data
+    if step % SAVE_INTERVAL == 0 or step == solver.grid.number_steps:
+        with h5py.File(temp_diagnostic, "r+") as f:
+            last_step = f["metadata/last_step"][()]
+
+            if step > last_step:
+                f["envelope/peak_rz"][:, last_step + 1 : step + 1] = (
+                    solver.envelope_tp_rz[:, last_step + 1 : step + 1]
+                )
+                f["metadata/last_step"][()] = step
 
 
 def create_cli_arguments():
@@ -1070,6 +1124,9 @@ class FCNSolver:
             print("WARNING: Non-finite values detected in density")
             sys.exit(1)
 
+        # Save intermediate diagnostics
+        save_progressive_diagnostics(self, step)
+
     def expensive_diagnostics(self, step):
         """Save memory expensive diagnostics data for current step."""
         self.envelope_snapshot_rzt[:, step, :] = self.envelope_rt
@@ -1135,39 +1192,37 @@ def main():
         )
         f.create_dataset("snap_z_idx", data=solver.snapshot_z_index, compression="gzip")
 
-        # Store smaller datasets together
-        with h5py.File(f"{DEFAULT_SAVE_PATH}/final_diagnostic.h5", "w") as f:
-            envelope_grp = f.create_group("envelope")
-            envelope_grp.create_dataset(
-                "axis_zt", data=solver.envelope_r0_zt, compression="gzip"
-            )
-            envelope_grp.create_dataset(
-                "peak_rz", data=solver.envelope_tp_rz, compression="gzip"
-            )
+    # Store smaller datasets
+    with h5py.File(f"{DEFAULT_SAVE_PATH}/final_diagnostic.h5", "w") as f:
+        envelope_grp = f.create_group("envelope")
+        envelope_grp.create_dataset(
+            "axis_zt", data=solver.envelope_r0_zt, compression="gzip"
+        )
+        envelope_grp.create_dataset(
+            "peak_rz", data=solver.envelope_tp_rz, compression="gzip"
+        )
 
-            density_grp = f.create_group("density")
-            density_grp.create_dataset(
-                "axis_zt", data=solver.density_r0_zt, compression="gzip"
-            )
-            density_grp.create_dataset(
-                "peak_rz", data=solver.density_tp_rz, compression="gzip"
-            )
+        density_grp = f.create_group("density")
+        density_grp.create_dataset(
+            "axis_zt", data=solver.density_r0_zt, compression="gzip"
+        )
+        density_grp.create_dataset(
+            "peak_rz", data=solver.density_tp_rz, compression="gzip"
+        )
 
-            pulse_grp = f.create_group("pulse")
-            pulse_grp.create_dataset(
-                "fluence_rz", data=solver.fluence_rz, compression="gzip"
-            )
-            pulse_grp.create_dataset(
-                "radius_z", data=solver.radius_z, compression="gzip"
-            )
+        pulse_grp = f.create_group("pulse")
+        pulse_grp.create_dataset(
+            "fluence_rz", data=solver.fluence_rz, compression="gzip"
+        )
+        pulse_grp.create_dataset("radius_z", data=solver.radius_z, compression="gzip")
 
-            coords_grp = f.create_group("coordinates")
-            coords_grp.create_dataset("r_min", data=grid.r_min)
-            coords_grp.create_dataset("r_max", data=grid.r_max)
-            coords_grp.create_dataset("z_min", data=grid.z_min)
-            coords_grp.create_dataset("z_max", data=grid.z_max)
-            coords_grp.create_dataset("t_min", data=grid.t_min)
-            coords_grp.create_dataset("t_max", data=grid.t_max)
+        coords_grp = f.create_group("coordinates")
+        coords_grp.create_dataset("r_min", data=grid.r_min)
+        coords_grp.create_dataset("r_max", data=grid.r_max)
+        coords_grp.create_dataset("z_min", data=grid.z_min)
+        coords_grp.create_dataset("z_max", data=grid.z_max)
+        coords_grp.create_dataset("t_min", data=grid.t_min)
+        coords_grp.create_dataset("t_max", data=grid.t_max)
 
 
 if __name__ == "__main__":
