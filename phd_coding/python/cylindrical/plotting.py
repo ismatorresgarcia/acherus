@@ -1083,7 +1083,7 @@ def load_simulation_data(base_file_path, args):
         )
 
         try:
-            print(f"Using diagnostic file: {os.path.basename(diagnostic_path)}")
+            print(f"Using snapshots file: {os.path.basename(snapshots_path)}")
 
             # Load the data from snapshot file
             with h5py.File(snapshots_path, "r") as f:

@@ -25,68 +25,63 @@ def load_diagnostic_data(file_path):
         if "envelope" in f:
             env = f["envelope"]
             if "peak_rz" in env:
-                data["intensity"] = np.abs(env["peak_rz"][()] ** 2) * 1e-4
+                data["intensity"] = 1e-4 * np.abs(env["peak_rz"][()] ** 2)
 
         print(f"Successfully loaded data from {file_path}")
 
         return data
 
 
-def plot_intensity(data, save_dir):
-    """Plot 2D intensity distribution."""
+def plot_max_intensity(data, save_dir):
+    """Plot intensity peak against r and z coordinates."""
     if "intensity" not in data:
         print("No intensity data available")
-        return
-
-    r_min = data["r_min"] * 1e3
-    r_max = data["r_max"] * 1e3
-    z_min = data["z_min"]
-    z_max = data["z_max"]
+        return None
 
     intensity = data["intensity"]
     r_nodes, z_nodes = intensity.shape
 
-    r_array = np.linspace(r_min, r_max, r_nodes)
-    z_array = np.linspace(z_min, z_max, z_nodes)
+    r_grid = np.linspace(1e3 * data["r_min"], 1e3 * data["r_max"], r_nodes)
+    z_grid = np.linspace(data["z_min"], data["z_max"], z_nodes)
 
-    r_grid_2d, z_grid_2d = np.meshgrid(r_array, z_array, indexing="ij")
+    r_grid_2d, z_grid_2d = np.meshgrid(r_grid, z_grid, indexing="ij")
 
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, axis = plt.subplots(figsize=(12, 6))
 
-    im = ax.pcolormesh(r_grid_2d, z_grid_2d, intensity, cmap="plasma")
+    im = axis.pcolormesh(r_grid_2d, z_grid_2d, intensity, cmap="plasma")
 
-    cbar = fig.colorbar(im, ax=ax)
+    cbar = fig.colorbar(im, ax=axis)
     cbar.set_label("Intensity [W/cm^2]")
-    ax.set_xlabel("z [m]")
-    ax.set_ylabel("r [mm]")
-    ax.set_title("Peak intensity")
+    axis.set_xlabel("z [m]")
+    axis.set_ylabel("r [mm]")
+    axis.set_title("Peak evolution over time along z")
 
     save_path = os.path.join(save_dir, "peak_intensity.png")
     plt.savefig(save_path, dpi=300)
     plt.close(fig)
     print(f"Saved: {save_path}")
 
-    return z_array
+    return z_grid
 
 
-def plot_on_axis_intensity(data, z_array, save_dir):
-    """Plot on-axis intensity."""
+def plot_on_axis_max_intensity(data, z_grid, save_dir):
+    """Plot on-axis peak intensity against the z coordinate."""
     if "intensity" not in data:
         print("No intensity data available")
         return
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    intensity = data["intensity"]
-    on_axis = intensity[0, :]
+    peak_intensity = data["intensity"]
+    on_axis_peak_intensity = peak_intensity[0, :]
 
-    ax.plot(z_array, on_axis)
+    ax.plot(z_grid, on_axis_peak_intensity)
 
     ax.set_xlabel("z [m]")
     ax.set_ylabel("I(r=0,z) [W/cm2]")
-    ax.set_title("On-axis Peak Intensity")
+    ax.set_title("Peak evolution over time on-axis along z")
 
-    save_path = os.path.join(save_dir, "on-axis_intensity.png")
+    save_path = os.path.join(save_dir, "peak_intensity_on_axis.png")
     plt.savefig(save_path, dpi=300)
     plt.close(fig)
     print(f"Saved: {save_path}")
@@ -94,10 +89,10 @@ def plot_on_axis_intensity(data, z_array, save_dir):
 
 def main():
     """Main function."""
-    sim_dir = "./"  # Change this to your simulation directory
+    sim_dir = "./"
     diag_file = os.path.join(sim_dir, "temp_diagnostic.h5")
 
-    save_dir = os.path.join(sim_dir, "plots")
+    save_dir = os.path.join(sim_dir, "temp_plots")
     os.makedirs(save_dir, exist_ok=True)
     print(f"Saving plots to: {os.path.abspath(save_dir)}")
 
@@ -109,8 +104,8 @@ def main():
     if not data:
         return
 
-    z_array = plot_intensity(data, save_dir)
-    plot_on_axis_intensity(data, z_array, save_dir)
+    z_grid = plot_max_intensity(data, save_dir)
+    plot_on_axis_max_intensity(data, z_grid, save_dir)
 
 
 if __name__ == "__main__":

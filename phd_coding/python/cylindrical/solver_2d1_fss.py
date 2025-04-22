@@ -51,6 +51,7 @@ U_i: ionization energy (for the interacting media).
 __version__ = "0.2.0"
 
 import argparse
+import os
 import sys
 
 import h5py
@@ -434,40 +435,6 @@ def solve_nonlinear_rk4(env, dens, ram, env_rk4, nlin, n_t, env_args, dz, dz_2, 
         nlin[:, ll] = nlin_s_rk4
 
 
-def solve_dispersion(f_prop, env_c, env_n):
-    """
-    Solve one step of the FFT
-    propagation scheme for
-    dispersion.
-
-    Parameters:
-    - f_prop: Fourier propagator for advancing one step
-    - env_c: envelope at current propagation step
-    - env_n: envelope at next propagation step
-    """
-    env_n[:] = ifft(f_prop * fft(env_c, axis=1, workers=-1), axis=1, workers=-1)
-
-
-def solve_envelope(m_l, m_r, n_t, env_c, nlin, env_n):
-    """
-    Solve one step of the generalized
-    Crank-Nicolson scheme for envelope
-    propagation.
-
-    Parameters:
-    - m_l: left matrix for Crank-Nicolson
-    - m_r: right matrix for Crank-Nicolson
-    - n_t: number of time nodes
-    - env_c: envelope solution from FFT
-    - nlin: propagation step nonlinear terms
-    - env_n: envelope at next propagation step
-    """
-    for ll in range(n_t):
-        rhs_linear = m_r @ env_c[:, ll]
-        lhs = rhs_linear + nlin[:, ll]
-        env_n[:, ll] = m_l.solve(lhs)
-
-
 def calculate_fluence(env, flu=None, dt=None):
     """
     Calculate fluence distribution for the current step.
@@ -527,7 +494,54 @@ def calculate_radius(flu, rad=None, r_g=None):
     return hwhm
 
 
-def save_progressive_diagnostics(solver, step):
+def check_values(solver):
+    """Check for non-finite values in the current step data.
+
+    Parameters:
+    - solver: Solver instance containing the data to check
+    """
+    if np.any(~np.isfinite(solver.envelope_rt)):
+        print("WARNING: Non-finite values detected in envelope")
+        sys.exit(1)
+
+    if np.any(~np.isfinite(solver.density_rt)):
+        print("WARNING: Non-finite values detected in density")
+        sys.exit(1)
+
+
+def cheap_diagnostics(solver, step):
+    """Save memory cheap diagnostics data for current step.
+
+    Parameters:
+    - solver: Solver instance containing the data to save
+    - step: Current propagation step
+    """
+    # Check for non-finite values
+    check_values(solver)
+
+    node_r0 = solver.grid.node_r0
+    envelope_rt = solver.envelope_rt
+    density_rt = solver.density_rt
+
+    axis_data_envelope = envelope_rt[node_r0]
+    axis_data_density = density_rt[node_r0]
+    axis_data_intensity = np.abs(axis_data_envelope)
+
+    peak_node_intensity = np.argmax(axis_data_intensity)
+    peak_node_density = np.argmax(axis_data_density)
+
+    solver.envelope_r0_zt[step] = axis_data_envelope
+    solver.envelope_tp_rz[:, step] = envelope_rt[:, peak_node_intensity]
+    solver.density_r0_zt[step] = axis_data_density
+    solver.density_tp_rz[:, step] = density_rt[:, peak_node_density]
+    solver.fluence_rz[:, step] = solver.fluence_r
+    solver.radius_z[step] = solver.radius[0]
+
+    # Save intermediate diagnostics
+    intermediate_diagnostics(solver, step)
+
+
+def intermediate_diagnostics(solver, step):
     """Save diagnostics progressively every
     desired number of steps.
 
@@ -535,7 +549,6 @@ def save_progressive_diagnostics(solver, step):
     - solver: Solver class containing the data to save
     - step: Current propagation step
     """
-
     temp_diagnostic = f"{DEFAULT_SAVE_PATH}/temp_diagnostic.h5"
 
     if step == 1:
@@ -572,6 +585,20 @@ def save_progressive_diagnostics(solver, step):
                     solver.envelope_tp_rz[:, last_step + 1 : step + 1]
                 )
                 f["metadata/last_step"][()] = step
+
+
+def expensive_diagnostics(solver, step):
+    """Save memory expensive diagnostics data for current step.
+
+    Parameters:
+       - solver: Solver instance containing the data to save
+       - step: Current propagation step
+    """
+    solver.envelope_snapshot_rzt[:, step, :] = solver.envelope_rt
+    solver.density_snapshot_rzt[:, step, :] = solver.density_rt
+    solver.snapshot_z_index[step] = (
+        solver.snapshot_z_index[step - 1] + solver.grid.steps_per_snapshot
+    )
 
 
 def create_cli_arguments():
@@ -733,7 +760,7 @@ class LaserPulseParameters:
         self.input_amplitude = np.sqrt(self.input_intensity)
 
 
-class Grid:
+class GridParameters:
     "Spatial and temporal grid parameters."
 
     def __init__(self, const):
@@ -1010,6 +1037,26 @@ class FSSSolver:
         self.density_tp_rz[:, 0] = self.density_rt[:, self.grid.node_t0]
         self.snapshot_z_index[0] = 0
 
+    def solve_dispersion(self):
+        """
+        Solve one step of the FFT propagation scheme for dispersion.
+        """
+        self.envelope_split_rt[:] = ifft(
+            self.propagator_fft * fft(self.envelope_rt, axis=1, workers=-1),
+            axis=1,
+            workers=-1,
+        )
+
+    def solve_envelope(self):
+        """
+        Solve one step of the generalized Crank-Nicolson scheme
+        for envelope propagation.
+        """
+        for ll in range(self.grid.nodes_t):
+            rhs_linear = self.matrix_cn_right @ self.envelope_split_rt[:, ll]
+            lhs = rhs_linear + self.nonlinear_rt[:, ll]
+            self.envelope_next_rt[:, ll] = self.matrix_cn_left.solve(lhs)
+
     def solve_step(self):
         "Perform one propagation step."
         solve_density(
@@ -1038,7 +1085,7 @@ class FSSSolver:
             )
         else:
             self.raman_rt.fill(0)
-        solve_dispersion(self.propagator_fft, self.envelope_rt, self.envelope_split_rt)
+        self.solve_dispersion()
         if self.method.upper() == "RK4":
             solve_nonlinear_rk4(
                 self.envelope_split_rt,
@@ -1054,14 +1101,7 @@ class FSSSolver:
             )
         else:  # to be defined in the future
             pass
-        solve_envelope(
-            self.matrix_cn_left,
-            self.matrix_cn_right,
-            self.grid.nodes_t,
-            self.envelope_split_rt,
-            self.nonlinear_rt,
-            self.envelope_next_rt,
-        )
+        self.solve_envelope()
         calculate_fluence(self.envelope_next_rt, self.fluence_r, self.grid.del_t)
         calculate_radius(self.fluence_r, self.radius, self.grid.r_grid)
 
@@ -1069,46 +1109,6 @@ class FSSSolver:
         self.envelope_rt, self.envelope_next_rt = (
             self.envelope_next_rt,
             self.envelope_rt,
-        )
-
-    def cheap_diagnostics(self, step):
-        """Save memory cheap diagnostics data for current step."""
-        node_r0 = self.grid.node_r0
-        envelope_rt = self.envelope_rt
-        density_rt = self.density_rt
-
-        axis_data_envelope = envelope_rt[node_r0]
-        axis_data_density = density_rt[node_r0]
-        axis_data_intensity = np.abs(axis_data_envelope)
-
-        peak_node_intensity = np.argmax(axis_data_intensity)
-        peak_node_density = np.argmax(axis_data_density)
-
-        self.envelope_r0_zt[step] = axis_data_envelope
-        self.envelope_tp_rz[:, step] = envelope_rt[:, peak_node_intensity]
-        self.density_r0_zt[step] = axis_data_density
-        self.density_tp_rz[:, step] = density_rt[:, peak_node_density]
-        self.fluence_rz[:, step] = self.fluence_r
-        self.radius_z[step] = self.radius[0]
-
-        # Check for non-finite values
-        if np.any(~np.isfinite(self.envelope_rt)):
-            print("WARNING: Non-finite values detected in envelope")
-            sys.exit(1)
-
-        if np.any(~np.isfinite(self.density_rt)):
-            print("WARNING: Non-finite values detected in density")
-            sys.exit(1)
-
-        # Save intermediate diagnostics
-        save_progressive_diagnostics(self, step)
-
-    def expensive_diagnostics(self, step):
-        """Save memory expensive diagnostics data for current step."""
-        self.envelope_snapshot_rzt[:, step, :] = self.envelope_rt
-        self.density_snapshot_rzt[:, step, :] = self.density_rt
-        self.snapshot_z_index[step] = (
-            self.snapshot_z_index[step - 1] + self.grid.steps_per_snapshot
         )
 
     def propagate(self):
@@ -1122,7 +1122,7 @@ class FSSSolver:
                 for steps_snap_idx in range(1, steps_snap + 1):
                     step_idx = (snap_idx - 1) * steps_snap + steps_snap_idx
                     self.solve_step()
-                    self.cheap_diagnostics(step_idx)
+                    cheap_diagnostics(self, step_idx)
                     pbar.update(1)
                     pbar.set_postfix(
                         {
@@ -1131,7 +1131,100 @@ class FSSSolver:
                             "step": step_idx,
                         }
                     )
-                self.expensive_diagnostics(snap_idx)
+                expensive_diagnostics(self, snap_idx)
+
+
+class OutputManager:
+    """Handles data storage from the final simulation results."""
+
+    def __init__(self, save_path=DEFAULT_SAVE_PATH, compression="gzip"):
+        """Initialize data manager.
+
+        Parameters:
+        - save_path: Directory where the data files will be stored
+        - compression: Compression method used for HDF5 files
+        """
+        self.save_path = save_path
+        self.compression = compression
+
+        os.makedirs(self.save_path, exist_ok=True)
+
+    def save_expensive_diagnostic(self, solver):
+        """Save expensive diagnostic data to HDF5 file.
+
+        Parameters:
+        - solver: Solver instance containing the data to save
+        """
+        with h5py.File(f"{self.save_path}/snapshots.h5", "w") as f:
+            f.create_dataset(
+                "envelope_snapshot_rzt",
+                data=solver.envelope_snapshot_rzt,
+                compression=self.compression,
+                chunks=True,
+            )
+            f.create_dataset(
+                "density_snapshot_rzt",
+                data=solver.density_snapshot_rzt,
+                compression=self.compression,
+                chunks=True,
+            )
+            f.create_dataset(
+                "snap_z_idx", data=solver.snapshot_z_index, compression=self.compression
+            )
+
+    def save_cheap_diagnostics(self, grid, solver):
+        """Save cheap diagnostic data to HDF5 file.
+
+        Parameters:
+        - solver: Solver instance containing the data to save
+        - grid: Grid instance containing the grid data
+        """
+        with h5py.File(f"{self.save_path}/final_diagnostic.h5", "w") as f:
+            # Envelope data
+            envelope_grp = f.create_group("envelope")
+            envelope_grp.create_dataset(
+                "axis_zt", data=solver.envelope_r0_zt, compression="gzip"
+            )
+            envelope_grp.create_dataset(
+                "peak_rz", data=solver.envelope_tp_rz, compression="gzip"
+            )
+
+            # Electron density data
+            density_grp = f.create_group("density")
+            density_grp.create_dataset(
+                "axis_zt", data=solver.density_r0_zt, compression="gzip"
+            )
+            density_grp.create_dataset(
+                "peak_rz", data=solver.density_tp_rz, compression="gzip"
+            )
+
+            # Fluence and radius data
+            pulse_grp = f.create_group("pulse")
+            pulse_grp.create_dataset(
+                "fluence_rz", data=solver.fluence_rz, compression="gzip"
+            )
+            pulse_grp.create_dataset(
+                "radius_z", data=solver.radius_z, compression="gzip"
+            )
+
+            # Coordinates data
+            coords_grp = f.create_group("coordinates")
+            coords_grp.create_dataset("r_min", data=grid.r_min)
+            coords_grp.create_dataset("r_max", data=grid.r_max)
+            coords_grp.create_dataset("z_min", data=grid.z_min)
+            coords_grp.create_dataset("z_max", data=grid.z_max)
+            coords_grp.create_dataset("t_min", data=grid.t_min)
+            coords_grp.create_dataset("t_max", data=grid.t_max)
+
+    def save_diagnostics(self, solver, grid):
+        """Save simulation results to HDF5 files.
+
+        Parameters:
+        - solver: Solver instance containing the data to save
+        - grid: Grid instance containing the grid data
+        """
+        self.save_expensive_diagnostic(solver)
+        self.save_cheap_diagnostics(grid, solver)
 
 
 def main():
@@ -1142,7 +1235,7 @@ def main():
     # Initialize classes
     const = Constants()
     medium = MediumParameters(medium_opt=args.medium)
-    grid = Grid(const)
+    grid = GridParameters(const)
     laser = LaserPulseParameters(
         const, medium, pulse_opt=args.pulse, gauss_opt=args.gauss_order
     )
@@ -1152,53 +1245,9 @@ def main():
     solver = FSSSolver(const, medium, laser, grid, nee, method_opt=args.method)
     solver.propagate()
 
-    # Store snapshot data
-    with h5py.File(f"{DEFAULT_SAVE_PATH}/snapshots.h5", "w") as f:
-        f.create_dataset(
-            "envelope_snapshot_rzt",
-            data=solver.envelope_snapshot_rzt,
-            compression="gzip",
-            chunks=True,
-        )
-        f.create_dataset(
-            "density_snapshot_rzt",
-            data=solver.density_snapshot_rzt,
-            compression="gzip",
-            chunks=True,
-        )
-        f.create_dataset("snap_z_idx", data=solver.snapshot_z_index, compression="gzip")
-
-    # Store smaller datasets
-    with h5py.File(f"{DEFAULT_SAVE_PATH}/final_diagnostic.h5", "w") as f:
-        envelope_grp = f.create_group("envelope")
-        envelope_grp.create_dataset(
-            "axis_zt", data=solver.envelope_r0_zt, compression="gzip"
-        )
-        envelope_grp.create_dataset(
-            "peak_rz", data=solver.envelope_tp_rz, compression="gzip"
-        )
-
-        density_grp = f.create_group("density")
-        density_grp.create_dataset(
-            "axis_zt", data=solver.density_r0_zt, compression="gzip"
-        )
-        density_grp.create_dataset(
-            "peak_rz", data=solver.density_tp_rz, compression="gzip"
-        )
-
-        pulse_grp = f.create_group("pulse")
-        pulse_grp.create_dataset(
-            "fluence_rz", data=solver.fluence_rz, compression="gzip"
-        )
-        pulse_grp.create_dataset("radius_z", data=solver.radius_z, compression="gzip")
-
-        coords_grp = f.create_group("coordinates")
-        coords_grp.create_dataset("r_min", data=grid.r_min)
-        coords_grp.create_dataset("r_max", data=grid.r_max)
-        coords_grp.create_dataset("z_min", data=grid.z_min)
-        coords_grp.create_dataset("z_max", data=grid.z_max)
-        coords_grp.create_dataset("t_min", data=grid.t_min)
-        coords_grp.create_dataset("t_max", data=grid.t_max)
+    # Initialize and run saving class
+    output_manager = OutputManager()
+    output_manager.save_diagnostics(solver, grid)
 
 
 if __name__ == "__main__":
