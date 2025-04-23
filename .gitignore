@@ -1,12 +1,3 @@
-phd_coding/python/practitioner/.vscode/launch.json
-phd_coding/python/Hastur_module/__pycache__/__init__.cpython-313.pyc
-phd_coding/python/Hastur_module/__pycache__/beam_config.cpython-313.pyc
-phd_coding/python/Hastur_module/__pycache__/crank_nicolson.cpython-313.pyc
-phd_coding/python/Hastur_module/__pycache__/grid_config.cpython-313.pyc
-phd_coding/python/Hastur_module/__pycache__/hastur.cpython-313.pyc
-phd_coding/python/Hastur_module/__pycache__/main.cpython-313.pyc
-phd_coding/python/Hastur_module/__pycache__/plotting.cpython-313.pyc
-phd_coding/python/Hastur_module/__pycache__/simulation.cpython-313.pyc
-phd_coding/python/storage/
-phd_coding/python/.DS_Store
-phd_coding/python/cylindrical/.DS_Store
+__pycache__
+**/.DS_Store
+codes/python/storage/

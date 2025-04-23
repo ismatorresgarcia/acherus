@@ -1,0 +1,201 @@
+"""Fourier Crank-Nicolson (FCN) solver module."""
+
+import numpy as np
+from scipy.sparse import diags_array
+from scipy.sparse.linalg import spsolve
+
+from ..methods.common.fluence import calculate_fluence
+from ..methods.common.radius import calculate_radius
+from ..methods.kernels.density import solve_density
+from ..methods.kernels.envelope import (
+    frequency_domain,
+    solve_nonlinear_rk4_freq,
+    time_domain,
+)
+from ..methods.kernels.raman import solve_scattering
+from ..solvers.solver_base import SolverBase
+
+
+class SolverFCN(SolverBase):
+    """Fourier Crank-Nicolson class implementation."""
+
+    def __init__(self, const, medium, laser, grid, nee, method_opt="rk4"):
+        """Initialize FCN solver.
+
+        Parameters:
+        - const: Constants object with physical constants
+        - medium: MediumParameters object with medium properties
+        - laser: LaserPulseParameters object with laser properties
+        - grid: GridParameters object with grid definition
+        - nee: NEEParameters object with equation parameters
+        - method_opt: Nonlinear solver method (default: "rk4")
+        """
+        # Initialize base class
+        super().__init__(const, medium, laser, grid, nee, method_opt)
+
+        # Initialize FCN-specific arrays
+        self.envelope_fourier_rt = np.empty_like(self.envelope_rt)
+        self.envelope_fourier_next_rt = np.empty_like(self.envelope_rt)
+
+        # Setup operators and initial condition
+        self.setup_operators()
+        self.setup_initial_condition()
+
+    def create_crank_nicolson_matrix(self, n_r, m_p, r_low, r_up, coef_m_s, coef_o_s):
+        """
+        Set the three diagonals for the Crank-Nicolson array with centered differences.
+
+        Parameters:
+        - n_r: number of radial nodes
+        - m_p: position of the Crank-Nicolson array (left or right)
+        - r_low: lower diagonal coefficients
+        - r_up: upper diagonal coefficients
+        - coef_m_s: main diagonal coefficient
+        - coef_o_s: off-diagonal coefficient
+
+        Returns:
+        - sparse matrix: Crank-Nicolson matrix in sparse format
+        """
+        diag_lower = -coef_o_s * r_low
+        diag_main = np.full(n_r, coef_m_s)
+        diag_upper = -coef_o_s * r_up
+
+        diag_lower = np.append(diag_lower, [0])
+        diag_upper = np.insert(diag_upper, 0, [0])
+        if m_p.upper() == "LEFT":
+            diag_main[0], diag_main[-1] = coef_m_s, 1
+            diag_upper[0] = -2 * coef_o_s
+        else:  # "RIGHT"
+            diag_main[0], diag_main[-1] = coef_m_s, 0
+            diag_upper[0] = -2 * coef_o_s
+
+        diags = [diag_lower, diag_main, diag_upper]
+        diags_ind = [-1, 0, 1]
+
+        return diags_array(diags, offsets=diags_ind, format="csr")
+
+    def setup_operators(self):
+        """Setup FCN operators."""
+        coefficient_diffraction = (
+            0.25
+            * self.grid.del_z
+            / (
+                self.laser.input_wavenumber
+                * self.grid.del_r**2
+                * self.nee.self_steepening_operator
+            )
+        )
+        coefficient_dispersion = (
+            0.25
+            * self.grid.del_z
+            * self.medium.constant_gvd
+            * (self.grid.w_grid - self.laser.input_frequency_0) ** 2
+        )
+
+        # Setup FCN operators
+        self.self_steepening_operator = (
+            1
+            + (self.grid.w_grid - self.laser.input_frequency_0)
+            / self.laser.input_frequency_0
+        )
+        self.diff_operator = self.const.imaginary_unit * coefficient_diffraction
+        self.disp_operator = self.const.imaginary_unit * coefficient_dispersion
+        self.matrix_cnt_left = 1 + 2 * self.diff_operator - self.disp_operator
+        self.matrix_cnt_right = 1 - 2 * self.diff_operator + self.disp_operator
+
+        # Setup CN outer diagonals radial index dependence
+        self.diag_down = 1 - 0.5 / np.arange(1, self.grid.nodes_r - 1)
+        self.diag_up = 1 + 0.5 / np.arange(1, self.grid.nodes_r - 1)
+
+    def solve_envelope(self):
+        """
+        Solve one step of the generalized Crank-Nicolson scheme for envelope
+        propagation.
+        """
+        self.envelope_fourier_rt[:] = frequency_domain(self.envelope_rt)
+
+        for ll in range(self.grid.nodes_t):
+            matrix_cn_left = self.create_crank_nicolson_matrix(
+                self.grid.nodes_r,
+                "left",
+                self.diag_down,
+                self.diag_up,
+                self.matrix_cnt_left[ll],
+                self.diff_operator[ll],
+            )
+            matrix_cn_right = self.create_crank_nicolson_matrix(
+                self.grid.nodes_r,
+                "right",
+                self.diag_down,
+                self.diag_up,
+                self.matrix_cnt_right[ll],
+                -self.diff_operator[ll],
+            )
+
+            rhs_linear = matrix_cn_right @ self.envelope_fourier_rt[:, ll]
+            lhs = rhs_linear + self.nonlinear_rt[:, ll]
+            self.envelope_fourier_next_rt[:, ll] = spsolve(matrix_cn_left, lhs)
+
+        self.envelope_next_rt[:] = time_domain(self.envelope_fourier_next_rt)
+
+    def solve_step(self):
+        """Perform one propagation step."""
+        # Solve density evolution
+        solve_density(
+            self.envelope_rt,
+            self.density_rt,
+            self.density_rk4_stage,
+            self.grid.nodes_t,
+            self.density_arguments,
+            self.del_t,
+            self.del_t_2,
+            self.del_t_6,
+        )
+
+        # Solve Raman response if needed
+        if self.use_raman:
+            solve_scattering(
+                self.raman_rt,
+                self.draman_rt,
+                self.envelope_rt,
+                self.raman_rk4_stage,
+                self.draman_rk4_stage,
+                self.grid.nodes_t,
+                self.nee.raman_coefficient_1,
+                self.nee.raman_coefficient_2,
+                self.del_t,
+                self.del_t_2,
+                self.del_t_6,
+            )
+        else:
+            self.raman_rt.fill(0)
+
+        # Solve nonlinear part using RK4
+        if self.method.upper() == "RK4":
+            solve_nonlinear_rk4_freq(
+                self.envelope_rt,
+                self.density_rt,
+                self.raman_rt,
+                self.self_steepening_operator,
+                self.envelope_rk4_stage,
+                self.nonlinear_rt,
+                self.envelope_arguments,
+                self.del_z,
+                self.del_z_2,
+                self.del_z_6,
+            )
+        else:  # to be defined in the future
+            pass
+
+        # Solve envelope equation
+        self.solve_envelope()
+
+        # Calculate beam characteristics
+        calculate_fluence(self.envelope_next_rt, self.fluence_r, self.grid.del_t)
+        calculate_radius(self.fluence_r, self.radius, self.grid.r_grid)
+
+        # Update arrays for next step
+        self.envelope_rt[:], self.envelope_next_rt[:] = (
+            self.envelope_next_rt,
+            self.envelope_rt,
+        )

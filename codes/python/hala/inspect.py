@@ -48,10 +48,10 @@ def plot_max_intensity(data, save_dir):
 
     fig, axis = plt.subplots(figsize=(12, 6))
 
-    im = axis.pcolormesh(r_grid_2d, z_grid_2d, intensity, cmap="plasma")
+    im = axis.pcolormesh(r_grid_2d, z_grid_2d, intensity.T, cmap="plasma")
 
     cbar = fig.colorbar(im, ax=axis)
-    cbar.set_label("Intensity [W/cm^2]")
+    cbar.set_label("Intensity [W/cm2]")
     axis.set_xlabel("z [m]")
     axis.set_ylabel("r [mm]")
     axis.set_title("Peak evolution over time along z")

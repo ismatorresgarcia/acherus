@@ -850,8 +850,6 @@ class NEEParameters:
 
     def _init_coefficients(self, medium):
         "Initialize equation coefficients."
-        self.exponent_mpi = 2 * medium.number_photons
-        self.exponent_mpa = self.exponent_mpi - 2
         self.coefficient_ofi = medium.constant_mpi
         self.coefficient_ava = (
             self.bremsstrahlung_cross_section_0 / medium.ionization_energy

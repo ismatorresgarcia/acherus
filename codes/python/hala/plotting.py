@@ -163,7 +163,7 @@ class PlotConfiguration:
                     "medium": {"stride": (2, 2), "dpi": 150, "antialiased": True},
                     "high": {"stride": (1, 1), "dpi": 300, "antialiased": True},
                 },
-                "view_angles": {
+                "camera_angles": {
                     "rt": {
                         "elevation": 15,
                         "azimuth": 200,
@@ -478,7 +478,7 @@ class SimulationBoxUnits:
         return self._scaled_2d_grid[grid_type]
 
 
-class BasePlotter:
+class BasePlot:
     """Plotting class for all simulation data."""
 
     def __init__(
@@ -538,7 +538,7 @@ class BasePlotter:
         return self.box_units.create_unit_scaled_2d_grid(grid_type)
 
 
-class Plotter1D(BasePlotter):
+class Plot1D(BasePlot):
     """Plotting class for 1D (line) plots."""
 
     def render_1d_data(
@@ -648,7 +648,7 @@ class Plotter1D(BasePlotter):
                 self.save_or_display(fig, filename, save_path, plot_config["dpi"])
 
 
-class Plotter2D(BasePlotter):
+class Plot2D(BasePlot):
     """Plotting class for 2D (colormap) plots."""
 
     def render_2d_data(
@@ -774,7 +774,7 @@ class Plotter2D(BasePlotter):
                 self.save_or_display(fig, filename, save_path, resolution_opt["dpi"])
 
 
-class Plotter3D(BasePlotter):
+class Plot3D(BasePlot):
     """Plotting class for 3D (surface) plots."""
 
     def render_3d_data(
@@ -803,7 +803,7 @@ class Plotter3D(BasePlotter):
         plot_config = self.config.get_plot_config(plot_type, "3d")
         dimension_config = self.config.get_plot_config(plot_type, "all")
         resolution_config = dimension_config.get("3d", {}).get("resolutions", {})
-        view_angles = plot_config.get("view_angles", {})
+        camera_angles = plot_config.get("camera_angles", {})
         resolution_opt = resolution_config.get(
             resolution, resolution_config.get("medium", {})
         )
@@ -814,7 +814,7 @@ class Plotter3D(BasePlotter):
             plt.ioff()
 
         for coord_sys, plot_data in data.items():
-            view_curr = view_angles[coord_sys]
+            camera_curr = camera_angles[coord_sys]
             if coord_sys == "rt" and k_array is not None:
                 # Plot intensity or density for each z position
                 for idx in range(len(k_array)):
@@ -837,7 +837,9 @@ class Plotter3D(BasePlotter):
                         linewidth=0,
                         antialiased=resolution_opt["antialiased"],
                     )
-                    ax.view_init(elev=view_curr["elevation"], azim=view_curr["azimuth"])
+                    ax.view_init(
+                        elev=camera_curr["elevation"], azim=camera_curr["azimuth"]
+                    )
                     # fig.colorbar(surf, label=plot_config["colorbar_label"])
                     ax.set(
                         xlabel=xlabel,
@@ -890,7 +892,7 @@ class Plotter3D(BasePlotter):
                     linewidth=0,
                     antialiased=resolution_opt["antialiased"],
                 )
-                ax.view_init(elev=view_curr["elevation"], azim=view_curr["azimuth"])
+                ax.view_init(elev=camera_curr["elevation"], azim=camera_curr["azimuth"])
                 # fig.colorbar(surf, label=plot_config["colorbar_label"])
                 ax.set(
                     xlabel=xlabel,
@@ -913,30 +915,30 @@ class VisualManager:
         self.box_units = box_units
 
         # Initialize specialized plotters
-        self.base_plotter = BasePlotter(units, box, config, box_units)
-        self.plot_1d = Plotter1D(units, box, config, box_units)
-        self.plot_2d = Plotter2D(units, box, config, box_units)
-        self.plot_3d = Plotter3D(units, box, config, box_units)
+        self.base_plot = BasePlot(units, box, config, box_units)
+        self.plot_1d = Plot1D(units, box, config, box_units)
+        self.plot_2d = Plot2D(units, box, config, box_units)
+        self.plot_3d = Plot3D(units, box, config, box_units)
 
     def get_intensity_data(self, envelope_dist, envelope_axis, envelope_peak):
         """Calculate intensity data."""
-        return self.base_plotter.calculate_intensity(
+        return self.base_plot.calculate_intensity(
             envelope_dist, envelope_axis, envelope_peak
         )
 
     def get_density_data(self, density_dist, density_axis, density_peak):
         """Calculate density data."""
-        return self.base_plotter.calculate_density(
+        return self.base_plot.calculate_density(
             density_dist, density_axis, density_peak
         )
 
     def get_fluence_data(self, b_fluence):
         """Calculate fluence data."""
-        return self.base_plotter.calculate_fluence(b_fluence)
+        return self.base_plot.calculate_fluence(b_fluence)
 
     def get_radius_data(self, b_radius):
         """Calculate beam radius data."""
-        return self.base_plotter.calculate_radius(b_radius)
+        return self.base_plot.calculate_radius(b_radius)
 
     def create_1d_plot(
         self, data, k_array=None, z_coor=None, plot_type="intensity", save_path=None
