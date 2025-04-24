@@ -1,4 +1,4 @@
-"""Main entry point for the package."""
+"""Main entry point for the HALA package."""
 
 from hala import __version__
 from hala.cli import create_cli_arguments
@@ -17,8 +17,8 @@ def main():
     # Initialize CLI arguments
     args = create_cli_arguments()
 
-    # Print version
-    print(f"Running NEE Solver version {__version__}")
+    # Print package version
+    print(f"Running HALA v{__version__}")
 
     # Initialize classes
     const = Constants()

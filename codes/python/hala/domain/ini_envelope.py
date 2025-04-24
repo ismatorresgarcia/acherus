@@ -16,7 +16,7 @@ def initialize_envelope(const, grid, laser):
     - complex 2D-array: Initial envelope
     """
     space_decaying_term = -(
-        (grid.r_grid_2d / laser.input_beam_waist) ** laser.gauss_order
+        (grid.r_grid_2d / laser.input_waist) ** laser.input_gauss_order
     )
     time_decaying_term = (
         -(1 + const.imaginary_unit * laser.input_chirp)
