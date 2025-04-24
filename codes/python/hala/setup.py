@@ -1,4 +1,4 @@
-"""Configuration file for HALA package."""
+"""Information file for HALA package."""
 
 import re
 from pathlib import Path

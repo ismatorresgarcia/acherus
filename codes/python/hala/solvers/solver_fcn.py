@@ -76,28 +76,23 @@ class SolverFCN(SolverBase):
 
     def setup_operators(self):
         """Setup FCN operators."""
+        self.self_steepening_operator = (
+            1 + self.grid.w_grid / self.laser.input_frequency_0
+        )
         coefficient_diffraction = (
             0.25
             * self.grid.del_z
             / (
                 self.laser.input_wavenumber
                 * self.grid.del_r**2
-                * self.nee.self_steepening_operator
+                * self.self_steepening_operator
             )
         )
         coefficient_dispersion = (
-            0.25
-            * self.grid.del_z
-            * self.medium.constant_gvd
-            * (self.grid.w_grid - self.laser.input_frequency_0) ** 2
+            0.25 * self.grid.del_z * self.medium.constant_gvd * self.grid.w_grid**2
         )
 
-        # Setup FCN operators
-        self.self_steepening_operator = (
-            1
-            + (self.grid.w_grid - self.laser.input_frequency_0)
-            / self.laser.input_frequency_0
-        )
+        # Setup FCN coefficients
         self.diff_operator = self.const.imaginary_unit * coefficient_diffraction
         self.disp_operator = self.const.imaginary_unit * coefficient_dispersion
         self.matrix_cnt_left = 1 + 2 * self.diff_operator - self.disp_operator
