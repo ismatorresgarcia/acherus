@@ -6,6 +6,7 @@ from scipy.special import gamma
 
 class LaserPulseParameters:
     """Laser pulse physical parameters and derived properties.
+
     Parameters:
        - const: Constants object containing physical constants
        - medium: MediumParameters object containing medium properties

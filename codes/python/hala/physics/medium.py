@@ -1,19 +1,33 @@
-"""Medium parameters for laser propagation."""
+"""Medium properties dictionary for laser propagation media."""
+
+from dataclasses import dataclass
 
 
+@dataclass
 class MediumParameters:
     "Medium parameters to be chosen."
 
-    def __init__(self, medium_opt="oxygen800"):
-        if medium_opt.upper() == "OXYGEN800":
-            self.medium_type = "oxygen800"
-        elif medium_opt.upper() == "AIRDSR":
-            self.medium_type = "airDSR"
-        else:  # water at 800 nm
-            self.medium_type = "water800"
+    media_list = ["oxygen800", "nitrogen800", "airdsr", "water800"]
 
-        # Define parameter sets
-        parameters = {
+    def __init__(self, medium_opt="oxygen800"):
+        if medium_opt not in self.media_list:
+            media_valid = ", ".join(self.media_list)
+            raise ValueError(
+                f"Not available medium option: '{medium_opt}'. "
+                f"Available medium options are: {media_valid}"
+            )
+
+        if medium_opt == "oxygen800":
+            self.medium_atr = "oxygen800"  # oxygen at 800 nm
+        elif medium_opt == "nitrogen800":
+            self.medium_atr = "nitrogen800"  # nitrogen at 800 nm
+        elif medium_opt == "airdsr":
+            self.medium_atr = "airdsr"  # average air at 775 nm
+        else:
+            self.medium_atr = "water800"  # water at 800 nm
+
+        # Define medium properties dictionary
+        media_dict = {
             "oxygen800": {
                 "refraction_index_linear": 1.0,
                 "refraction_index_nonlinear": 3.2e-23,
@@ -29,7 +43,22 @@ class MediumParameters:
                 "raman_partition": 0.5,
                 "has_raman": True,
             },
-            "airDSR": {
+            "nitrogen800": {
+                "refraction_index_linear": 1.0,
+                "refraction_index_nonlinear": 3.2e-23,
+                "constant_gvd": 0.2e-28,
+                "number_photons": 11,
+                "constant_mpa": 3.73e-176,
+                "constant_mpi": 6.31e-184,
+                "ionization_energy": 2.495e-18,  # 15.576 eV
+                "drude_collision_time": 3.5e-13,
+                "density_neutral": 2.16e25,
+                "raman_rotational_frequency": 16e12,
+                "raman_response_time": 70e-15,
+                "raman_partition": 0.5,
+                "has_raman": True,
+            },
+            "airdsr": {
                 "refraction_index_linear": 1.0,
                 "refraction_index_nonlinear": 5.57e-23,
                 "constant_gvd": 2e-28,
@@ -61,7 +90,7 @@ class MediumParameters:
             },
         }
 
-        # Apply parameters from the dictionary
-        medium_params = parameters[self.medium_type]
-        for key, value in medium_params.items():
+        # Extract medium properties from the dictionary as attributes
+        medium = media_dict[self.medium_atr]
+        for key, value in medium.items():
             setattr(self, key, value)
