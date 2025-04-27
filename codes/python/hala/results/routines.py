@@ -6,7 +6,8 @@ import sys
 import h5py
 import numpy as np
 
-from . import DEFAULT_SAVE_PATH, DIAGNOSE_SAVE_INTERVAL
+from .config import DEFAULT_SAVE_PATH as path
+from .config import DIAGNOSE_SAVE_INTERVAL as interval
 
 
 def validate_step(solver, exit_on_error=True):
@@ -94,10 +95,10 @@ def intermediate_diagnostics(solver, step):
     - solver: Solver instance containing the data to save
     - step: Current propagation step
     """
-    temp_diagnostic = f"{DEFAULT_SAVE_PATH}/temp_diagnostic.h5"
+    temp_diagnostic = f"{path}/temp_diagnostic.h5"
 
     if step == 1:
-        os.makedirs(DEFAULT_SAVE_PATH, exist_ok=True)
+        os.makedirs(path, exist_ok=True)
         with h5py.File(temp_diagnostic, "w") as f:
             envelope_grp = f.create_group("envelope")
             envelope_grp.create_dataset(
@@ -106,7 +107,10 @@ def intermediate_diagnostics(solver, step):
                 maxshape=(solver.grid.nodes_r, None),
                 dtype=complex,
                 compression="gzip",
-                chunks=(solver.grid.nodes_r, min(100, solver.grid.number_steps + 1)),
+                chunks=(
+                    solver.grid.nodes_r,
+                    min(interval, solver.grid.number_steps + 1),
+                ),
             )
 
             coords = f.create_group("coordinates")
@@ -122,7 +126,7 @@ def intermediate_diagnostics(solver, step):
             meta.create_dataset("last_step", data=0, dtype=int)
 
     # Update data
-    if step % DIAGNOSE_SAVE_INTERVAL == 0 or step == solver.grid.number_steps:
+    if step % interval == 0 or step == solver.grid.number_steps:
         with h5py.File(temp_diagnostic, "r+") as f:
             last_step = f["metadata/last_step"][()]
 

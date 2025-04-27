@@ -1,15 +1,15 @@
 """Main entry point for the HALA package."""
 
-from hala import __version__
-from hala.cli import create_cli_arguments
-from hala.diagnostics.output import OutputManager
-from hala.domain.grid import GridParameters
-from hala.physics.constants import Constants
-from hala.physics.laser import LaserPulseParameters
-from hala.physics.medium import MediumParameters
-from hala.physics.nee import NEEParameters
-from hala.solvers.solver_fcn import SolverFCN
-from hala.solvers.solver_fss import SolverFSS
+from .cli import create_cli_arguments
+from .core.constants import Constants
+from .core.equations import NEEParameters
+from .core.laser import LaserPulseParameters
+from .core.materials import MediumParameters
+from .grid.grid import GridParameters
+from .results.store import OutputManager
+from .solvers.fcn import SolverFCN
+from .solvers.fss import SolverFSS
+from .version import __version__
 
 
 def main():

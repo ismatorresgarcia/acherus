@@ -1,12 +1,12 @@
-"""Base solver module."""
+"""Shared solver module."""
 
 import numpy as np
 from tqdm import tqdm
 
-from ..diagnostics.utilities import cheap_diagnostics, expensive_diagnostics
-from ..domain.ini_envelope import initialize_envelope
-from ..methods.common.fluence import calculate_fluence
-from ..methods.common.radius import calculate_radius
+from ..core.initial import initialize_envelope
+from ..numerical.shared.fluence import calculate_fluence
+from ..numerical.shared.radius import calculate_radius
+from ..results.routines import cheap_diagnostics, expensive_diagnostics
 
 
 class SolverBase:

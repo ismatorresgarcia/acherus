@@ -4,13 +4,13 @@ import os
 
 import h5py
 
-from . import DEFAULT_SAVE_PATH
+from .config import DEFAULT_SAVE_PATH as path
 
 
 class OutputManager:
     """Handles data storage from the final simulation results."""
 
-    def __init__(self, save_path=DEFAULT_SAVE_PATH, compression="gzip"):
+    def __init__(self, save_path=path, compression="gzip"):
         """Initialize output manager.
 
         Parameters:
@@ -89,9 +89,6 @@ class OutputManager:
             coords_grp.create_dataset("z_max", data=grid.z_max)
             coords_grp.create_dataset("t_min", data=grid.t_min)
             coords_grp.create_dataset("t_max", data=grid.t_max)
-            coords_grp.create_dataset("r_grid", data=grid.r_grid)
-            coords_grp.create_dataset("z_grid", data=grid.z_grid)
-            coords_grp.create_dataset("t_grid", data=grid.t_grid)
 
     def save_all_results(self, solver, grid):
         """Save all simulation results.

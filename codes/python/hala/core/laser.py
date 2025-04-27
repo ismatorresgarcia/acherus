@@ -1,9 +1,12 @@
 """Laser pulse parameters for a Gaussian beam in cylindrical coordinates."""
 
+from dataclasses import dataclass
+
 import numpy as np
 from scipy.special import gamma
 
 
+@dataclass
 class LaserPulseParameters:
     """Laser pulse physical parameters and derived properties.
 
@@ -29,14 +32,14 @@ class LaserPulseParameters:
         else:  # to be defined in the future
             pass
 
-        # Derived parameters
+        # Compute laser pulse properties
         self.input_wavenumber_0 = 2 * const.pi / self.input_wavelength
         self.input_wavenumber = self.input_wavenumber_0 * medium.refraction_index_linear
         self.input_frequency_0 = self.input_wavenumber_0 * const.light_speed_0
         self.input_power = self.input_energy / (
             self.input_duration * np.sqrt(0.5 * const.pi)
         )
-        self.critical_power = (
+        self.critical_power = (  # For regular Gaussian beams
             3.77
             * self.input_wavelength**2
             / (

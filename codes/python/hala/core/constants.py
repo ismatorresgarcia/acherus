@@ -1,8 +1,11 @@
 """Physical and mathematical constants."""
 
+from dataclasses import dataclass
+
 import numpy as np
 
 
+@dataclass
 class Constants:
     "Physical and mathematical constants."
 

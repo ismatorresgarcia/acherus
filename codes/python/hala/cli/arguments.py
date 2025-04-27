@@ -2,19 +2,21 @@
 
 import argparse
 
-from hala import __version__
+from .. import __version__
+from ..core.materials import MediumParameters
 
 
 def create_cli_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Cylindrical 2D Fourier Split-step solver "
-        "for ultrashort filamentation in transparent media. v{__version__}"
+        description="HALA v{__version__} Python package "
+        "(2+1)D with cylindrical symmetry numerical solver for "
+        "atmospheric lasing and nitrogen filaments. "
     )
     parser.add_argument(
         "-m",
         "--medium",
-        choices=["oxygen800", "airDSR", "water800"],
+        choices=MediumParameters.media_list,
         default="oxygen800",
         help="Propagation medium (default: oxygen at 800 nm)",
     )
@@ -44,4 +46,5 @@ def create_cli_arguments():
         default="fss",
         help="Solver method (fss: Fourier Split-Step, fcn: Fourier-Crank-Nicolson)",
     )
+
     return parser.parse_args()

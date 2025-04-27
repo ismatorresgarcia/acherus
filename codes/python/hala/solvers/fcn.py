@@ -1,19 +1,19 @@
 """Fourier Crank-Nicolson (FCN) solver module."""
 
 import numpy as np
+from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
-from scipy.sparse.linalg import spsolve
 
-from ..methods.common.fluence import calculate_fluence
-from ..methods.common.radius import calculate_radius
-from ..methods.kernels.density import solve_density
-from ..methods.kernels.envelope import (
+from ..numerical.routines.density import solve_density
+from ..numerical.routines.envelope import (
     frequency_domain,
     solve_nonlinear_rk4_freq,
     time_domain,
 )
-from ..methods.kernels.raman import solve_scattering
-from ..solvers.solver_base import SolverBase
+from ..numerical.routines.raman import solve_scattering
+from ..numerical.shared.fluence import calculate_fluence
+from ..numerical.shared.radius import calculate_radius
+from .base import SolverBase
 
 
 class SolverFCN(SolverBase):
@@ -54,7 +54,8 @@ class SolverFCN(SolverBase):
         - coef_o_s: off-diagonal coefficient
 
         Returns:
-        - sparse matrix: Crank-Nicolson matrix in sparse format
+        - For LEFT: banded matrix array for solving a large tridiagonal system
+        - For RIGHT: sparse matrix in CSR format for optimal matrix-vector product
         """
         diag_lower = -coef_o_s * r_low
         diag_main = np.full(n_r, coef_m_s)
@@ -63,15 +64,31 @@ class SolverFCN(SolverBase):
         diag_lower = np.append(diag_lower, [0])
         diag_upper = np.insert(diag_upper, 0, [0])
         if m_p.upper() == "LEFT":
+            # Boundary conditions for the left matrix
             diag_main[0], diag_main[-1] = coef_m_s, 1
             diag_upper[0] = -2 * coef_o_s
-        else:  # "RIGHT"
+
+            band_matrix = np.zeros((3, n_r), dtype=complex)
+            band_matrix[0, 1:] = diag_upper
+            band_matrix[1, :] = diag_main
+            band_matrix[2, :-1] = diag_lower
+
+            # For the left hand side matrix, which will be used for
+            # solving a large tridiagonal system of linear equations, return the
+            # diagonals for latter usage in the banded solver
+            return band_matrix
+
+        if m_p.upper() == "RIGHT":
+            # Boundary conditions for the right matrix
             diag_main[0], diag_main[-1] = coef_m_s, 0
             diag_upper[0] = -2 * coef_o_s
 
         diags = [diag_lower, diag_main, diag_upper]
         diags_ind = [-1, 0, 1]
 
+        # For the right hand side matrix, which will be used for
+        # computing a matrix-vector product, return the 'CSR' format
+        # for sparse matrices which is more efficient
         return diags_array(diags, offsets=diags_ind, format="csr")
 
     def setup_operators(self):
@@ -127,9 +144,16 @@ class SolverFCN(SolverBase):
                 -self.diff_operator[ll],
             )
 
+            # Solve matrix-vector product using CSR sparse format
             rhs_linear = matrix_cn_right @ self.envelope_fourier_rt[:, ll]
+
+            # Compute the left-hand side of the equation
             lhs = rhs_linear + self.nonlinear_rt[:, ll]
-            self.envelope_fourier_next_rt[:, ll] = spsolve(matrix_cn_left, lhs)
+
+            # Solve the tridiagonal system using the banded solver
+            self.envelope_fourier_next_rt[:, ll] = solve_banded(
+                (1, 1), matrix_cn_left, lhs
+            )
 
         self.envelope_next_rt[:] = time_domain(self.envelope_fourier_next_rt)
 

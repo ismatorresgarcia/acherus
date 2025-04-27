@@ -7,7 +7,7 @@ from setuptools import find_packages, setup
 
 # Get package version
 # open the version file
-version_file = Path(__file__).parent / "hala/_version.py"
+version_file = Path(__file__).parent / "hala/version.py"
 with open(version_file, "r", encoding="utf-8") as f:
     version_info = f.read()
 # search for the "__version__" pattern

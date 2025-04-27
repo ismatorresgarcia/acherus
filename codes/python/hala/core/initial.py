@@ -1,4 +1,5 @@
-"""Initial envelope for the beam in cylindrical coordinates."""
+"""Module for laser pulse initial condition for a Gaussian or
+super-Gaussian beams in cylindrical coordinates."""
 
 import numpy as np
 
@@ -10,7 +11,6 @@ def initialize_envelope(const, grid, laser):
     Parameters:
     - const: Constants object containing physical and mathmatical constants
     - grid: GridParameters object containing simulation parameters
-    - laser: LaserPulseParameters object containing beam parameters
 
     Returns:
     - complex 2D-array: Initial envelope
