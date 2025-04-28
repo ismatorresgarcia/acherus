@@ -62,7 +62,7 @@ class SolverFSS(SolverBase):
 
         diag_lower = np.append(diag_lower, [0])
         diag_upper = np.insert(diag_upper, 0, [0])
-        if m_p.upper() == "LEFT":
+        if m_p == "left":
             # Boundary conditions for the left matrix
             diag_main[0], diag_main[-1] = coef_main, 1
             diag_upper[0] = -2 * coef_d
@@ -77,7 +77,7 @@ class SolverFSS(SolverBase):
             # diagonals for latter usage in the banded solver
             return band_matrix
 
-        if m_p.upper() == "RIGHT":
+        if m_p == "right":
             # Boundary conditions for the right matrix
             diag_main[0], diag_main[-1] = coef_main, 0
             diag_upper[0] = -2 * coef_d
@@ -129,17 +129,14 @@ class SolverFSS(SolverBase):
         Solve one step of the generalized Crank-Nicolson scheme
         for envelope propagation.
         """
-        for ll in range(self.grid.nodes_t):
-            # Solve matrix-vector product using CSR sparse format
-            rhs_linear = self.matrix_cn_right @ self.envelope_split_rt[:, ll]
+        # Solve matrix-vector product using CSR sparse format
+        rhs_linear = self.matrix_cn_right @ self.envelope_split_rt
 
-            # Compute the left-hand side of the equation
-            lhs = rhs_linear + self.nonlinear_rt[:, ll]
+        # Compute the left-hand side of the equation
+        lhs = rhs_linear + self.nonlinear_rt
 
-            # Solve the tridiagonal system using the banded solver
-            self.envelope_next_rt[:, ll] = solve_banded(
-                (1, 1), self.matrix_cn_left, lhs
-            )
+        # Solve the tridiagonal system using the banded solver
+        self.envelope_next_rt[:] = solve_banded((1, 1), self.matrix_cn_left, lhs)
 
     def solve_step(self):
         """Perform one propagation step."""

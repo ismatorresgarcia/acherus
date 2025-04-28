@@ -3,22 +3,51 @@
 import numba as nb
 
 
-@nb.njit
-def _set_scattering_operator(ram_s, dram_s, env_s, coef_ode1, coef_ode2):
-    """Set up the Raman scattering evolution terms.
+@nb.njit(parallel=True)
+def solve_scattering(
+    ram, dram, env, ram_rk4, dram_rk4, n_t, coef_ode1, coef_ode2, dt, dt_2, dt_6
+):
+    """
+    Solve molecular Raman scattering delayed response for all time steps.
 
     Parameters:
-    - ram_s: Raman response at current time slice
-    - dram_s: Raman response time derivative at current time slice
-    - env_s: envelope at current time slice
+    - ram: raman response at all time slices
+    - dram: raman response time derivative at all time slices
+    - env: envelope at all time slices
+    - ram_rk4: auxiliary raman response array
+    - dram_rk4: auxiliary raman response time derivative array
+    - n_t: number of time nodes
     - coef_ode1: Raman frequency coefficient for the first ODE term
     - coef_ode2: Raman frequency coefficient for the second ODE term
-
-    Returns:
-    - float 1D-array: Raman scattering operators
+    - dt: time step
+    - dt_2: half time step
+    - dt_6: time step divided by 6
     """
-    diff_s = env_s - ram_s
-    return dram_s, coef_ode1 * diff_s + coef_ode2 * dram_s
+    # Set the initial conditions
+    ram[:, 0], dram[:, 0] = 0, 0
+
+    # Solve the raman scattering response
+    # pylint: disable=not-an-iterable
+    for ll in nb.prange(n_t - 1):
+        ram_s = ram[:, ll]
+        dram_s = dram[:, ll]
+        env_s = env[:, ll]
+
+        ram_s_rk4, dram_s_rk4 = _rk4_scattering_step(
+            ram_s,
+            dram_s,
+            env_s,
+            ram_rk4,
+            dram_rk4,
+            coef_ode1,
+            coef_ode2,
+            dt,
+            dt_2,
+            dt_6,
+        )
+
+        ram[:, ll + 1] = ram_s_rk4
+        dram[:, ll + 1] = dram_s_rk4
 
 
 @nb.njit
@@ -72,48 +101,19 @@ def _rk4_scattering_step(
     return ram_s_rk4, dram_s_rk4
 
 
-@nb.njit(parallel=True)
-def solve_scattering(
-    ram, dram, env, ram_rk4, dram_rk4, n_t, coef_ode1, coef_ode2, dt, dt_2, dt_6
-):
-    """
-    Solve molecular Raman scattering delayed response for all time steps.
+@nb.njit
+def _set_scattering_operator(ram_s, dram_s, env_s, coef_ode1, coef_ode2):
+    """Set up the Raman scattering evolution terms.
 
     Parameters:
-    - ram: raman response at all time slices
-    - dram: raman response time derivative at all time slices
-    - env: envelope at all time slices
-    - ram_rk4: auxiliary raman response array
-    - dram_rk4: auxiliary raman response time derivative array
-    - n_t: number of time nodes
+    - ram_s: Raman response at current time slice
+    - dram_s: Raman response time derivative at current time slice
+    - env_s: envelope at current time slice
     - coef_ode1: Raman frequency coefficient for the first ODE term
     - coef_ode2: Raman frequency coefficient for the second ODE term
-    - dt: time step
-    - dt_2: half time step
-    - dt_6: time step divided by 6
+
+    Returns:
+    - float 1D-array: Raman scattering operators
     """
-    # Set the initial conditions
-    ram[:, 0], dram[:, 0] = 0, 0
-
-    # Solve the raman scattering response
-    # pylint: disable=not-an-iterable
-    for ll in nb.prange(n_t - 1):
-        ram_s = ram[:, ll]
-        dram_s = dram[:, ll]
-        env_s = env[:, ll]
-
-        ram_s_rk4, dram_s_rk4 = _rk4_scattering_step(
-            ram_s,
-            dram_s,
-            env_s,
-            ram_rk4,
-            dram_rk4,
-            coef_ode1,
-            coef_ode2,
-            dt,
-            dt_2,
-            dt_6,
-        )
-
-        ram[:, ll + 1] = ram_s_rk4
-        dram[:, ll + 1] = dram_s_rk4
+    diff_s = env_s - ram_s
+    return dram_s, coef_ode1 * diff_s + coef_ode2 * dram_s

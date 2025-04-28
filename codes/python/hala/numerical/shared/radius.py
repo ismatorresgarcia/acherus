@@ -20,17 +20,14 @@ def calculate_radius(flu, rad=None, r_g=None):
     half_peak = 0.5 * np.max(flu)
 
     diff = flu - half_peak
-    idx_sgn = []
 
-    for i in range(peak_idx + 1, len(flu) - 1):
-        if diff[i] * diff[i + 1] <= 0:
-            idx_sgn.append(i)
-            break
+    idx_range = diff[peak_idx + 1 : -1] * diff[peak_idx + 2 :]
+    idx_change = np.where(idx_range <= 0)[0]
 
-    if not idx_sgn:
+    if len(idx_change) == 0:
         return r_g[-1]
 
-    i_1 = idx_sgn[0]
+    i_1 = peak_idx + 1 + idx_change[0]
     i_2 = i_1 + 1
 
     r_1, r_2 = r_g[i_1], r_g[i_2]

@@ -90,7 +90,7 @@ class OutputManager:
             coords_grp.create_dataset("t_min", data=grid.t_min)
             coords_grp.create_dataset("t_max", data=grid.t_max)
 
-    def save_all_results(self, solver, grid):
+    def save_results(self, solver, grid):
         """Save all simulation results.
 
         Parameters:

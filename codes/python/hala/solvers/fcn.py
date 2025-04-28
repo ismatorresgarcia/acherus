@@ -63,7 +63,7 @@ class SolverFCN(SolverBase):
 
         diag_lower = np.append(diag_lower, [0])
         diag_upper = np.insert(diag_upper, 0, [0])
-        if m_p.upper() == "LEFT":
+        if m_p == "left":
             # Boundary conditions for the left matrix
             diag_main[0], diag_main[-1] = coef_m_s, 1
             diag_upper[0] = -2 * coef_o_s
@@ -78,7 +78,7 @@ class SolverFCN(SolverBase):
             # diagonals for latter usage in the banded solver
             return band_matrix
 
-        if m_p.upper() == "RIGHT":
+        if m_p == "right":
             # Boundary conditions for the right matrix
             diag_main[0], diag_main[-1] = coef_m_s, 0
             diag_upper[0] = -2 * coef_o_s

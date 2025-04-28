@@ -2,7 +2,7 @@
 Root initialization file for importing HALA package and modules.
 """
 
-from hala.version import __version__
+from python.hala._version import __version__
 
 from .cli import create_cli_arguments
 from .core.constants import Constants
