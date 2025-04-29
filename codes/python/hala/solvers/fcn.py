@@ -54,8 +54,8 @@ class SolverFCN(SolverBase):
         - coef_o_s: off-diagonal coefficient
 
         Returns:
-        - For LEFT: banded matrix array for solving a large tridiagonal system
-        - For RIGHT: sparse matrix in CSR format for optimal matrix-vector product
+        - For left: banded matrix array for solving a large tridiagonal system
+        - For right: sparse matrix in CSR format for optimal matrix-vector product
         """
         diag_lower = -coef_o_s * r_low
         diag_main = np.full(n_r, coef_m_s)
@@ -87,9 +87,9 @@ class SolverFCN(SolverBase):
         diags_ind = [-1, 0, 1]
 
         # For the right hand side matrix, which will be used for
-        # computing a matrix-vector product, return the 'CSR' format
-        # for sparse matrices which is more efficient
-        return diags_array(diags, offsets=diags_ind, format="csr")
+        # computing a matrix-vector product, return the 'DIA' format
+        # for tridiagonal matrices which is more efficient
+        return diags_array(diags, offsets=diags_ind, format="dia")
 
     def setup_operators(self):
         """Setup FCN operators."""

@@ -10,7 +10,7 @@ from .config import DEFAULT_SAVE_PATH as path
 class OutputManager:
     """Handles data storage from the final simulation results."""
 
-    def __init__(self, save_path=path, compression="gzip"):
+    def __init__(self, save_path=path, compression="gzip", compression_opts=9):
         """Initialize output manager.
 
         Parameters:
@@ -19,6 +19,7 @@ class OutputManager:
         """
         self.save_path = save_path
         self.compression = compression
+        self.compression_opts = compression_opts
 
         # Create directory if it doesn't exist
         os.makedirs(save_path, exist_ok=True)
@@ -34,13 +35,17 @@ class OutputManager:
                 "envelope_snapshot_rzt",
                 data=solver.envelope_snapshot_rzt,
                 compression=self.compression,
+                compression_opts=self.compression_opts,
                 chunks=True,
+                shuffle=True,
             )
             f.create_dataset(
                 "density_snapshot_rzt",
                 data=solver.density_snapshot_rzt,
                 compression=self.compression,
+                compression_opts=self.compression_opts,
                 chunks=True,
+                shuffle=True,
             )
             f.create_dataset(
                 "snap_z_idx", data=solver.snapshot_z_index, compression=self.compression

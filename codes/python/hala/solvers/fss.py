@@ -50,8 +50,8 @@ class SolverFSS(SolverBase):
         - coef_d: coefficient for the diagonal elements
 
         Returns:
-        - For LEFT: banded matrix array for solving a large tridiagonal system
-        - For RIGHT: sparse matrix in CSR format for optimal matrix-vector product
+        - For left: banded matrix array for solving a large tridiagonal system
+        - For right: sparse matrix in CSR format for optimal matrix-vector product
         """
         coef_main = 1 + 2 * coef_d
         r_ind = np.arange(1, n_r - 1)
@@ -86,9 +86,9 @@ class SolverFSS(SolverBase):
         diags_ind = [-1, 0, 1]
 
         # For the right hand side matrix, which will be used for
-        # computing a matrix-vector product, return the 'CSR' format
-        # for sparse matrices which is more efficient
-        return diags_array(diags, offsets=diags_ind, format="csr")
+        # computing a matrix-vector product, return the 'DIA' format
+        # for tridiagonal matrices which is more efficient
+        return diags_array(diags, offsets=diags_ind, format="dia")
 
     def setup_operators(self):
         """Setup FSS operators."""
