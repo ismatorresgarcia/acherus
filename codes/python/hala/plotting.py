@@ -1358,7 +1358,7 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
 
 def main():
     """Main execution function."""
-    print(f"Simulation plotter {__version__}")
+    print(f"HALA plotter v{__version__}")
 
     # Initialize CLI arguments parsing
     args = parse_cli_options()

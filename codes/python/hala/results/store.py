@@ -4,7 +4,7 @@ import os
 
 import h5py
 
-from .config import DEFAULT_SAVE_PATH as path
+from .variables import DEFAULT_SAVE_PATH as path
 
 
 class OutputManager:

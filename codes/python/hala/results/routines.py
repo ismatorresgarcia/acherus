@@ -1,13 +1,17 @@
 """Diagnosing tools module."""
 
-import os
+import pstats
 import sys
+from pstats import SortKey
 
 import h5py
 import numpy as np
 
-from .config import DEFAULT_SAVE_PATH as path
-from .config import DIAGNOSE_SAVE_INTERVAL as interval
+from .variables import DEFAULT_SAVE_PATH as path
+from .variables import DIAGNOSE_SAVE_INTERVAL as monitor_int
+
+PROFILER_PATH = f"{path}/profiler_log.txt"
+TEMP_DIAGNOSTIC_PATH = f"{path}/temp_diagnostic.h5"
 
 
 def validate_step(solver, exit_on_error=True):
@@ -70,36 +74,17 @@ def cheap_diagnostics(solver, step):
     solver.fluence_rz[:, step] = solver.fluence_r
     solver.radius_z[step] = solver.radius[0]
 
-    # Save intermediate diagnostics
-    intermediate_diagnostics(solver, step)
 
-
-def expensive_diagnostics(solver, step):
-    """Save memory expensive diagnostics data for current step.
-
-    Parameters:
-    - solver: Solver instance containing the data to save
-    - step: Current propagation step index for snapshots (1-based)
-    """
-    solver.envelope_snapshot_rzt[:, step, :] = solver.envelope_rt
-    solver.density_snapshot_rzt[:, step, :] = solver.density_rt
-    solver.snapshot_z_index[step] = (
-        solver.snapshot_z_index[step - 1] + solver.grid.steps_per_snapshot
-    )
-
-
-def intermediate_diagnostics(solver, step):
-    """Save diagnostics progressively every desired number of steps.
+def inter_diagnostics(solver, step):
+    """Save diagnostics progressively every desired number of steps
+    and write them in a HDF5 file on the run.
 
     Parameters:
     - solver: Solver instance containing the data to save
     - step: Current propagation step
     """
-    temp_diagnostic = f"{path}/temp_diagnostic.h5"
-
     if step == 1:
-        os.makedirs(path, exist_ok=True)
-        with h5py.File(temp_diagnostic, "w") as f:
+        with h5py.File(TEMP_DIAGNOSTIC_PATH, "w") as f:
             envelope_grp = f.create_group("envelope")
             envelope_grp.create_dataset(
                 "peak_rz",
@@ -109,7 +94,7 @@ def intermediate_diagnostics(solver, step):
                 compression="gzip",
                 chunks=(
                     solver.grid.nodes_r,
-                    min(interval, solver.grid.number_steps + 1),
+                    min(monitor_int, solver.grid.number_steps + 1),
                 ),
             )
 
@@ -126,8 +111,8 @@ def intermediate_diagnostics(solver, step):
             meta.create_dataset("last_step", data=0, dtype=int)
 
     # Update data
-    if step % interval == 0 or step == solver.grid.number_steps:
-        with h5py.File(temp_diagnostic, "r+") as f:
+    if step % monitor_int == 0 or step == solver.grid.number_steps:
+        with h5py.File(TEMP_DIAGNOSTIC_PATH, "r+") as f:
             last_step = f["metadata/last_step"][()]
 
             if step > last_step:
@@ -135,3 +120,83 @@ def intermediate_diagnostics(solver, step):
                     solver.envelope_tp_rz[:, last_step + 1 : step + 1]
                 )
                 f["metadata/last_step"][()] = step
+
+
+def expensive_diagnostics(solver, step):
+    """Save memory expensive diagnostics data for current step.
+
+    Parameters:
+    - solver: Solver instance containing the data to save
+    - step: Current propagation step index for snapshots (1-based)
+    """
+    solver.envelope_snapshot_rzt[:, step, :] = solver.envelope_rt
+    solver.density_snapshot_rzt[:, step, :] = solver.density_rt
+    solver.snapshot_z_index[step] = (
+        solver.snapshot_z_index[step - 1] + solver.grid.steps_per_snapshot
+    )
+
+
+def profiler_report(profiler, save_path=None, top_n=20):
+    """
+    Profile report for the func execution and save a detailed report.
+
+    Parameters:
+    - profiler: cProfile.Profile object after disable() is called
+    - save_path: Path to save the report (default: PROFILER_PATH)
+    - top_n: Top N time-consuming functions to display (default: 20)
+
+    Returns:
+    - stats: pstats.Stats object with profiling report
+    """
+    profiler_path = save_path if save_path else PROFILER_PATH
+
+    # Generate the report
+    with open(profiler_path, "w", encoding="utf-8") as f:
+        # Header
+        f.write("=" * 80 + "\n")
+        f.write("PERFORMANCE PROFILE REPORT\n")
+        f.write("=" * 80 + "\n\n")
+
+        # General statistics
+        f.write("SUMMARY\n")
+        f.write("-" * 80 + "\n")
+        stats = pstats.Stats(profiler, stream=f)
+        stats.strip_dirs().sort_stats().print_stats(0)
+
+        # Most time-consuming functions
+        f.write("\n\nTOP TIME-CONSUMING FUNCTIONS\n")
+        f.write("-" * 80 + "\n")
+        stats = pstats.Stats(profiler, stream=f)
+        stats.strip_dirs().sort_stats(SortKey.TIME).print_stats(top_n)
+
+        # Cumulative time statistics
+        f.write("\n\nTOP TIME-ACCUMULATED FUNCTIONS\n")
+        f.write("-" * 80 + "\n")
+        stats = pstats.Stats(profiler, stream=f)
+        stats.strip_dirs().sort_stats(SortKey.CUMULATIVE).print_stats(top_n)
+
+        # Most frequent calls
+        f.write("\n\nMOST FREQUENT CALLED FUNCTIONS\n")
+        f.write("-" * 80 + "\n")
+        stats = pstats.Stats(profiler, stream=f)
+        stats.strip_dirs().sort_stats(SortKey.CALLS).print_stats(top_n)
+
+        # Solvers analysis
+        main_routines = [
+            "solve_density",
+            "solve_scattering",
+            "solve_dispersion",
+            "solve_envelope",
+            "solve_nonlinear_rk4",
+            "solve_nonlinear_rk4_freq",
+            "solve_step",
+        ]
+
+        for func_chr in main_routines:
+            f.write(f"\n--- Analysis of {func_chr} ---\n")
+            stats = pstats.Stats(profiler, stream=f)
+            stats.strip_dirs()
+            stats.print_callers(func_chr)
+            stats.print_callees(func_chr)
+
+        return pstats.Stats(profiler)

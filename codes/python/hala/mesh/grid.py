@@ -7,7 +7,7 @@ from scipy.fft import fftfreq
 class GridParameters:
     "Spatial and temporal grid parameters."
 
-    def __init__(self, const):
+    def __init__(self):
         # Radial domain
         self.r_min = 0
         self.r_max = 5e-3
@@ -26,7 +26,7 @@ class GridParameters:
 
         # Initialize derived parameters functions
         self._setup_derived_parameters()
-        self._setup_arrays(const)
+        self._setup_arrays()
 
     @property
     def nodes_r(self):
@@ -50,13 +50,13 @@ class GridParameters:
         self.node_r0 = int(-self.r_min / self.del_r)
         self.node_t0 = self.nodes_t // 2
 
-    def _setup_arrays(self, const):
+    def _setup_arrays(self):
         "Setup grid arrays."
         # 1D
         self.r_grid = np.linspace(self.r_min, self.r_max, self.nodes_r)
         self.z_grid = np.linspace(self.z_min, self.z_max, self.number_steps + 1)
         self.t_grid = np.linspace(self.t_min, self.t_max, self.nodes_t)
-        self.w_grid = 2 * const.pi * fftfreq(self.nodes_t, self.del_t)
+        self.w_grid = 2 * np.pi * fftfreq(self.nodes_t, self.del_t)
 
         # 2D
         self.r_grid_2d, self.t_grid_2d = np.meshgrid(

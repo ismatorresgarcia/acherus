@@ -7,7 +7,7 @@ from scipy.sparse import diags_array
 from ..numerical.routines.density import solve_density
 from ..numerical.routines.envelope import (
     frequency_domain,
-    solve_nonlinear_rk4_freq,
+    solve_nonlinear_rk4_frequency,
     time_domain,
 )
 from ..numerical.routines.raman import solve_scattering
@@ -19,19 +19,18 @@ from .base import SolverBase
 class SolverFCN(SolverBase):
     """Fourier Crank-Nicolson class implementation."""
 
-    def __init__(self, const, medium, laser, grid, nee, method_opt="rk4"):
+    def __init__(self, material, laser, grid, eqn, method_opt="rk4"):
         """Initialize FCN solver.
 
         Parameters:
-        - const: Constants object with physical constants
-        - medium: MediumParameters object with medium properties
+        - material: MediumParameters object with medium properties
         - laser: LaserPulseParameters object with laser properties
         - grid: GridParameters object with grid definition
-        - nee: NEEParameters object with equation parameters
+        - eqn: EquationParameters object with equation parameters
         - method_opt: Nonlinear solver method (default: "rk4")
         """
         # Initialize base class
-        super().__init__(const, medium, laser, grid, nee, method_opt)
+        super().__init__(material, laser, grid, eqn, method_opt)
 
         # Initialize FCN-specific arrays
         self.envelope_fourier_rt = np.empty_like(self.envelope_rt)
@@ -93,25 +92,19 @@ class SolverFCN(SolverBase):
 
     def setup_operators(self):
         """Setup FCN operators."""
-        self.self_steepening_operator = (
-            1 + self.grid.w_grid / self.laser.input_frequency_0
-        )
+        self.self_steepening = 1 + self.grid.w_grid / self.laser.frequency_0
         coefficient_diffraction = (
             0.25
             * self.grid.del_z
-            / (
-                self.laser.input_wavenumber
-                * self.grid.del_r**2
-                * self.self_steepening_operator
-            )
+            / (self.laser.wavenumber * self.grid.del_r**2 * self.self_steepening)
         )
         coefficient_dispersion = (
-            0.25 * self.grid.del_z * self.medium.constant_gvd * self.grid.w_grid**2
+            0.25 * self.grid.del_z * self.material.constant_gvd * self.grid.w_grid**2
         )
 
         # Setup FCN coefficients
-        self.diff_operator = self.const.imaginary_unit * coefficient_diffraction
-        self.disp_operator = self.const.imaginary_unit * coefficient_dispersion
+        self.diff_operator = 1j * coefficient_diffraction
+        self.disp_operator = 1j * coefficient_dispersion
         self.matrix_cnt_left = 1 + 2 * self.diff_operator - self.disp_operator
         self.matrix_cnt_right = 1 - 2 * self.diff_operator + self.disp_operator
 
@@ -144,15 +137,15 @@ class SolverFCN(SolverBase):
                 -self.diff_operator[ll],
             )
 
-            # Solve matrix-vector product using CSR sparse format
+            # Solve matrix-vector product using "DIA" sparse format
             rhs_linear = matrix_cn_right @ self.envelope_fourier_rt[:, ll]
 
             # Compute the left-hand side of the equation
-            lhs = rhs_linear + self.nonlinear_rt[:, ll]
+            rhs = rhs_linear + self.nonlinear_rt[:, ll]
 
             # Solve the tridiagonal system using the banded solver
             self.envelope_fourier_next_rt[:, ll] = solve_banded(
-                (1, 1), matrix_cn_left, lhs
+                (1, 1), matrix_cn_left, rhs
             )
 
         self.envelope_next_rt[:] = time_domain(self.envelope_fourier_next_rt)
@@ -171,7 +164,7 @@ class SolverFCN(SolverBase):
             self.del_t_6,
         )
 
-        # Solve Raman response if needed
+        # Solve Raman response if eqnded
         if self.use_raman:
             solve_scattering(
                 self.raman_rt,
@@ -180,8 +173,8 @@ class SolverFCN(SolverBase):
                 self.raman_rk4_stage,
                 self.draman_rk4_stage,
                 self.grid.nodes_t,
-                self.nee.raman_coefficient_1,
-                self.nee.raman_coefficient_2,
+                self.eqn.raman_coefficient_1,
+                self.eqn.raman_coefficient_2,
                 self.del_t,
                 self.del_t_2,
                 self.del_t_6,
@@ -191,7 +184,7 @@ class SolverFCN(SolverBase):
 
         # Solve nonlinear part using RK4
         if self.method.upper() == "RK4":
-            solve_nonlinear_rk4_freq(
+            solve_nonlinear_rk4_frequency(
                 self.envelope_rt,
                 self.density_rt,
                 self.raman_rt,

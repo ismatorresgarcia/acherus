@@ -3,11 +3,11 @@
 import argparse
 
 from .. import __version__
-from ..core.materials import MediumParameters
+from ..core.materials import MaterialParameters
 
 
 def create_cli_arguments():
-    """Parse command line arguments."""
+    """Parse command line arguments with argparse."""
     parser = argparse.ArgumentParser(
         description="HALA v{__version__} Python package "
         "(2+1)D with cylindrical symmetry numerical solver for "
@@ -15,21 +15,21 @@ def create_cli_arguments():
     )
     parser.add_argument(
         "-m",
-        "--medium",
-        choices=MediumParameters.media_list,
+        "--material",
+        choices=MaterialParameters.materials_list,
         default="oxygen800",
-        help="Propagation medium (default: oxygen at 800 nm)",
+        help="Propagation material (default: oxygen at 800 nm)",
     )
     parser.add_argument(
         "-p",
         "--pulse",
-        choices=["gauss", "to_be_defined"],
-        default="gauss",
+        choices=["gaussian", "to_be_defined"],
+        default="gaussian",
         help="Pulse type (default: gaussian and super-Gaussian pulses)",
     )
     parser.add_argument(
         "-g",
-        "--gauss_order",
+        "--gaussian_order",
         type=int,
         default=2,
         help="Gaussian order parameter (2: regular Gaussian, > 2: super-Gaussian)",

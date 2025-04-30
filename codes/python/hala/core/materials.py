@@ -1,33 +1,33 @@
-"""Medium properties dictionary for laser propagation media."""
+"""material properties dictionary for laser propagation media."""
 
 from dataclasses import dataclass
 
 
 @dataclass
-class MediumParameters:
-    "Medium parameters to be chosen."
+class MaterialParameters:
+    "Materials parameters to be chosen."
 
-    media_list = ["oxygen800", "nitrogen800", "airdsr", "water800"]
+    materials_list = ["oxygen800", "nitrogen800", "airdsr", "water800"]
 
-    def __init__(self, medium_opt="oxygen800"):
-        if medium_opt not in self.media_list:
-            media_valid = ", ".join(self.media_list)
+    def __init__(self, material_opt="oxygen800"):
+        if material_opt not in self.materials_list:
+            material_valid = ", ".join(self.materials_list)
             raise ValueError(
-                f"Not available medium option: '{medium_opt}'. "
-                f"Available medium options are: {media_valid}"
+                f"Not available material option: '{material_opt}'. "
+                f"Available materials are: {material_valid}"
             )
 
-        if medium_opt == "oxygen800":
-            self.medium_atr = "oxygen800"  # oxygen at 800 nm
-        elif medium_opt == "nitrogen800":
-            self.medium_atr = "nitrogen800"  # nitrogen at 800 nm
-        elif medium_opt == "airdsr":
-            self.medium_atr = "airdsr"  # average air at 775 nm
+        if material_opt == "oxygen800":
+            self.material_atr = "oxygen800"  # oxygen at 800 nm
+        elif material_opt == "nitrogen800":
+            self.material_atr = "nitrogen800"  # nitrogen at 800 nm
+        elif material_opt == "airdsr":
+            self.material_atr = "airdsr"  # average air at 775 nm
         else:
-            self.medium_atr = "water800"  # water at 800 nm
+            self.material_atr = "water800"  # water at 800 nm
 
-        # Define medium properties dictionary
-        media_dict = {
+        # Define material properties dictionary
+        materials_dict = {
             "oxygen800": {
                 "refraction_index_linear": 1.0,
                 "refraction_index_nonlinear": 3.2e-23,
@@ -90,7 +90,7 @@ class MediumParameters:
             },
         }
 
-        # Extract medium properties from the dictionary as attributes
-        medium = media_dict[self.medium_atr]
-        for key, value in medium.items():
+        # Extract material properties from the dictionary as attributes
+        material = materials_dict[self.material_atr]
+        for key, value in material.items():
             setattr(self, key, value)

@@ -114,7 +114,7 @@ def solve_nonlinear_rk4(env, dens, ram, env_rk4, nlin, n_t, env_args, dz, dz_2, 
         nlin[:, ll] = nlin_s_rk4
 
 
-def _set_envelope_operator_freq(
+def _set_envelope_operator_frequency(
     env, dens, ram, steep_op, n_k, dens_n, coef_p, coef_m, coef_k, coef_r
 ):
     """Set up all nonlinear operators together for FCN solver.
@@ -157,7 +157,7 @@ def _set_envelope_operator_freq(
     return nlin
 
 
-def _rk4_envelope_step_freq(
+def _rk4_envelope_step_frequency(
     env, dens, ram, steep_op, env_rk4, env_args, dz, dz_2, dz_6
 ):
     """Combined RK4 step for all nonlinear terms for FCN solver.
@@ -176,23 +176,23 @@ def _rk4_envelope_step_freq(
     Returns:
     - complex 2D-array: RK4 integration for all nonlinear terms
     """
-    k1_env = _set_envelope_operator_freq(env, dens, ram, steep_op, *env_args)
+    k1_env = _set_envelope_operator_frequency(env, dens, ram, steep_op, *env_args)
     env_rk4 = env + dz_2 * time_domain(k1_env)
 
-    k2_env = _set_envelope_operator_freq(env_rk4, dens, ram, steep_op, *env_args)
+    k2_env = _set_envelope_operator_frequency(env_rk4, dens, ram, steep_op, *env_args)
     env_rk4 = env + dz_2 * time_domain(k2_env)
 
-    k3_env = _set_envelope_operator_freq(env_rk4, dens, ram, steep_op, *env_args)
+    k3_env = _set_envelope_operator_frequency(env_rk4, dens, ram, steep_op, *env_args)
     env_rk4 = env + dz * time_domain(k3_env)
 
-    k4_env = _set_envelope_operator_freq(env_rk4, dens, ram, steep_op, *env_args)
+    k4_env = _set_envelope_operator_frequency(env_rk4, dens, ram, steep_op, *env_args)
 
     nlin_rk4 = dz_6 * (k1_env + 2 * k2_env + 2 * k3_env + k4_env)
 
     return nlin_rk4
 
 
-def solve_nonlinear_rk4_freq(
+def solve_nonlinear_rk4_frequency(
     env, dens, ram, steep_op, env_rk4, nlin, env_args, dz, dz_2, dz_6
 ):
     """
@@ -211,6 +211,6 @@ def solve_nonlinear_rk4_freq(
     - dz_2: z step divided by 2
     - dz_6: z step divided by 6
     """
-    nlin[:] = _rk4_envelope_step_freq(
+    nlin[:] = _rk4_envelope_step_frequency(
         env, dens, ram, steep_op, env_rk4, env_args, dz, dz_2, dz_6
     )

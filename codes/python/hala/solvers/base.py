@@ -1,38 +1,38 @@
 """Shared solver module."""
 
 import numpy as np
-from tqdm import tqdm
 
 from ..core.initial import initialize_envelope
 from ..numerical.shared.fluence import calculate_fluence
 from ..numerical.shared.radius import calculate_radius
-from ..results.routines import cheap_diagnostics, expensive_diagnostics
+from ..results.routines import (
+    cheap_diagnostics,
+    expensive_diagnostics,
+    inter_diagnostics,
+)
 
 
 class SolverBase:
     """Base solver class."""
 
-    def __init__(self, const, medium, laser, grid, nee, method_opt="rk4"):
+    def __init__(self, material, laser, grid, eqn, method_opt="rk4"):
         """Initialize solver with common parameters.
 
         Parameters:
-        - const: Constants object with physical constants
-        - medium: MediumParameters object with medium properties
+        - material: MaterialParameters object with material properties
         - laser: LaserPulseParameters object with laser properties
         - grid: GridParameters object with grid definition
-        - nee: NEEParameters object with equation parameters
+        - eqn: EquationParameters object with equation parameters
         - method_opt: Nonlinear solver method (default: "rk4")
         """
-        self.const = const
-        self.medium = medium
+        self.material = material
         self.laser = laser
         self.grid = grid
-        self.nee = nee
-
+        self.eqn = eqn
         self.method = "rk4" if method_opt.upper() == "RK4" else "to_be_defined"
 
         # Setup arrays
-        self._initialize_arrays()
+        self._init_arrays()
 
         # Compute Runge-Kutta constants
         self.del_z = grid.del_z
@@ -43,28 +43,28 @@ class SolverBase:
         self.del_t_6 = self.del_t / 6
 
         self.envelope_arguments = (
-            self.medium.number_photons,
-            self.medium.density_neutral,
-            nee.coefficient_plasma,
-            nee.coefficient_mpa,
-            nee.coefficient_kerr,
-            nee.coefficient_raman,
+            self.material.number_photons,
+            self.material.density_neutral,
+            eqn.coefficient_plasma,
+            eqn.coefficient_mpa,
+            eqn.coefficient_kerr,
+            eqn.coefficient_raman,
         )
         self.density_arguments = (
-            self.medium.number_photons,
-            self.medium.density_neutral,
-            nee.coefficient_ofi,
-            nee.coefficient_ava,
+            self.material.number_photons,
+            self.material.density_neutral,
+            eqn.coefficient_ofi,
+            eqn.coefficient_ava,
         )
 
         # Setup flags
-        self.use_raman = medium.has_raman
+        self.use_raman = material.has_raman
 
         # Setup tracking variables
         self.snapshot_z_index = np.empty(self.grid.number_snapshots + 1, dtype=int)
 
     # Setup (pre-allocate) arrays
-    def _initialize_arrays(self):
+    def _init_arrays(self):
         """Initialize arrays for simulation."""
         shape_r = (self.grid.nodes_r,)
         shape_rt = (self.grid.nodes_r, self.grid.nodes_t)
@@ -100,7 +100,7 @@ class SolverBase:
         self.draman_rt = np.empty_like(self.raman_rt)
         self.nonlinear_rt = np.empty_like(self.envelope_rt)
 
-        # Initialize arrays for RK4 integration
+        # Initialize RK4 integration arrays
         self.envelope_rk4_stage = np.empty(self.grid.nodes_r, dtype=complex)
         self.density_rk4_stage = np.empty(self.grid.nodes_r)
         self.raman_rk4_stage = np.empty(self.grid.nodes_r, dtype=complex)
@@ -109,7 +109,7 @@ class SolverBase:
     def setup_initial_condition(self):
         """Setup initial conditions."""
         # Initial conditions
-        self.envelope_rt[:] = initialize_envelope(self.const, self.grid, self.laser)
+        self.envelope_rt[:] = initialize_envelope(self.grid, self.laser)
         self.density_rt[:, 0] = 0
         self.fluence_rz[:, 0] = calculate_fluence(self.envelope_rt, dt=self.grid.del_t)
         self.radius_z[0] = calculate_radius(self.fluence_rz[:, 0], r_g=self.grid.r_grid)
@@ -141,22 +141,13 @@ class SolverBase:
 
     def propagate(self):
         """Propagate beam through all steps."""
-        steps = self.grid.number_steps
         steps_snap = self.grid.steps_per_snapshot
         n_snaps = self.grid.number_snapshots
 
-        with tqdm(total=steps, desc="Progress") as pbar:
-            for snap_idx in range(1, n_snaps + 1):
-                for steps_snap_idx in range(1, steps_snap + 1):
-                    step_idx = (snap_idx - 1) * steps_snap + steps_snap_idx
-                    self.solve_step()
-                    cheap_diagnostics(self, step_idx)
-                    pbar.update(1)
-                    pbar.set_postfix(
-                        {
-                            "snap": snap_idx,
-                            "step_per_snap": steps_snap_idx,
-                            "step": step_idx,
-                        }
-                    )
-                expensive_diagnostics(self, snap_idx)
+        for snap_idx in range(1, n_snaps + 1):
+            for steps_snap_idx in range(1, steps_snap + 1):
+                step_idx = (snap_idx - 1) * steps_snap + steps_snap_idx
+                self.solve_step()
+                cheap_diagnostics(self, step_idx)
+                inter_diagnostics(self, step_idx)
+            expensive_diagnostics(self, snap_idx)
