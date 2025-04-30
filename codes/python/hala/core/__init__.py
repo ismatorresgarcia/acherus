@@ -6,9 +6,9 @@ from .laser import LaserInputParameters, LaserPulseParameters
 from .materials import MaterialParameters
 
 __all__ = [
-    "MaterialParameters",
-    "initialize_envelope",
+    "EquationParameters",
     "LaserInputParameters",
     "LaserPulseParameters",
-    "EquationParameters",
+    "MaterialParameters",
+    "initialize_envelope",
 ]

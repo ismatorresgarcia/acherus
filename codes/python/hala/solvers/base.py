@@ -61,20 +61,20 @@ class SolverBase:
         self.use_raman = material.has_raman
 
         # Setup tracking variables
-        self.snapshot_z_index = np.empty(self.grid.number_snapshots + 1, dtype=int)
+        self.snapshot_z_index = np.empty(self.grid.zd.z_snapshots + 1, dtype=int)
 
     # Setup (pre-allocate) arrays
     def _init_arrays(self):
         """Initialize arrays for simulation."""
-        shape_r = (self.grid.nodes_r,)
-        shape_rt = (self.grid.nodes_r, self.grid.nodes_t)
+        shape_r = (self.grid.r_nodes,)
+        shape_rt = (self.grid.r_nodes, self.grid.td.t_nodes)
         shape_rzt = (
-            self.grid.nodes_r,
-            self.grid.number_snapshots + 1,
-            self.grid.nodes_t,
+            self.grid.r_nodes,
+            self.grid.zd.z_snapshots + 1,
+            self.grid.td.t_nodes,
         )
-        shape_zt = (self.grid.number_steps + 1, self.grid.nodes_t)
-        shape_rz = (self.grid.nodes_r, self.grid.number_steps + 1)
+        shape_zt = (self.grid.zd.z_steps + 1, self.grid.td.t_nodes)
+        shape_rz = (self.grid.r_nodes, self.grid.zd.z_steps + 1)
 
         # Initialize envelope arrays
         self.envelope_rt = np.empty(shape_rt, dtype=complex)
@@ -93,7 +93,7 @@ class SolverBase:
         self.fluence_r = np.empty(shape_r)
         self.fluence_rz = np.empty(shape_rz)
         self.radius = np.empty(1)
-        self.radius_z = np.empty(self.grid.number_steps + 1)
+        self.radius_z = np.empty(self.grid.zd.z_steps + 1)
 
         # Initialize Raman arrays
         self.raman_rt = np.empty(shape_rt, dtype=complex)
@@ -101,9 +101,9 @@ class SolverBase:
         self.nonlinear_rt = np.empty_like(self.envelope_rt)
 
         # Initialize RK4 integration arrays
-        self.envelope_rk4_stage = np.empty(self.grid.nodes_r, dtype=complex)
-        self.density_rk4_stage = np.empty(self.grid.nodes_r)
-        self.raman_rk4_stage = np.empty(self.grid.nodes_r, dtype=complex)
+        self.envelope_rk4_stage = np.empty(self.grid.r_nodes, dtype=complex)
+        self.density_rk4_stage = np.empty(self.grid.r_nodes)
+        self.raman_rk4_stage = np.empty(self.grid.r_nodes, dtype=complex)
         self.draman_rk4_stage = np.empty_like(self.raman_rk4_stage)
 
     def setup_initial_condition(self):
@@ -116,11 +116,11 @@ class SolverBase:
 
         # Store initial values for diagnostics
         self.envelope_snapshot_rzt[:, 0, :] = self.envelope_rt
-        self.envelope_r0_zt[0, :] = self.envelope_rt[self.grid.node_r0, :]
-        self.envelope_tp_rz[:, 0] = self.envelope_rt[:, self.grid.node_t0]
+        self.envelope_r0_zt[0, :] = self.envelope_rt[0, :]
+        self.envelope_tp_rz[:, 0] = self.envelope_rt[:, self.grid.t0_node]
         self.density_snapshot_rzt[:, 0, :].fill(0)
-        self.density_r0_zt[0, :] = self.density_rt[self.grid.node_r0, :]
-        self.density_tp_rz[:, 0] = self.density_rt[:, self.grid.node_t0]
+        self.density_r0_zt[0, :] = self.density_rt[0, :]
+        self.density_tp_rz[:, 0] = self.density_rt[:, self.grid.t0_node]
         self.snapshot_z_index[0] = 0
 
     # Method that should exist in all solvers
@@ -141,12 +141,12 @@ class SolverBase:
 
     def propagate(self):
         """Propagate beam through all steps."""
-        steps_snap = self.grid.steps_per_snapshot
-        n_snaps = self.grid.number_snapshots
+        z_spsnap = self.grid.z_steps_per_snapshot
+        z_snaps = self.grid.zd.z_snapshots
 
-        for snap_idx in range(1, n_snaps + 1):
-            for steps_snap_idx in range(1, steps_snap + 1):
-                step_idx = (snap_idx - 1) * steps_snap + steps_snap_idx
+        for snap_idx in range(1, z_snaps + 1):
+            for steps_snap_idx in range(1, z_spsnap + 1):
+                step_idx = (snap_idx - 1) * z_spsnap + steps_snap_idx
                 self.solve_step()
                 cheap_diagnostics(self, step_idx)
                 inter_diagnostics(self, step_idx)

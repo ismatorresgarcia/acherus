@@ -40,7 +40,7 @@ class SolverFCN(SolverBase):
         self.setup_operators()
         self.setup_initial_condition()
 
-    def create_crank_nicolson_matrix(self, n_r, m_p, r_low, r_up, coef_m_s, coef_o_s):
+    def create_matrix(self, n_r, m_p, r_low, r_up, coef_m_s, coef_o_s):
         """
         Set the three diagonals for the Crank-Nicolson array with centered differences.
 
@@ -120,16 +120,16 @@ class SolverFCN(SolverBase):
         self.envelope_fourier_rt[:] = frequency_domain(self.envelope_rt)
 
         for ll in range(self.grid.nodes_t):
-            matrix_cn_left = self.create_crank_nicolson_matrix(
-                self.grid.nodes_r,
+            matrix_cn_left = self.create_matrix(
+                self.grid.r_nodes,
                 "left",
                 self.diag_down,
                 self.diag_up,
                 self.matrix_cnt_left[ll],
                 self.diff_operator[ll],
             )
-            matrix_cn_right = self.create_crank_nicolson_matrix(
-                self.grid.nodes_r,
+            matrix_cn_right = self.create_matrix(
+                self.grid.r_nodes,
                 "right",
                 self.diag_down,
                 self.diag_up,
@@ -157,7 +157,7 @@ class SolverFCN(SolverBase):
             self.envelope_rt,
             self.density_rt,
             self.density_rk4_stage,
-            self.grid.nodes_t,
+            self.grid.td.t_nodes,
             self.density_arguments,
             self.del_t,
             self.del_t_2,
@@ -172,7 +172,7 @@ class SolverFCN(SolverBase):
                 self.envelope_rt,
                 self.raman_rk4_stage,
                 self.draman_rk4_stage,
-                self.grid.nodes_t,
+                self.grid.td.t_nodes,
                 self.eqn.raman_coefficient_1,
                 self.eqn.raman_coefficient_2,
                 self.del_t,
@@ -183,12 +183,12 @@ class SolverFCN(SolverBase):
             self.raman_rt.fill(0)
 
         # Solve nonlinear part using RK4
-        if self.method.upper() == "RK4":
+        if self.method == "rk4":
             solve_nonlinear_rk4_frequency(
                 self.envelope_rt,
                 self.density_rt,
                 self.raman_rt,
-                self.self_steepening_operator,
+                self.self_steepening,
                 self.envelope_rk4_stage,
                 self.nonlinear_rt,
                 self.envelope_arguments,

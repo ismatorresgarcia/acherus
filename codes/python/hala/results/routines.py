@@ -56,12 +56,11 @@ def cheap_diagnostics(solver, step):
     # Validate current solver state
     validate_step(solver)
 
-    node_r0 = solver.grid.node_r0
     envelope_rt = solver.envelope_rt
     density_rt = solver.density_rt
 
-    axis_data_envelope = envelope_rt[node_r0]
-    axis_data_density = density_rt[node_r0]
+    axis_data_envelope = envelope_rt[0]
+    axis_data_density = density_rt[0]
     axis_data_intensity = np.abs(axis_data_envelope)
 
     peak_node_intensity = np.argmax(axis_data_intensity)
@@ -88,21 +87,21 @@ def inter_diagnostics(solver, step):
             envelope_grp = f.create_group("envelope")
             envelope_grp.create_dataset(
                 "peak_rz",
-                shape=(solver.grid.nodes_r, solver.grid.number_steps + 1),
-                maxshape=(solver.grid.nodes_r, None),
+                shape=(solver.grid.r_nodes, solver.grid.zd.z_steps + 1),
+                maxshape=(solver.grid.r_nodes, None),
                 dtype=complex,
                 compression="gzip",
                 chunks=(
-                    solver.grid.nodes_r,
-                    min(monitor_int, solver.grid.number_steps + 1),
+                    solver.grid.r_nodes,
+                    min(monitor_int, solver.grid.zd.z_steps + 1),
                 ),
             )
 
             coords = f.create_group("coordinates")
-            coords.create_dataset("r_min", data=solver.grid.r_min)
-            coords.create_dataset("r_max", data=solver.grid.r_max)
-            coords.create_dataset("z_min", data=solver.grid.z_min)
-            coords.create_dataset("z_max", data=solver.grid.z_max)
+            coords.create_dataset("r_min", data=solver.grid.rd.r_min)
+            coords.create_dataset("r_max", data=solver.grid.rd.r_max)
+            coords.create_dataset("z_min", data=solver.grid.zd.z_min)
+            coords.create_dataset("z_max", data=solver.grid.zd.z_max)
             coords.create_dataset("r_grid", data=solver.grid.r_grid)
             coords.create_dataset("z_grid", data=solver.grid.z_grid)
 
@@ -111,7 +110,7 @@ def inter_diagnostics(solver, step):
             meta.create_dataset("last_step", data=0, dtype=int)
 
     # Update data
-    if step % monitor_int == 0 or step == solver.grid.number_steps:
+    if step % monitor_int == 0 or step == solver.grid.zd.z_steps:
         with h5py.File(TEMP_DIAGNOSTIC_PATH, "r+") as f:
             last_step = f["metadata/last_step"][()]
 
@@ -132,7 +131,7 @@ def expensive_diagnostics(solver, step):
     solver.envelope_snapshot_rzt[:, step, :] = solver.envelope_rt
     solver.density_snapshot_rzt[:, step, :] = solver.density_rt
     solver.snapshot_z_index[step] = (
-        solver.snapshot_z_index[step - 1] + solver.grid.steps_per_snapshot
+        solver.snapshot_z_index[step - 1] + solver.grid.z_steps_per_snapshot
     )
 
 

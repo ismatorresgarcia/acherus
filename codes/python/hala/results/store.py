@@ -88,12 +88,12 @@ class OutputManager:
 
             # Coordinate information
             coords_grp = f.create_group("coordinates")
-            coords_grp.create_dataset("r_min", data=grid.r_min)
-            coords_grp.create_dataset("r_max", data=grid.r_max)
-            coords_grp.create_dataset("z_min", data=grid.z_min)
-            coords_grp.create_dataset("z_max", data=grid.z_max)
-            coords_grp.create_dataset("t_min", data=grid.t_min)
-            coords_grp.create_dataset("t_max", data=grid.t_max)
+            coords_grp.create_dataset("r_min", data=grid.rd.r_min)
+            coords_grp.create_dataset("r_max", data=grid.rd.r_max)
+            coords_grp.create_dataset("z_min", data=grid.zd.z_min)
+            coords_grp.create_dataset("z_max", data=grid.zd.z_max)
+            coords_grp.create_dataset("t_min", data=grid.td.t_min)
+            coords_grp.create_dataset("t_max", data=grid.td.t_max)
 
     def save_results(self, solver, grid):
         """Save all simulation results.

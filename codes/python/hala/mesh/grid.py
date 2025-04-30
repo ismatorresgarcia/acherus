@@ -1,64 +1,82 @@
 """Grid parameters for the cylindrical domain."""
 
+from dataclasses import dataclass
+
 import numpy as np
 from scipy.fft import fftfreq
 
 
+@dataclass
+class RadialGrid:
+    """Radial (r) grid properties."""
+
+    r_min: float = 0
+    r_max: float = 5e-3
+    r_i_nodes: int = 10000
+
+
+@dataclass
+class AxialGrid:
+    """Axial (z) grid properties."""
+
+    z_min: float = 0
+    z_max: float = 4
+    z_steps: int = 4000
+    z_snapshots: int = 5
+
+
+@dataclass
+class TemporalGrid:
+    """Temporal (t) grid properties."""
+
+    t_min: float = -250e-15
+    t_max: float = 250e-15
+    t_nodes: int = 8192
+
+
 class GridParameters:
-    "Spatial and temporal grid parameters."
+    "Grid parameters calculations."
 
     def __init__(self):
-        # Radial domain
-        self.r_min = 0
-        self.r_max = 5e-3
-        self.nodes_r_i = 10000
+        """Initialize grid properties."""
+        self.rd = RadialGrid()
+        self.zd = AxialGrid()
+        self.td = TemporalGrid()
 
-        # Distance domain
-        self.z_min = 0
-        self.z_max = 4
-        self.number_steps = 4000
-        self.number_snapshots = 5
-
-        # Time domain
-        self.t_min = -250e-15
-        self.t_max = 250e-15
-        self.nodes_t = 8192
-
-        # Initialize derived parameters functions
-        self._setup_derived_parameters()
-        self._setup_arrays()
+        # Initialize functions
+        self._init_grid_resolution()
+        self._init_grid_arrays()
 
     @property
-    def nodes_r(self):
-        "Total number of radial nodes for boundary conditions."
-        return self.nodes_r_i + 2
+    def r_nodes(self):
+        "Total number of radial nodes including boundary ones."
+        return self.rd.r_i_nodes + 2
 
     @property
-    def steps_per_snapshot(self):
+    def t0_node(self):
+        "Time node for which t = 0."
+        return self.td.t_nodes // 2
+
+    @property
+    def z_steps_per_snapshot(self):
         "Number of propagation steps between saved snapshots."
-        return self.number_steps // self.number_snapshots
+        return self.zd.z_steps // self.zd.z_snapshots
 
-    def _setup_derived_parameters(self):
+    def _init_grid_resolution(self):
         "Setup domain parameters."
         # Calculate steps
-        self.del_r = (self.r_max - self.r_min) / (self.nodes_r - 1)
-        self.del_z = (self.z_max - self.z_min) / self.number_steps
-        self.del_t = (self.t_max - self.t_min) / (self.nodes_t - 1)
-        self.del_w = 2 * np.pi / (self.nodes_t * self.del_t)
+        self.del_r = (self.rd.r_max - self.rd.r_min) / (self.r_nodes - 1)
+        self.del_z = (self.zd.z_max - self.zd.z_min) / self.zd.z_steps
+        self.del_t = (self.td.t_max - self.td.t_min) / (self.td.t_nodes - 1)
+        self.del_w = 2 * np.pi / (self.td.t_nodes * self.del_t)
 
-        # Calculate nodes for r = 0 and t = 0
-        self.node_r0 = int(-self.r_min / self.del_r)
-        self.node_t0 = self.nodes_t // 2
+    def _init_grid_arrays(self):
+        "Setup 1D and 2D grid arrays."
+        self.r_grid = np.linspace(self.rd.r_min, self.rd.r_max, self.r_nodes)
+        self.z_grid = np.linspace(self.zd.z_min, self.zd.z_max, self.zd.z_steps + 1)
+        self.t_grid = np.linspace(self.td.t_min, self.td.t_max, self.td.t_nodes)
+        self.w_grid = 2 * np.pi * fftfreq(self.td.t_nodes, self.del_t)
 
-    def _setup_arrays(self):
-        "Setup grid arrays."
-        # 1D
-        self.r_grid = np.linspace(self.r_min, self.r_max, self.nodes_r)
-        self.z_grid = np.linspace(self.z_min, self.z_max, self.number_steps + 1)
-        self.t_grid = np.linspace(self.t_min, self.t_max, self.nodes_t)
-        self.w_grid = 2 * np.pi * fftfreq(self.nodes_t, self.del_t)
-
-        # 2D
         self.r_grid_2d, self.t_grid_2d = np.meshgrid(
             self.r_grid, self.t_grid, indexing="ij"
         )

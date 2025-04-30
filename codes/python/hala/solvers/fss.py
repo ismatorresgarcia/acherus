@@ -39,7 +39,7 @@ class SolverFSS(SolverBase):
         self.setup_operators()
         self.setup_initial_condition()
 
-    def create_crank_nicolson_matrix(self, n_r, m_p, coef_d):
+    def create_matrix(self, n_r, m_p, coef_d):
         """
         Set the three diagonals for the Crank-Nicolson array with centered differences.
 
@@ -105,11 +105,11 @@ class SolverFSS(SolverBase):
 
         # Setup CN operators for diffraction
         matrix_constant = 1j * coefficient_diffraction
-        self.matrix_cn_left = self.create_crank_nicolson_matrix(
-            self.grid.nodes_r, "left", matrix_constant
+        self.matrix_cn_left = self.create_matrix(
+            self.grid.r_nodes, "left", matrix_constant
         )
-        self.matrix_cn_right = self.create_crank_nicolson_matrix(
-            self.grid.nodes_r, "right", -matrix_constant
+        self.matrix_cn_right = self.create_matrix(
+            self.grid.r_nodes, "right", -matrix_constant
         )
 
     def solve_dispersion(self):
@@ -141,7 +141,7 @@ class SolverFSS(SolverBase):
             self.envelope_rt,
             self.density_rt,
             self.density_rk4_stage,
-            self.grid.nodes_t,
+            self.grid.td.t_nodes,
             self.density_arguments,
             self.del_t,
             self.del_t_2,
@@ -156,7 +156,7 @@ class SolverFSS(SolverBase):
                 self.envelope_rt,
                 self.raman_rk4_stage,
                 self.draman_rk4_stage,
-                self.grid.nodes_t,
+                self.grid.td.t_nodes,
                 self.eqn.raman_coefficient_1,
                 self.eqn.raman_coefficient_2,
                 self.del_t,
@@ -170,14 +170,14 @@ class SolverFSS(SolverBase):
         self.solve_dispersion()
 
         # Solve nonlinear part using RK4
-        if self.method.upper() == "RK4":
+        if self.method == "rk4":
             solve_nonlinear_rk4(
                 self.envelope_split_rt,
                 self.density_rt,
                 self.raman_rt,
                 self.envelope_rk4_stage,
                 self.nonlinear_rt,
-                self.grid.nodes_t,
+                self.grid.td.t_nodes,
                 self.envelope_arguments,
                 self.del_z,
                 self.del_z_2,
