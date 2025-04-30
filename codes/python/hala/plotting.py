@@ -3,8 +3,6 @@ Python tool for plotting NumPy arrays saved after
 the simulations have finished execution.
 """
 
-__version__ = "0.2.0"
-
 import argparse
 import os
 import traceback
@@ -18,8 +16,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LogNorm
 
-DEFAULT_DATA_FILE_PATH = "./storage/simulation_1"
-DEFAULT_FIGURES_SAVE_PATH = "./storage/simulation_1/figures/"
+from ._version import __version__
+
+DEFAULT_DATA_PATH = "./python/storage"
+DEFAULT_FIGURES_SAVE_PATH = f"{DEFAULT_DATA_PATH}/figures/"
 
 
 @dataclass
@@ -221,20 +221,22 @@ class SimulationBox:
         self,
         units: Units,
         data: Dict[str, Any],
-        symmetry: bool = False,
+        radial_symmetry: bool = False,
         radial_limit: float = None,
-        time_limit: float = None,
+        axial_range: tuple = None,
+        time_range: tuple = None,
     ):
         self.units = units
         self.data = data
-        self.symmetry = symmetry
+        self.radial_symmetry = radial_symmetry
         self.radial_limit = radial_limit
-        self.time_limit = time_limit
-        self._initialize_boundaries()
-        self._initialize_grid_nodes()
-        self._initialize_sliced_arrays()
+        self.axial_range = axial_range
+        self.time_range = time_range
+        self._init_boundaries()
+        self._init_grid_nodes()
+        self._init_sliced_arrays()
 
-    def _initialize_boundaries(self):
+    def _init_boundaries(self):
         """Set up the plotting box boundary."""
         self.r_min_ori = self.data["ini_radi_coor"]
         self.r_max_ori = self.data["fin_radi_coor"]
@@ -258,37 +260,62 @@ class SimulationBox:
                 f"Radial grid maximum set from {r_max_ori_units} mm to {r_max_units:.2f} mm"
             )
 
-        if self.time_limit is not None and self.time_limit < t_max:
-            t_min = -self.time_limit
-            t_max = self.time_limit
-            t_max_units = t_max * self.units.factor_t
-            t_max_ori_units = self.t_max_ori * self.units.factor_t
-            print(
-                f"Time grid maximum set from {t_max_ori_units} fs to {t_max_units} fs"
-            )
+        if self.axial_range is not None:
+            z_min_new, z_max_new = self.axial_range
+            if z_min_new > z_min:
+                z_min = z_min_new
+                z_min_units = z_min * self.units.factor_z
+                z_min_ori_units = self.z_min_ori * self.units.factor_z
+                print(
+                    f"Axial minimum set from {z_min_ori_units:.2f} m to {z_min_units:.2f} m"
+                )
+            if z_max_new < z_max:
+                z_max = z_max_new
+                z_max_units = z_max * self.units.factor_z
+                z_max_ori_units = self.z_max_ori * self.units.factor_z
+                print(
+                    f"Axial maximum set from {z_max_ori_units:.2f} m to {z_max_units:.2f} m"
+                )
 
-        if self.symmetry:
+        if self.time_range is not None:
+            t_min_new, t_max_new = self.time_range
+            if t_min_new > t_min:
+                t_min = t_min_new
+                t_min_units = t_min * self.units.factor_t
+                t_min_ori_units = self.t_min_ori * self.units.factor_t
+                print(
+                    f"Time minimum set from {t_min_ori_units:.2f} fs to {t_min_units:.2f} fs"
+                )
+            if t_max_new < t_max:
+                t_max = t_max_new
+                t_max_units = t_max * self.units.factor_t
+                t_max_ori_units = self.t_max_ori * self.units.factor_t
+                print(
+                    f"Time maximum set from {t_max_ori_units:.2f} fs to {t_max_units:.2f} fs"
+                )
+
+        if self.radial_symmetry:
             r_min = -r_max
 
         self.boundary_r = (r_min, r_max)
         self.boundary_z = (z_min, z_max)
         self.boundary_t = (t_min, t_max)
 
-    def _initialize_grid_nodes(self):
+    def _init_grid_nodes(self):
         """Set up the plotting box boundary nodes."""
         self.nodes_r = self.data["e_dist"].shape[0]
         self.nodes_z = self.data["e_axis"].shape[0]
         self.nodes_t = self.data["e_axis"].shape[1]
 
-        if self.symmetry:
+        if self.radial_symmetry:
             self.nodes_r_sym = 2 * self.nodes_r - 1
 
         self.nodes = {}
         for dim, (min_b, max_b, n_nodes, mini, maxi) in {
             "r_data": (
                 *self.boundary_r,
-                self.nodes_r if not self.symmetry else self.nodes_r_sym,
-                (self.r_min_ori if not self.symmetry else -self.r_max_ori),
+                self.nodes_r if not self.radial_symmetry else self.nodes_r_sym,
+                (self.r_min_ori if not self.radial_symmetry else -self.r_max_ori),
                 self.r_max_ori,
             ),
             "z_data": (
@@ -308,12 +335,12 @@ class SimulationBox:
             node_max = (max_b - mini) * (n_nodes - 1) / (maxi - mini)
             self.nodes[dim] = (int(node_min), int(node_max) + 1)
 
-        if self.symmetry:
+        if self.radial_symmetry:
             self.node_r0 = self.nodes_r - 1
         else:
             self.node_r0 = 0
 
-    def _initialize_sliced_arrays(self):
+    def _init_sliced_arrays(self):
         """Set up computational arrays"""
         self.sliced_data = {}
         self.sliced_obj = {  # Get elements from n_min to n_max
@@ -322,7 +349,7 @@ class SimulationBox:
             "t": slice(*self.nodes["t_data"]),
         }
 
-        if self.symmetry:
+        if self.radial_symmetry:
             radi_positive = np.linspace(0, self.r_max_ori, self.nodes_r)
             radi_negative = -np.flip(radi_positive[:-1])
             radi = np.concatenate((radi_negative, radi_positive))
@@ -345,7 +372,7 @@ class SimulationBox:
 
         # Slice electric field data if present
         if "e_dist" in self.data:
-            if self.symmetry:
+            if self.radial_symmetry:
                 self.sliced_data["e_dist"] = self.flip_radial_data(
                     self.data["e_dist"], axis_r=0
                 )[self.sliced_obj["r"], :, self.sliced_obj["t"]]
@@ -358,7 +385,7 @@ class SimulationBox:
                 self.sliced_obj["z"], self.sliced_obj["t"]
             ]
         if "e_peak" in self.data:
-            if self.symmetry:
+            if self.radial_symmetry:
                 self.sliced_data["e_peak"] = self.flip_radial_data(
                     self.data["e_peak"], axis_r=0
                 )[self.sliced_obj["r"], self.sliced_obj["z"]]
@@ -369,7 +396,7 @@ class SimulationBox:
 
         # Slice electron density data if present
         if "elec_dist" in self.data:
-            if self.symmetry:
+            if self.radial_symmetry:
                 self.sliced_data["elec_dist"] = self.flip_radial_data(
                     self.data["elec_dist"], axis_r=0
                 )[self.sliced_obj["r"], :, self.sliced_obj["t"]]
@@ -382,7 +409,7 @@ class SimulationBox:
                 self.sliced_obj["z"], self.sliced_obj["t"]
             ]
         if "elec_peak" in self.data:
-            if self.symmetry:
+            if self.radial_symmetry:
                 self.sliced_data["elec_peak"] = self.flip_radial_data(
                     self.data["elec_peak"], axis_r=0
                 )[self.sliced_obj["r"], self.sliced_obj["z"]]
@@ -393,7 +420,7 @@ class SimulationBox:
 
         # Slice beam fluence distribution data if present
         if "b_fluence" in self.data:
-            if self.symmetry:
+            if self.radial_symmetry:
                 self.sliced_data["b_fluence"] = self.flip_radial_data(
                     self.data["b_fluence"], axis_r=0
                 )[self.sliced_obj["r"], self.sliced_obj["z"]]
@@ -415,7 +442,7 @@ class SimulationBox:
 
     def flip_radial_data(self, data, axis_r=0):
         """Mirror radial data for symmetry."""
-        if not self.symmetry:
+        if not self.radial_symmetry:
             return data
 
         data_flip = np.flip(data, axis=axis_r)
@@ -612,7 +639,7 @@ class Plot1D(BasePlot):
                 dist_array = self.get_1d_grid("z")
                 fig, ax = plt.subplots()
 
-                if self.box.symmetry:
+                if self.box.radial_symmetry:
                     y_max = np.max(plot_data)
                     num_bands = 50
                     cmap = plot_config["cmap"]
@@ -993,7 +1020,7 @@ def parse_cli_options():
     )
     parser.add_argument(
         "--file",
-        default=DEFAULT_DATA_FILE_PATH,
+        default=DEFAULT_DATA_PATH,
         help="Path to data file (.npz format).",
     )
     parser.add_argument(
@@ -1028,16 +1055,20 @@ def parse_cli_options():
         help="Maximum value for radial grid (in meters).",
     )
     parser.add_argument(
-        "--symmetric",
-        action="store_true",
-        default=False,
-        help="Plot radial data symmetrically.",
+        "--axial-range",
+        default=None,
+        help="Axial grid min,max values (in meters).",
     )
     parser.add_argument(
-        "--time-limit",
-        type=float,
+        "--time-range",
         default=None,
-        help="Maximum value for time grid (in seconds).",
+        help="Time grid min,max values (in seconds).",
+    )
+    parser.add_argument(
+        "--radial-symmetry",
+        action="store_true",
+        default=False,
+        help="Plot every radial axis symmetrically.",
     )
     parser.add_argument(
         "--log-scale",
@@ -1047,6 +1078,26 @@ def parse_cli_options():
     )
 
     args = parser.parse_args()
+
+    if args.axial_range:
+        try:
+            z_min, z_max = map(float, args.axial_range.split(","))
+            args.axial_range = (z_min, z_max)
+        except ValueError:
+            print(
+                "Error: Axial range format must be in format 'min,max'. Using full range."
+            )
+            args.axial_range = None
+
+    if args.time_range:
+        try:
+            t_min, t_max = map(float, args.time_range.split(","))
+            args.time_range = (t_min, t_max)
+        except ValueError:
+            print(
+                "Error: Time range format must be in format 'min,max'. Using full range."
+            )
+            args.time_range = None
 
     # Convert comma-separated strings to dictionaries for easier access
     stride_pair = [int(s) for s in args.stride.split(",")]
@@ -1358,7 +1409,7 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
 
 def main():
     """Main execution function."""
-    print(f"HALA plotter v{__version__}")
+    print(f"Running HALA v{__version__} plotter")
 
     # Initialize CLI arguments parsing
     args = parse_cli_options()
@@ -1375,7 +1426,9 @@ def main():
         print(
             f"   Data dimensions: {data['e_axis'].shape if 'e_axis' in data else 'unknown'}"
         )
-        print(f"   Duplicate radius: {'enabled' if args.symmetric else 'disabled'}")
+        print(
+            f"   Duplicate radius: {'enabled' if args.radial_symmetry else 'disabled'}"
+        )
 
     # Initialize classes
     units = Units()
@@ -1383,9 +1436,10 @@ def main():
     box = SimulationBox(
         units,
         data,
-        symmetry=args.symmetric,
+        radial_symmetry=args.radial_symmetry,
         radial_limit=args.radial_limit,
-        time_limit=args.time_limit,
+        axial_range=args.axial_range,
+        time_range=args.time_range,
     )
     box_units = SimulationBoxUnits(units, box, config)
     plot = VisualManager(units, box, config, box_units)

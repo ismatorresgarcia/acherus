@@ -74,7 +74,6 @@ setup(
         "scipy",
         "h5py",
         "numba",
-        "tqdm",
     ],
     extras_require={
         "plotting": plotting_required,

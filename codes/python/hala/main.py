@@ -20,7 +20,7 @@ def main():
     args = create_cli_arguments()
 
     # Print package version
-    print(f"Running HALA v{__version__}")
+    print(f"Running HALA v{__version__} simulation ")
 
     # Initialize classes
     material = MaterialParameters(material_opt=args.material)
