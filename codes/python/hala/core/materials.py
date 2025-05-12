@@ -33,7 +33,7 @@ class MaterialParameters:
                 "refraction_index_nonlinear": 3.2e-23,
                 "constant_gvd": 0.2e-28,
                 "number_photons": 8,
-                "constant_mpa": 3e-121,
+                "effective_charge": 0.53,
                 "constant_mpi": 2.81e-128,
                 "ionization_energy": 1.932e-18,  # 12.06 eV
                 "drude_collision_time": 3.5e-13,
@@ -48,7 +48,7 @@ class MaterialParameters:
                 "refraction_index_nonlinear": 3.2e-23,
                 "constant_gvd": 0.2e-28,
                 "number_photons": 11,
-                "constant_mpa": 3.73e-176,
+                "effective_charge": 0.9,
                 "constant_mpi": 6.31e-184,
                 "ionization_energy": 2.495e-18,  # 15.576 eV
                 "drude_collision_time": 3.5e-13,
@@ -63,7 +63,7 @@ class MaterialParameters:
                 "refraction_index_nonlinear": 5.57e-23,
                 "constant_gvd": 2e-28,
                 "number_photons": 7,
-                "constant_mpa": 6.5e-104,
+                "effective_charge": 1.0,
                 "constant_mpi": 1.3e-111,
                 "ionization_energy": 1.76e-18,  # 11 eV
                 "drude_collision_time": 3.5e-13,

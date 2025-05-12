@@ -15,7 +15,7 @@ from ..results.routines import (
 class SolverBase:
     """Base solver class."""
 
-    def __init__(self, material, laser, grid, eqn, method_opt="rk4"):
+    def __init__(self, material, laser, grid, eqn, method_opt="rk4", ion_model="mpi"):
         """Initialize solver with common parameters.
 
         Parameters:
@@ -24,12 +24,14 @@ class SolverBase:
         - grid: GridParameters object with grid definition
         - eqn: EquationParameters object with equation parameters
         - method_opt: Nonlinear solver method (default: "rk4")
+        - ion_model: Ionization model to use (default: "mpi")
         """
         self.material = material
         self.laser = laser
         self.grid = grid
         self.eqn = eqn
-        self.method = "rk4" if method_opt.upper() == "RK4" else "to_be_defined"
+        self.method = method_opt
+        self.ion_model = ion_model
 
         # Setup arrays
         self._init_arrays()
@@ -43,7 +45,6 @@ class SolverBase:
         self.del_t_6 = self.del_t / 6
 
         self.envelope_arguments = (
-            self.material.number_photons,
             self.material.density_neutral,
             eqn.coefficient_plasma,
             eqn.coefficient_mpa,
@@ -51,9 +52,7 @@ class SolverBase:
             eqn.coefficient_raman,
         )
         self.density_arguments = (
-            self.material.number_photons,
             self.material.density_neutral,
-            eqn.coefficient_ofi,
             eqn.coefficient_ava,
         )
 
@@ -105,6 +104,10 @@ class SolverBase:
         self.density_rk4_stage = np.empty(self.grid.r_nodes)
         self.raman_rk4_stage = np.empty(self.grid.r_nodes, dtype=complex)
         self.draman_rk4_stage = np.empty_like(self.raman_rk4_stage)
+
+        # Initialize ionization arrays
+        self.ionization_rate = np.empty_like(self.density_rt)
+        self.ionization_sum = np.empty_like(self.density_rt)
 
     def setup_initial_condition(self):
         """Setup initial conditions."""

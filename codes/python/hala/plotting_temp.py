@@ -4,14 +4,14 @@ saved while simulations are being executed
 on-the-fly.
 """
 
-import os
+from pathlib import Path
 
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 
 
-def load_simulation_data_on_the_fly(file_path):
+def load_ofdiagnostic_data(file_path):
     """Load envelope data from HDF5 file."""
     data = {}  # Empty dictionary to extract the data
 
@@ -47,15 +47,15 @@ def plot_peak_intensity(data, save_dir):
 
     fig, axis = plt.subplots(figsize=(12, 6))
 
-    im = axis.pcolormesh(r_grid_2d, z_grid_2d, peak_intensity.T, cmap="turbo")
+    im = axis.pcolormesh(r_grid_2d, z_grid_2d, peak_intensity, cmap="turbo")
 
     cbar = fig.colorbar(im, ax=axis)
     cbar.set_label("Intensity [W/cm2]")
-    axis.set_xlabel("z [m]")
-    axis.set_ylabel("r [mm]")
+    axis.set_ylabel("z [m]")
+    axis.set_xlabel("r [mm]")
     axis.set_title("Peak intensity over time")
 
-    save_path = os.path.join(save_dir, "peak_intensity.png")
+    save_path = save_dir / "peak_intensity.png"
     plt.savefig(save_path)
     plt.close(fig)
     print(f"Saved: {save_path}")
@@ -76,7 +76,7 @@ def plot_on_axis_peak_intensity(data, z_grid, save_dir):
     ax.set_ylabel("I(r=0,z) [W/cm2]")
     ax.set_title("Peak on-axis intensity over time")
 
-    save_path = os.path.join(save_dir, "peak_intensity_r0.png")
+    save_path = save_dir / "peak_intensity_r0.png"
     plt.savefig(save_path)
     plt.close(fig)
     print(f"Saved: {save_path}")
@@ -84,19 +84,22 @@ def plot_on_axis_peak_intensity(data, z_grid, save_dir):
 
 def main():
     """Main function."""
-    sim_dir = "./"
-    fig_dir = "./"
-    diag_file = os.path.join(sim_dir, "temp_diagnostic.h5")
+    base_dir = Path("./path_to_base_directory")
 
-    save_dir = os.path.join(fig_dir, "figures_temp")
-    os.makedirs(save_dir, exist_ok=True)
-    print(f"Saving plots to: {os.path.abspath(save_dir)}")
+    sim_dir = base_dir / "data" / "sim_folder_name"
+    fig_dir = base_dir / "figures" / "sim_folder_name"
+    diag_file = sim_dir / "temp_ofdiagnostic.h5"
+    print(f"Loading data from: {diag_file.relative_to(base_dir)}")
 
-    if not os.path.exists(diag_file):
+    save_dir = fig_dir / "figures_ofdiagnostic"
+    save_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Saving plots to: {save_dir.relative_to(base_dir)}")
+
+    if not diag_file.exists():
         print(f"File not found: {diag_file}")
         return
 
-    data = load_simulation_data_on_the_fly(diag_file)
+    data = load_ofdiagnostic_data(diag_file)
     if not data:
         return
 

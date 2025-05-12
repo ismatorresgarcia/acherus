@@ -36,9 +36,19 @@ def main():
 
     # Choose solver
     if args.solver == "fss":
-        solver = SolverFSS(material, laser, grid, eqn, method_opt=args.method)
-    else:  # fcn
-        solver = SolverFCN(material, laser, grid, eqn, method_opt=args.method)
+        solver = SolverFSS(
+            material, laser, grid, eqn, method_opt=args.method, ion_model=args.ion_model
+        )
+    elif args.solver == "fcn":
+        solver = SolverFCN(
+            material, laser, grid, eqn, method_opt=args.method, ion_model=args.ion_model
+        )
+    else:
+        raise ValueError(
+            f"Not available solver: '{args.solver}'. "
+            f"Available solvers are: 'fss' or 'fcn'."
+        )
+    # Add more solvers here as needed
     # ... future solvers to be added in the future!
 
     # Run simulation

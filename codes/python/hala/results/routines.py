@@ -7,11 +7,11 @@ from pstats import SortKey
 import h5py
 import numpy as np
 
-from .variables import DEFAULT_SAVE_PATH as path
-from .variables import DIAGNOSE_SAVE_INTERVAL as monitor_int
+from .paths import sim_dir as path
 
-PROFILER_PATH = f"{path}/profiler_log.txt"
-TEMP_DIAGNOSTIC_PATH = f"{path}/temp_diagnostic.h5"
+profiler_path = path / "profiler_log.txt"
+temp_ofdiagnostic_path = path / "temp_ofdiagnostic.h5"
+INT_MONITOR = 100
 
 
 def validate_step(solver, exit_on_error=True):
@@ -83,7 +83,7 @@ def inter_diagnostics(solver, step):
     - step: Current propagation step
     """
     if step == 1:
-        with h5py.File(TEMP_DIAGNOSTIC_PATH, "w") as f:
+        with h5py.File(temp_ofdiagnostic_path, "w") as f:
             envelope_grp = f.create_group("envelope")
             envelope_grp.create_dataset(
                 "peak_rz",
@@ -93,7 +93,7 @@ def inter_diagnostics(solver, step):
                 compression="gzip",
                 chunks=(
                     solver.grid.r_nodes,
-                    min(monitor_int, solver.grid.zd.z_steps + 1),
+                    min(INT_MONITOR, solver.grid.zd.z_steps + 1),
                 ),
             )
 
@@ -110,8 +110,8 @@ def inter_diagnostics(solver, step):
             meta.create_dataset("last_step", data=0, dtype=int)
 
     # Update data
-    if step % monitor_int == 0 or step == solver.grid.zd.z_steps:
-        with h5py.File(TEMP_DIAGNOSTIC_PATH, "r+") as f:
+    if step % INT_MONITOR == 0 or step == solver.grid.zd.z_steps:
+        with h5py.File(temp_ofdiagnostic_path, "r+") as f:
             last_step = f["metadata/last_step"][()]
 
             if step > last_step:
@@ -147,10 +147,10 @@ def profiler_report(profiler, save_path=None, top_n=20):
     Returns:
     - stats: pstats.Stats object with profiling report
     """
-    profiler_path = save_path if save_path else PROFILER_PATH
+    prof_path = save_path if save_path else profiler_path
 
     # Generate the report
-    with open(profiler_path, "w", encoding="utf-8") as f:
+    with open(prof_path, "w", encoding="utf-8") as f:
         # Header
         f.write("=" * 80 + "\n")
         f.write("PERFORMANCE PROFILE REPORT\n")

@@ -1,10 +1,11 @@
 """Final results data saving module."""
 
-import os
-
 import h5py
 
-from .variables import DEFAULT_SAVE_PATH as path
+from .paths import sim_dir as path
+
+snapshots_path = path / "snapshots.h5"
+diagnostic_path = path / "final_diagnostic.h5"
 
 
 class OutputManager:
@@ -21,16 +22,13 @@ class OutputManager:
         self.compression = compression
         self.compression_opts = compression_opts
 
-        # Create directory if it doesn't exist
-        os.makedirs(save_path, exist_ok=True)
-
     def save_snapshots(self, solver):
         """Save full snapshot data to HDF5 file.
 
         Parameters:
         - solver: Solver instance containing snapshot data
         """
-        with h5py.File(f"{self.save_path}/snapshots.h5", "w") as f:
+        with h5py.File(snapshots_path, "w") as f:
             f.create_dataset(
                 "envelope_snapshot_rzt",
                 data=solver.envelope_snapshot_rzt,
@@ -58,7 +56,7 @@ class OutputManager:
         - solver: Solver instance containing diagnostic data
         - grid: Grid instance containing coordinate information
         """
-        with h5py.File(f"{self.save_path}/final_diagnostic.h5", "w") as f:
+        with h5py.File(diagnostic_path, "w") as f:
             # Envelope data
             envelope_grp = f.create_group("envelope")
             envelope_grp.create_dataset(

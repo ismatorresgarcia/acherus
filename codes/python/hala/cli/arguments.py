@@ -46,5 +46,11 @@ def create_cli_arguments():
         default="fss",
         help="Solver method (fss: Fourier Split-Step, fcn: Fourier-Crank-Nicolson)",
     )
+    parser.add_argument(
+        "--ion-model",
+        choices=["mpi", "ppt"],
+        default="mpi",
+        help="Ionization model to use (mpi: MPI limit, ppt: PPT general ionization model)",
+    )
 
     return parser.parse_args()

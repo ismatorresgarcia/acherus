@@ -2,6 +2,7 @@
 
 from .equations import EquationParameters
 from .initial import initialize_envelope
+from .ionization import calculate_ionization
 from .laser import LaserInputParameters, LaserPulseParameters
 from .materials import MaterialParameters
 
@@ -11,4 +12,5 @@ __all__ = [
     "LaserPulseParameters",
     "MaterialParameters",
     "initialize_envelope",
+    "calculate_ionization",
 ]

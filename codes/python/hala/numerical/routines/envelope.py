@@ -17,7 +17,7 @@ def time_domain(data):
 
 @nb.njit
 def _set_envelope_operator(
-    env_s, dens_s, ram_s, n_k, dens_n, coef_p, coef_m, coef_k, coef_r
+    env_s, dens_s, ram_s, ion_rate_s, dens_n, coef_p, coef_m, coef_k, coef_r
 ):
     """Set up the envelope propagation nonlinear terms for FSS solver.
 
@@ -25,7 +25,7 @@ def _set_envelope_operator(
     - env_s: envelope at current time slice
     - dens_s: electron density at current time slice
     - ram_s: Raman response at current time slice
-    - n_k: number of photons for MPI
+    - ion_rate_s: ionization rate at current time slice
     - dens_n: neutral density of the medium
     - coef_p: plasma coefficient
     - coef_m: MPA coefficient
@@ -36,12 +36,12 @@ def _set_envelope_operator(
     - complex 1D-array: Nonlinear operator
     """
     env_s_2 = np.abs(env_s) ** 2
-    env_s_2k2 = env_s_2 ** (n_k - 1)
-    dens_s_sat = 1 - (dens_s / dens_n)
+    env_s_2[-1] = 1e-25
+    dens_s_sat = dens_n - dens_s
 
     nlin_s = env_s * (
         coef_p * dens_s
-        + coef_m * dens_s_sat * env_s_2k2
+        + coef_m * ion_rate_s * dens_s_sat / env_s_2
         + coef_k * env_s_2
         + coef_r * ram_s
     )
@@ -50,7 +50,9 @@ def _set_envelope_operator(
 
 
 @nb.njit
-def _rk4_envelope_step(env_s, dens_s, ram_s, env_rk4, env_args, dz, dz_2, dz_6):
+def _rk4_envelope_step(
+    env_s, dens_s, ram_s, ion_rate_s, env_rk4, env_args, dz, dz_2, dz_6
+):
     """
     Compute one step of the RK4 integration for envelope propagation for FSS solver.
 
@@ -58,6 +60,7 @@ def _rk4_envelope_step(env_s, dens_s, ram_s, env_rk4, env_args, dz, dz_2, dz_6):
     - env_s: envelope at current time slice
     - dens_s: density at current time slice
     - ram_s: raman response at current time slice
+    - ion_rate_s: ionization rate at current time slice
     - env_rk4: auxiliary envelope array for RK4 integration
     - env_args: arguments for the envelope operator
     - dz: z step
@@ -67,16 +70,16 @@ def _rk4_envelope_step(env_s, dens_s, ram_s, env_rk4, env_args, dz, dz_2, dz_6):
     Returns:
     - complex 1D-array: RK4 integration for one time slice
     """
-    k1_env = _set_envelope_operator(env_s, dens_s, ram_s, *env_args)
+    k1_env = _set_envelope_operator(env_s, dens_s, ram_s, ion_rate_s, *env_args)
     env_rk4 = env_s + dz_2 * k1_env
 
-    k2_env = _set_envelope_operator(env_rk4, dens_s, ram_s, *env_args)
+    k2_env = _set_envelope_operator(env_rk4, dens_s, ram_s, ion_rate_s, *env_args)
     env_rk4 = env_s + dz_2 * k2_env
 
-    k3_env = _set_envelope_operator(env_rk4, dens_s, ram_s, *env_args)
+    k3_env = _set_envelope_operator(env_rk4, dens_s, ram_s, ion_rate_s, *env_args)
     env_rk4 = env_s + dz * k3_env
 
-    k4_env = _set_envelope_operator(env_rk4, dens_s, ram_s, *env_args)
+    k4_env = _set_envelope_operator(env_rk4, dens_s, ram_s, ion_rate_s, *env_args)
 
     nlin_s_rk4 = dz_6 * (k1_env + 2 * k2_env + 2 * k3_env + k4_env)
 
@@ -84,7 +87,9 @@ def _rk4_envelope_step(env_s, dens_s, ram_s, env_rk4, env_args, dz, dz_2, dz_6):
 
 
 @nb.njit(parallel=True)
-def solve_nonlinear_rk4(env, dens, ram, env_rk4, nlin, n_t, env_args, dz, dz_2, dz_6):
+def solve_nonlinear_rk4(
+    env, dens, ram, ion_rate, env_rk4, nlin, n_t, env_args, dz, dz_2, dz_6
+):
     """
     Solve envelope propagation nonlinearities for all
     time steps using RK4 for FSS solver.
@@ -93,6 +98,7 @@ def solve_nonlinear_rk4(env, dens, ram, env_rk4, nlin, n_t, env_args, dz, dz_2, 
     - env: envelope at current propagation step
     - dens: density at current propagation step
     - ram: raman response at current propagation step
+    - ion_rate: ionization rate at current propagation step
     - env_rk4: auxiliary envelope array for RK4 integration
     - nlin: pre-allocated array for the nonlinear terms
     - n_t: number of time nodes
@@ -106,16 +112,17 @@ def solve_nonlinear_rk4(env, dens, ram, env_rk4, nlin, n_t, env_args, dz, dz_2, 
         env_s = env[:, ll]
         dens_s = dens[:, ll]
         ram_s = ram[:, ll]
+        ion_rate_s = ion_rate[:, ll]
 
         nlin_s_rk4 = _rk4_envelope_step(
-            env_s, dens_s, ram_s, env_rk4, env_args, dz, dz_2, dz_6
+            env_s, dens_s, ram_s, ion_rate_s, env_rk4, env_args, dz, dz_2, dz_6
         )
 
         nlin[:, ll] = nlin_s_rk4
 
 
 def _set_envelope_operator_frequency(
-    env, dens, ram, steep_op, n_k, dens_n, coef_p, coef_m, coef_k, coef_r
+    env, dens, ram, ion_rate, steep_op, dens_n, coef_p, coef_m, coef_k, coef_r
 ):
     """Set up all nonlinear operators together for FCN solver.
 
@@ -123,8 +130,8 @@ def _set_envelope_operator_frequency(
     - env: envelope at current propagation step
     - dens: density at current propagation step
     - ram: raman response at current propagation step
+    - ion_rate: ionization rate at current propagation step
     - steep_op: self-steepening operator
-    - n_k: number of photons for MPI
     - dens_n: neutral density of the medium
     - coef_p: plasma coefficient
     - coef_m: MPA coefficient
@@ -136,14 +143,14 @@ def _set_envelope_operator_frequency(
     """
     # Calculate shared quantities
     env_2 = np.abs(env) ** 2
-    env_2k2 = env_2 ** (n_k - 1)
-    dens_sat = 1 - (dens / dens_n)
+    env_2[-1] = 1e-25
+    dens_sat = dens_n - dens
 
     # Plasma term
     nlin_p = coef_p * frequency_domain(dens * env) / steep_op
 
     # MPA term
-    nlin_m = coef_m * frequency_domain(dens_sat * env * env_2k2)
+    nlin_m = coef_m * frequency_domain(ion_rate * dens_sat * env / env_2)
 
     # Kerr term
     nlin_k = steep_op * coef_k * frequency_domain(env * env_2)
@@ -158,7 +165,7 @@ def _set_envelope_operator_frequency(
 
 
 def _rk4_envelope_step_frequency(
-    env, dens, ram, steep_op, env_rk4, env_args, dz, dz_2, dz_6
+    env, dens, ram, ion_rate, steep_op, env_rk4, env_args, dz, dz_2, dz_6
 ):
     """Combined RK4 step for all nonlinear terms for FCN solver.
 
@@ -166,6 +173,7 @@ def _rk4_envelope_step_frequency(
     - env: envelope at current propagation step
     - dens: density at current propagation step
     - ram: raman response at current propagation step
+    - ion_rate: ionization rate at current propagation step
     - steep_op: self-steepening operator
     - env_rk4: auxiliary envelope array for RK4 integration
     - env_args: arguments for the envelope operator
@@ -176,16 +184,24 @@ def _rk4_envelope_step_frequency(
     Returns:
     - complex 2D-array: RK4 integration for all nonlinear terms
     """
-    k1_env = _set_envelope_operator_frequency(env, dens, ram, steep_op, *env_args)
+    k1_env = _set_envelope_operator_frequency(
+        env, dens, ram, ion_rate, steep_op, *env_args
+    )
     env_rk4 = env + dz_2 * time_domain(k1_env)
 
-    k2_env = _set_envelope_operator_frequency(env_rk4, dens, ram, steep_op, *env_args)
+    k2_env = _set_envelope_operator_frequency(
+        env_rk4, dens, ram, ion_rate, steep_op, *env_args
+    )
     env_rk4 = env + dz_2 * time_domain(k2_env)
 
-    k3_env = _set_envelope_operator_frequency(env_rk4, dens, ram, steep_op, *env_args)
+    k3_env = _set_envelope_operator_frequency(
+        env_rk4, dens, ram, ion_rate, steep_op, *env_args
+    )
     env_rk4 = env + dz * time_domain(k3_env)
 
-    k4_env = _set_envelope_operator_frequency(env_rk4, dens, ram, steep_op, *env_args)
+    k4_env = _set_envelope_operator_frequency(
+        env_rk4, dens, ram, ion_rate, steep_op, *env_args
+    )
 
     nlin_rk4 = dz_6 * (k1_env + 2 * k2_env + 2 * k3_env + k4_env)
 
@@ -193,7 +209,7 @@ def _rk4_envelope_step_frequency(
 
 
 def solve_nonlinear_rk4_frequency(
-    env, dens, ram, steep_op, env_rk4, nlin, env_args, dz, dz_2, dz_6
+    env, dens, ram, ion_rate, steep_op, env_rk4, nlin, env_args, dz, dz_2, dz_6
 ):
     """
     Solve envelope propagation nonlinearities for all
@@ -203,6 +219,7 @@ def solve_nonlinear_rk4_frequency(
     - env: envelope at current propagation step
     - dens: density at current propagation step
     - ram: raman response at current propagation step
+    - ion_rate: ionization rate at current propagation step
     - steep_op: self-steepening operator
     - env_rk4: auxiliary envelope array for RK4 integration
     - nlin: pre-allocated array for the nonlinear terms
@@ -212,5 +229,5 @@ def solve_nonlinear_rk4_frequency(
     - dz_6: z step divided by 6
     """
     nlin[:] = _rk4_envelope_step_frequency(
-        env, dens, ram, steep_op, env_rk4, env_args, dz, dz_2, dz_6
+        env, dens, ram, ion_rate, steep_op, env_rk4, env_args, dz, dz_2, dz_6
     )

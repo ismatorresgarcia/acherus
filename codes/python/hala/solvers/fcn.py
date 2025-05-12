@@ -4,6 +4,7 @@ import numpy as np
 from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
+from ..core.ionization import calculate_ionization
 from ..numerical.routines.density import solve_density
 from ..numerical.routines.envelope import (
     frequency_domain,
@@ -19,7 +20,7 @@ from .base import SolverBase
 class SolverFCN(SolverBase):
     """Fourier Crank-Nicolson class implementation."""
 
-    def __init__(self, material, laser, grid, eqn, method_opt="rk4"):
+    def __init__(self, material, laser, grid, eqn, method_opt="rk4", ion_model="mpi"):
         """Initialize FCN solver.
 
         Parameters:
@@ -28,9 +29,10 @@ class SolverFCN(SolverBase):
         - grid: GridParameters object with grid definition
         - eqn: EquationParameters object with equation parameters
         - method_opt: Nonlinear solver method (default: "rk4")
+        - ion_model: Ionization model to use (default: "mpi")
         """
         # Initialize base class
-        super().__init__(material, laser, grid, eqn, method_opt)
+        super().__init__(material, laser, grid, eqn, method_opt, ion_model)
 
         # Initialize FCN-specific arrays
         self.envelope_fourier_rt = np.empty_like(self.envelope_rt)
@@ -109,8 +111,8 @@ class SolverFCN(SolverBase):
         self.matrix_cnt_right = 1 - 2 * self.diff_operator + self.disp_operator
 
         # Setup CN outer diagonals radial index dependence
-        self.diag_down = 1 - 0.5 / np.arange(1, self.grid.nodes_r - 1)
-        self.diag_up = 1 + 0.5 / np.arange(1, self.grid.nodes_r - 1)
+        self.diag_down = 1 - 0.5 / np.arange(1, self.grid.r_nodes - 1)
+        self.diag_up = 1 + 0.5 / np.arange(1, self.grid.r_nodes - 1)
 
     def solve_envelope(self):
         """
@@ -119,7 +121,7 @@ class SolverFCN(SolverBase):
         """
         self.envelope_fourier_rt[:] = frequency_domain(self.envelope_rt)
 
-        for ll in range(self.grid.nodes_t):
+        for ll in range(self.grid.td.t_nodes):
             matrix_cn_left = self.create_matrix(
                 self.grid.r_nodes,
                 "left",
@@ -152,10 +154,29 @@ class SolverFCN(SolverBase):
 
     def solve_step(self):
         """Perform one propagation step."""
+        # Calculate ionization rate
+        calculate_ionization(
+            self.envelope_rt,
+            self.ionization_rate,
+            self.ionization_sum,
+            self.material.number_photons,
+            self.grid.r_nodes,
+            self.grid.td.t_nodes,
+            self.eqn.coefficient_f0,
+            self.eqn.coefficient_ns,
+            self.eqn.coefficient_gamma,
+            self.eqn.coefficient_nu,
+            self.eqn.coefficient_ion,
+            self.eqn.coefficient_ofi,
+            ion_model=self.ion_model,
+            tol=1e-2,
+        )
+
         # Solve density evolution
         solve_density(
             self.envelope_rt,
             self.density_rt,
+            self.ionization_rate,
             self.density_rk4_stage,
             self.grid.td.t_nodes,
             self.density_arguments,
@@ -164,7 +185,7 @@ class SolverFCN(SolverBase):
             self.del_t_6,
         )
 
-        # Solve Raman response if eqnded
+        # Solve Raman response if requested
         if self.use_raman:
             solve_scattering(
                 self.raman_rt,
@@ -188,6 +209,7 @@ class SolverFCN(SolverBase):
                 self.envelope_rt,
                 self.density_rt,
                 self.raman_rt,
+                self.ionization_rate,
                 self.self_steepening,
                 self.envelope_rk4_stage,
                 self.nonlinear_rt,
@@ -202,7 +224,7 @@ class SolverFCN(SolverBase):
         # Solve envelope equation
         self.solve_envelope()
 
-        # Calculate beam characteristics
+        # Calculate beam fluence and radius
         calculate_fluence(self.envelope_next_rt, self.fluence_r, self.grid.del_t)
         calculate_radius(self.fluence_r, self.radius, self.grid.r_grid)
 

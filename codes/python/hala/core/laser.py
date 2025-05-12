@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy.constants import c as c_light
-from scipy.special import gamma
+from scipy.special import gamma as eu_gamma
 
 
 @dataclass
@@ -80,7 +80,7 @@ class LaserPulseParameters:
             order
             * self.power
             * 2 ** (2 / order)
-            / (2 * np.pi * self.params.waist**2 * gamma(2 / order))
+            / (2 * np.pi * self.params.waist**2 * eu_gamma(2 / order))
         )
 
     def calculate_amplitude(self):

@@ -4,6 +4,7 @@ import numpy as np
 from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
+from ..core.ionization import calculate_ionization
 from ..numerical.routines.density import solve_density
 from ..numerical.routines.envelope import (
     frequency_domain,
@@ -19,7 +20,7 @@ from .base import SolverBase
 class SolverFSS(SolverBase):
     """Fourier Split-Step class implementation for cylindrical coordinates."""
 
-    def __init__(self, material, laser, grid, eqn, method_opt="rk4"):
+    def __init__(self, material, laser, grid, eqn, method_opt="rk4", ion_model="mpi"):
         """Initialize FSS class.
 
         Parameters:
@@ -28,9 +29,10 @@ class SolverFSS(SolverBase):
         - grid: GridParameters object with grid definition
         - eqn: NEEParameters object with equation parameters
         - method_opt: Nonlinear solver method (default: "rk4")
+        - ion_model: Ionization model to use (default: "mpi")
         """
         # Initialize base class
-        super().__init__(material, laser, grid, eqn, method_opt)
+        super().__init__(material, laser, grid, eqn, method_opt, ion_model)
 
         # Initialize FSS-specific arrays
         self.envelope_split_rt = np.empty_like(self.envelope_rt)
@@ -136,10 +138,29 @@ class SolverFSS(SolverBase):
 
     def solve_step(self):
         """Perform one propagation step."""
+        # Calculate ionization rate
+        calculate_ionization(
+            self.envelope_rt,
+            self.ionization_rate,
+            self.ionization_sum,
+            self.material.number_photons,
+            self.grid.r_nodes,
+            self.grid.td.t_nodes,
+            self.eqn.coefficient_f0,
+            self.eqn.coefficient_ns,
+            self.eqn.coefficient_gamma,
+            self.eqn.coefficient_nu,
+            self.eqn.coefficient_ion,
+            self.eqn.coefficient_ofi,
+            ion_model=self.ion_model,
+            tol=1e-2,
+        )
+
         # Solve density evolution
         solve_density(
             self.envelope_rt,
             self.density_rt,
+            self.ionization_rate,
             self.density_rk4_stage,
             self.grid.td.t_nodes,
             self.density_arguments,
@@ -175,6 +196,7 @@ class SolverFSS(SolverBase):
                 self.envelope_split_rt,
                 self.density_rt,
                 self.raman_rt,
+                self.ionization_rate,
                 self.envelope_rk4_stage,
                 self.nonlinear_rt,
                 self.grid.td.t_nodes,
@@ -189,7 +211,7 @@ class SolverFSS(SolverBase):
         # Solve envelope equation
         self.solve_envelope()
 
-        # Calculate beam characteristics
+        # Calculate beam fluence and radius
         calculate_fluence(self.envelope_next_rt, self.fluence_r, self.grid.del_t)
         calculate_radius(self.fluence_r, self.radius, self.grid.r_grid)
 

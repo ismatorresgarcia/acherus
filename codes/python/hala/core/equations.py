@@ -2,19 +2,27 @@
 Nonlinear envelope equation and density evolution parameters.
 """
 
+import numpy as np
 from scipy.constants import e as q_electron
 from scipy.constants import epsilon_0 as eps_0
+from scipy.constants import hbar
 from scipy.constants import m_e as m_electron
+from scipy.constants import physical_constants
+from scipy.special import gamma as eu_gamma
 
 
 class EquationParameters:
     """Pulse propagation and electron density evolution
     parameters for the final numerical scheme."""
 
-    def __init__(self, material, laser):
+    def __init__(self, material, laser, ion_model="mpi"):
         # Initialize typical parameters
         self.frequency_0 = laser.frequency_0
         self.frequency_tau = self.frequency_0 * material.drude_collision_time
+        self.ion_energy = material.ionization_energy
+
+        # Initialize ionization model
+        self.ion_model = ion_model
 
         # Initialize main function parameters
         self._init_densities(material, laser)
@@ -34,12 +42,36 @@ class EquationParameters:
         )
 
     def _init_coefficients(self, material):
-        "Initialize equation coefficients."
-        self.coefficient_ofi = material.constant_mpi
-        self.coefficient_ava = (
-            self.bremsstrahlung_cross_section_0 / material.ionization_energy
+        "Initialize equations coefficients."
+        # PPT ionization rate coefficients
+        w_atomic_u = 1 / physical_constants["atomic unit of time"][0]
+        f_atomic_u = physical_constants["atomic unit of electric field"][0]
+        hartree_u = physical_constants["Hartree energy"][0]
+        self.coefficient_f0 = f_atomic_u * (2 * self.ion_energy / hartree_u) ** 1.5
+        self.coefficient_gamma = (
+            self.frequency_0 * np.sqrt(2 * m_electron * self.ion_energy) / q_electron
+        )
+        self.coefficient_nu = self.ion_energy / (hbar * self.frequency_0)
+        self.coefficient_ns = material.effective_charge / np.sqrt(
+            2 * self.ion_energy / hartree_u
+        )
+        c_effective = 2 ** (2 * self.coefficient_ns) / (
+            self.coefficient_ns * eu_gamma(2 * self.coefficient_ns)
+        )
+        self.coefficient_ion = (
+            w_atomic_u
+            * 4
+            * np.sqrt(2)
+            * c_effective
+            * self.ion_energy
+            / (np.pi * hartree_u)
         )
 
+        # Density equation coefficients
+        self.coefficient_ofi = material.constant_mpi
+        self.coefficient_ava = self.bremsstrahlung_cross_section_0 / self.ion_energy
+
+        # Raman equation coefficients
         if material.has_raman:
             self.raman_response_frequency = 1 / material.raman_response_time
             self.raman_coefficient_1 = (
@@ -59,7 +91,9 @@ class EquationParameters:
         )
 
         # MPA coefficient calculation
-        self.coefficient_mpa = -0.5 * material.constant_mpa
+        self.coefficient_mpa = (
+            -0.5 * material.number_photons * hbar * laser.wavenumber_0
+        )
 
         # Kerr coefficient calculation
         if material.has_raman:

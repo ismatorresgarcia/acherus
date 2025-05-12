@@ -4,7 +4,6 @@ the simulations have finished execution.
 """
 
 import argparse
-import os
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,8 +17,10 @@ from matplotlib.colors import LogNorm
 
 from ._version import __version__
 
-DEFAULT_DATA_PATH = "./python/storage"
-DEFAULT_FIGURES_SAVE_PATH = f"{DEFAULT_DATA_PATH}/figures/"
+base_dir = Path("./path_to_base_directory")
+
+sim_dir = base_dir / "data" / "sim_folder_name"
+fig_dir = base_dir / "figures" / "sim_folder_name"
 
 
 @dataclass
@@ -1020,12 +1021,12 @@ def parse_cli_options():
     )
     parser.add_argument(
         "--file",
-        default=DEFAULT_DATA_PATH,
+        default=sim_dir,
         help="Path to data file (.npz format).",
     )
     parser.add_argument(
         "--save-path",
-        default=DEFAULT_FIGURES_SAVE_PATH,
+        default=fig_dir,
         help="Directory to save plots instead of displaying.",
     )
     parser.add_argument(
@@ -1112,31 +1113,32 @@ def setup_output_directory(args):
     """Setup environment for plotting based on arguments."""
     # Ask if we have a save path when required
     if args.save_path:
-        save_path = Path(args.save_path)
+        save_path = args.save_path
         save_path.mkdir(parents=True, exist_ok=True)
-        print(f"Saving plots to: {save_path.absolute()}")
+        print(f"Saving plots to: {save_path.relative_to(base_dir)}")
     else:
         print("Displaying plots interactively.")
 
 
 def load_simulation_data(base_file_path, args):
     """Load data from HDF5 or NPZ files."""
-    snapshots_path = f"{base_file_path}/snapshots.h5"
-    diagnostic_path = f"{base_file_path}/final_diagnostic.h5"
-    npz_path = f"{base_file_path}/data.npz"
+    snapshots_path = base_file_path / "snapshots.h5"
+    diagnostic_path = base_file_path / "final_diagnostic.h5"
+    npz_path = base_file_path / "data.npz"
 
     data = {}
 
-    has_snapshots = os.path.exists(snapshots_path)
-    has_final_diag = os.path.exists(diagnostic_path)
+    has_snapshots = snapshots_path.exists()
+    has_final_diag = diagnostic_path.exists()
 
     if has_snapshots and has_final_diag:
         print(
-            f"Loading data from HDF5 files: {snapshots_path} and {diagnostic_path} ..."
+            f"Loading data from HDF5 files: {snapshots_path.relative_to(base_dir)}"
+            f"and {diagnostic_path.relative_to(base_dir)} ..."
         )
 
         try:
-            print(f"Using snapshots file: {os.path.basename(snapshots_path)}")
+            print(f"Using snapshots file: {snapshots_path.name}")
 
             # Load the data from snapshot file
             with h5py.File(snapshots_path, "r") as f:
@@ -1146,7 +1148,7 @@ def load_simulation_data(base_file_path, args):
                 if "density_snapshot_rzt" in f:
                     data["elec_dist"] = np.array(f["density_snapshot_rzt"])
 
-            print(f"Using diagnostic file: {os.path.basename(diagnostic_path)}")
+            print(f"Using diagnostic file: {diagnostic_path.name}")
 
             # Load the data from diagnostic file
             with h5py.File(diagnostic_path, "r") as f:
@@ -1189,10 +1191,10 @@ def load_simulation_data(base_file_path, args):
                 print("Run with -v for more information")
             raise
 
-    elif os.path.exists(npz_path):
-        print(f"Loading data from NPZ file: {npz_path} ...")
+    elif npz_path.exists():
+        print(f"Loading data from NPZ file: {npz_path.relative_to(base_dir)} ...")
         try:
-            npz_size = os.path.getsize(npz_path) / (1024**2)  # in MB
+            npz_size = npz_path.stat().st_size / (1024**2)  # in MB
 
             # Load the data from file using memory mapping
             if npz_size > 500:
@@ -1352,7 +1354,8 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
 
             if expected_shape and data[key].shape != expected_shape:
                 print(
-                    f"Warning: {key} has unexpected shape: {data[key].shape}, expected {expected_shape}"
+                    f"Warning: {key} has unexpected shape: {data[key].shape}. "
+                    f"expected {expected_shape}. "
                 )
 
     missing = [arr for arr in required_arrays if arr not in data]
