@@ -10,7 +10,7 @@ import numpy as np
 from scipy.integrate import quad
 
 
-def calculate_ionization(
+def compute_ionization(
     env,
     ion_rate,
     ion_sum,
@@ -27,25 +27,47 @@ def calculate_ionization(
     tol=1e-2,
 ):
     """
-    Calculate ionization rate from PPT model.
+    Compute the ionization rates from the generalised "PPT" model.
 
-    Parameters:
-    -> env: envelope at current propagation step
-    -> ion_rate: pre-allocated ionization rate array
-    -> ion_sum: pre-allocated series term array
-    -> n_k: number of photons for MPI
-    -> n_r: number of radial nodes
-    -> n_t: number of time nodes
-    -> coef_f0: electric field intensity constant in atomic units
-    -> coef_ns: principal quantum number corrected for the chosen material
-    -> coef_ga: Keldysh adiabaticity coefficient constant term
-    -> coef_nu: Keldysh number of photons index constant term
-    -> coef_ion: frequency conversion constant in atomic units
-    -> coef_ofi: OFI coefficient
-    -> model: ionization model to use ("mpi" or "ppt")
+    Parameters
+    ----------
+    env : (M, N) array_like
+        Complex envelope at current propagation step.
+    ion_rate : (M, N) array_like
+        Pre-allocated ionization rate array.
+    ion_sum : (M, N) array_like
+        Pre-allocated summation term array.
+    n_k : integer
+        Number of photons required for multiphoton ionization (MPI).
+    n_r : integer
+        Number of radial nodes.
+    n_t : integer
+        Number of time nodes.
+    coef_f0 : float
+        Electric field intensity constant in atomic units.
+    coef_ns : float
+        Principal quantum number corrected for the chosen material.
+    coef_ga : float
+        Keldysh adiabaticity coefficient constant term.
+    coef_nu : float
+        Keldysh number of photons index constant term.
+    coef_ion : float
+        Frequency conversion constant in atomic units.
+    coef_ofi : float
+        Optical field ionization (OFI) coefficient.
+    model : str, default: "mpi"
+        Ionization model to use, "mpi" for multiphotonic
+        limit or "ppt" for general PPT model.
+    tol : float, default: 1e-2
+        Tolerance for partial sum convergence checking.
 
-    Returns:
-    -> float 2D-array: Ionization rate for envelope
+    Returns
+    -------
+    rate : (M, N) ndarray.
+        Ionization rate for current propagation step.
+        M is the number of radial nodes and N the number of
+        time nodes.
+
     """
     env_mod = np.abs(env)  # Peak field strength
 
@@ -53,28 +75,28 @@ def calculate_ionization(
         ion_rate[:] = coef_ofi * env_mod ** (2 * n_k)
 
     elif ion_model == "ppt":
-        # Calculate Keldysh adiabaticity coefficient
+        # Compute Keldysh adiabaticity coefficient
         gamma_ppt = coef_ga / env_mod
 
-        # Calculate gamma dependent terms
-        asinh_ppt = calculate_asinh_gamma(gamma_ppt)
-        idx_ppt = calculate_idx_gamma(gamma_ppt)
-        beta_ppt = calculate_b_gamma(gamma_ppt)
-        alpha_ppt = calculate_a_gamma(asinh_ppt, beta_ppt)
-        gfunc_ppt = calculate_g_gamma(gamma_ppt, asinh_ppt, idx_ppt, beta_ppt)
+        # Compute gamma dependent terms
+        asinh_ppt = compute_asinh_gamma(gamma_ppt)
+        idx_ppt = compute_idx_gamma(gamma_ppt)
+        beta_ppt = compute_b_gamma(gamma_ppt)
+        alpha_ppt = compute_a_gamma(asinh_ppt, beta_ppt)
+        gfunc_ppt = compute_g_gamma(gamma_ppt, asinh_ppt, idx_ppt, beta_ppt)
 
-        # Calculate power term 2n_star - 3/2
+        # compute power term 2n_star - 3/2
         ns_term = (2 * coef_f0 / (env_mod * np.sqrt(1 + gamma_ppt**2))) ** (
             2 * coef_ns - 1.5
         )
 
-        # Calculate exponential g function term
+        # compute exponential g function term
         g_term = np.exp(-2 * coef_f0 * gfunc_ppt / (3 * env_mod))
 
-        # Calculate gamma squared quotient term
+        # compute gamma squared quotient term
         g_term_2 = (0.5 * beta_ppt) ** 2
 
-        # Calculate ionization rate for each field strength point
+        # compute ionization rate for each field strength point
         for i in range(n_r):
             for j in range(n_t):
                 # Skip points with extremely low field
@@ -85,10 +107,10 @@ def calculate_ionization(
                 beta_ij = beta_ppt[i, j]
                 gamma_ij = gamma_ppt[i, j]
 
-                # Calculate summation term
-                ion_sum[i, j] = calculate_sum(alpha_ij, beta_ij, gamma_ij, coef_nu, tol)
+                # compute summation term
+                ion_sum[i, j] = compute_sum(alpha_ij, beta_ij, gamma_ij, coef_nu, tol)
 
-        # Calculate ionization rate
+        # compute ionization rate
         ion_rate[:] = coef_ion * ns_term * g_term * g_term_2 * ion_sum
 
     else:
@@ -98,19 +120,29 @@ def calculate_ionization(
         )
 
 
-def calculate_sum(alpha_s, beta_s, idx_ppt_s, coef_nu, tol):
+def compute_sum(alpha_s, beta_s, idx_ppt_s, coef_nu, tol):
     """
-    Calculate the exponential series term.
+    Compute the exponential series term.
 
-    Parameters:
-    -> alpha_s: alpha function values for each field strength
-    -> beta_s: beta function values for each field strength
-    -> idx_ppt_s: gamma summation index for each field strength
-    -> coef_nu: Keldysh number of photons index constant term
-    -> tol: Tolerance for partial sum convergence checking
+    Parameters
+    ----------
+    alpha_s : float
+        Alpha function values for each field strength.
+    beta_s : float
+        Beta function values for each field strength.
+    idx_ppt_s : float
+        Gamma summation index for each field strength.
+    coef_nu : float
+        Keldysh number of photons index constant term.
+    tol : float, default: 1e-2
+        Tolerance for partial sum convergence checking
 
-    Returns:
-    -> complex: The partial sum from the exponential series
+    Returns
+    -------
+    sum : float
+        The partial sum from the exponential series term after
+        convergence checking.
+
     """
     nu_thr = coef_nu * idx_ppt_s
 
@@ -142,10 +174,20 @@ def calculate_sum(alpha_s, beta_s, idx_ppt_s, coef_nu, tol):
 
 def phi_integral(upper_l):
     """
-    Calculate Φ_0(x) using numerical integration.
+    Compute Φ_0(x) using numerical integration.
 
-    Parameters:
-    -> int_l: upper integration limit
+    Parameters
+    ----------
+    upper_l: float
+        Upper integration limit.
+
+    Returns
+    -------
+    out : float
+        The value of the ionization rate for the corresponding
+        number of photons index in the series sum. The integral
+        from 0 to upper_l is computed using the scipy quad function.
+
     """
 
     def integrand(y):
@@ -159,41 +201,41 @@ def phi_integral(upper_l):
     return np.exp(-(upper_l**2)) * int_result
 
 
-def calculate_a_gamma(asinh, beta):
+def compute_a_gamma(asinh, beta):
     """
-    Calculate the alpha function evaluated at
+    Compute the alpha function evaluated at
     every gamma coefficient value.
     """
     return 2 * asinh - beta
 
 
-def calculate_b_gamma(gamma):
+def compute_b_gamma(gamma):
     """
-    Calculate the beta function evaluated at
+    Compute the beta function evaluated at
     every gamma coefficient value.
     """
     return 2 * gamma / np.sqrt(1 + gamma**2)
 
 
-def calculate_g_gamma(gamma, asinh, idx, beta):
+def compute_g_gamma(gamma, asinh, idx, beta):
     """
-    Calculate the g function evaluated at
+    Compute the g function evaluated at
     every gamma coefficient value.
     """
     return (1.5 / gamma) * (idx * asinh - 1 / beta)
 
 
-def calculate_asinh_gamma(gamma):
+def compute_asinh_gamma(gamma):
     """
-    Calculate the sinh function evaluated at
+    Compute the sinh function evaluated at
     every gamma coefficient value.
     """
     return np.arcsinh(gamma)
 
 
-def calculate_idx_gamma(gamma):
+def compute_idx_gamma(gamma):
     """
-    Calculate the sum index gamma part evaluated at
+    Compute the sum index gamma part evaluated at
     every gamma coefficient value.
     """
     return 1 + 0.5 / gamma**2

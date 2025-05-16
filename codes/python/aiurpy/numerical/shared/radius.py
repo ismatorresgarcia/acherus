@@ -3,18 +3,25 @@
 import numpy as np
 
 
-def calculate_radius(flu, rad=None, r_g=None):
+def compute_radius(flu, rad=None, r_g=None):
     """
-    Calculate the beam radius (HWHM of fluence
-    distribution) at the current step.
+    Compute the beam radius (HWHM of fluence distribution)
+    at the current step.
 
-    Parameters:
-    -> flu: fluence at current propagation step
-    -> rad: beam radius at current propagation step (output)
-    -> r_g: radial coordinates array
+    Parameters
+    ----------
+    flu : (M,) array_like
+        Fluence distribution at current propagation step.
+    rad : float
+        Beam radius at current propagation step (output).
+    r_g : (M,) array_like
+        Radial coordinates grid.
 
-    Returns:
-    -> float: Beam radius at current propagation step
+    Returns
+    -------
+    hwhm : float
+        Beam radius (HWHM) at current propagation step.
+
     """
     peak_idx = np.argmax(flu)
     half_peak = 0.5 * np.max(flu)

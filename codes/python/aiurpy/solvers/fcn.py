@@ -4,16 +4,16 @@ import numpy as np
 from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
-from ..core.ionization import calculate_ionization
-from ..numerical.routines.density import solve_density
+from ..core.ionization import compute_ionization
+from ..numerical.routines.density import compute_density
 from ..numerical.routines.envelope import (
-    frequency_domain,
-    solve_nonlinear_rk4_frequency,
-    time_domain,
+    compute_fft,
+    compute_ifft,
+    compute_nlin_rk4_frequency,
 )
-from ..numerical.routines.raman import solve_scattering
-from ..numerical.shared.fluence import calculate_fluence
-from ..numerical.shared.radius import calculate_radius
+from ..numerical.routines.raman import compute_raman
+from ..numerical.shared.fluence import compute_fluence
+from ..numerical.shared.radius import compute_radius
 from .base import SolverBase
 
 
@@ -23,13 +23,21 @@ class SolverFCN(SolverBase):
     def __init__(self, material, laser, grid, eqn, method_opt="rk4", ion_model="mpi"):
         """Initialize FCN solver.
 
-        Parameters:
-        -> material: MediumParameters object with medium properties
-        -> laser: LaserPulseParameters object with laser properties
-        -> grid: GridParameters object with grid definition
-        -> eqn: EquationParameters object with equation parameters
-        -> method_opt: Nonlinear solver method (default: "rk4")
-        -> ion_model: Ionization model to use (default: "mpi")
+        Parameters
+        ----------
+        material : object
+            Contains the chosen medium parameters.
+        laser : object
+            Contains the laser input parameters.
+        grid : object
+            Contains the grid input parameters.
+        eqn : object
+            Contains the equation parameters.
+        method_opt : str, default: "rk4"
+            Nonlinear solver method chosen.
+        ion_model : str, default: "mpi"
+            Ionization model chosen.
+
         """
         # Initialize base class
         super().__init__(material, laser, grid, eqn, method_opt, ion_model)
@@ -42,21 +50,33 @@ class SolverFCN(SolverBase):
         self.setup_operators()
         self.setup_initial_condition()
 
-    def create_matrix(self, n_r, m_p, r_low, r_up, coef_m_s, coef_o_s):
+    def compute_matrix(self, n_r, m_p, r_low, r_up, coef_m_s, coef_o_s):
         """
-        Set the three diagonals for the Crank-Nicolson array with centered differences.
+        Compute the three diagonals for the Crank-Nicolson array
+        with centered differences.
 
-        Parameters:
-        -> n_r: number of radial nodes
-        -> m_p: position of the Crank-Nicolson array (left or right)
-        -> r_low: lower diagonal coefficients
-        -> r_up: upper diagonal coefficients
-        -> coef_m_s: main diagonal coefficient
-        -> coef_o_s: off-diagonal coefficient
+        Parameters
+        ----------
+        n_r : integer
+            Number of radial nodes.
+        m_p : str
+            Position of the Crank-Nicolson array ("left" or "right").
+        r_low : (M-1,) array_like
+            Lower diagonal elements.
+        r_up : (M-1,) array_like
+            Upper diagonal elements.
+        coef_m_s : complex
+            Main diagonal coefficient.
+        coef_o_s : complex
+            Off-diagonal coefficient.
 
-        Returns:
-        -> For left: banded matrix array for solving a large tridiagonal system
-        -> For right: sparse matrix in CSR format for optimal matrix-vector product
+        Returns
+        -------
+        lres : (3, M) ndarray
+            Banded array for solving a large tridiagonal system.
+        rres : sparse array
+            Sparse array in CSR format for optimal matrix-vector product.
+
         """
         diag_lower = -coef_o_s * r_low
         diag_main = np.full(n_r, coef_m_s)
@@ -114,15 +134,15 @@ class SolverFCN(SolverBase):
         self.diag_down = 1 - 0.5 / np.arange(1, self.grid.r_nodes - 1)
         self.diag_up = 1 + 0.5 / np.arange(1, self.grid.r_nodes - 1)
 
-    def solve_envelope(self):
+    def compute_envelope(self):
         """
-        Solve one step of the generalized Crank-Nicolson scheme for envelope
-        propagation.
+        Compute one step of the generalized Crank-Nicolson scheme
+        for envelope propagation.
         """
-        self.envelope_fourier_rt[:] = frequency_domain(self.envelope_rt)
+        self.envelope_fourier_rt[:] = compute_fft(self.envelope_rt)
 
         for ll in range(self.grid.td.t_nodes):
-            matrix_cn_left = self.create_matrix(
+            matrix_cn_left = self.compute_matrix(
                 self.grid.r_nodes,
                 "left",
                 self.diag_down,
@@ -130,7 +150,7 @@ class SolverFCN(SolverBase):
                 self.matrix_cnt_left[ll],
                 self.diff_operator[ll],
             )
-            matrix_cn_right = self.create_matrix(
+            matrix_cn_right = self.compute_matrix(
                 self.grid.r_nodes,
                 "right",
                 self.diag_down,
@@ -139,7 +159,7 @@ class SolverFCN(SolverBase):
                 -self.diff_operator[ll],
             )
 
-            # Solve matrix-vector product using "DIA" sparse format
+            # Compute matrix-vector product using "DIA" sparse format
             rhs_linear = matrix_cn_right @ self.envelope_fourier_rt[:, ll]
 
             # Compute the left-hand side of the equation
@@ -150,12 +170,12 @@ class SolverFCN(SolverBase):
                 (1, 1), matrix_cn_left, rhs
             )
 
-        self.envelope_next_rt[:] = time_domain(self.envelope_fourier_next_rt)
+        self.envelope_next_rt[:] = compute_ifft(self.envelope_fourier_next_rt)
 
     def solve_step(self):
         """Perform one propagation step."""
-        # Calculate ionization rate
-        calculate_ionization(
+        # Compute ionization rate
+        compute_ionization(
             self.envelope_rt,
             self.ionization_rate,
             self.ionization_sum,
@@ -172,22 +192,21 @@ class SolverFCN(SolverBase):
             tol=1e-2,
         )
 
-        # Solve density evolution
-        solve_density(
+        # Compute density evolution
+        compute_density(
             self.envelope_rt,
             self.density_rt,
             self.ionization_rate,
             self.density_rk4_stage,
             self.grid.td.t_nodes,
-            self.density_arguments,
+            self.density_neutral,
+            self.coefficient_ava,
             self.del_t,
-            self.del_t_2,
-            self.del_t_6,
         )
 
-        # Solve Raman response if requested
+        # Compute Raman response if requested
         if self.use_raman:
-            solve_scattering(
+            compute_raman(
                 self.raman_rt,
                 self.draman_rt,
                 self.envelope_rt,
@@ -197,15 +216,13 @@ class SolverFCN(SolverBase):
                 self.eqn.raman_coefficient_1,
                 self.eqn.raman_coefficient_2,
                 self.del_t,
-                self.del_t_2,
-                self.del_t_6,
             )
         else:
             self.raman_rt.fill(0)
 
-        # Solve nonlinear part using RK4
+        # Compute nonlinear part using RK4
         if self.method == "rk4":
-            solve_nonlinear_rk4_frequency(
+            compute_nlin_rk4_frequency(
                 self.envelope_rt,
                 self.density_rt,
                 self.raman_rt,
@@ -213,20 +230,22 @@ class SolverFCN(SolverBase):
                 self.self_steepening,
                 self.envelope_rk4_stage,
                 self.nonlinear_rt,
-                self.envelope_arguments,
+                self.density_neutral,
+                self.coefficient_plasma,
+                self.coefficient_mpa,
+                self.coefficient_kerr,
+                self.coefficient_raman,
                 self.del_z,
-                self.del_z_2,
-                self.del_z_6,
             )
         else:  # to be defined in the future
             pass
 
-        # Solve envelope equation
-        self.solve_envelope()
+        # Compute envelope equation
+        self.compute_envelope()
 
-        # Calculate beam fluence and radius
-        calculate_fluence(self.envelope_next_rt, self.fluence_r, self.grid.del_t)
-        calculate_radius(self.fluence_r, self.radius, self.grid.r_grid)
+        # Compute beam fluence and radius
+        compute_fluence(self.envelope_next_rt, self.fluence_r, self.grid.del_t)
+        compute_radius(self.fluence_r, self.radius, self.grid.r_grid)
 
         # Update arrays for next step
         self.envelope_rt[:], self.envelope_next_rt[:] = (

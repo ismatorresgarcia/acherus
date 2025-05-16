@@ -14,9 +14,15 @@ class OutputManager:
     def __init__(self, save_path=path, compression="gzip", compression_opts=9):
         """Initialize output manager.
 
-        Parameters:
-        -> save_path: Directory where data files will be stored
-        -> compression: Compression method for HDF5 files
+        Parameters
+        ----------
+        save_path : str
+            Directory where data files will be stored.
+        compression : str, default: "gzip"
+            Compression method for HDF5 files.
+        compression_opts : integer, default: 9
+            Compression level chosen.
+
         """
         self.save_path = save_path
         self.compression = compression
@@ -25,8 +31,11 @@ class OutputManager:
     def save_snapshots(self, solver):
         """Save full snapshot data to HDF5 file.
 
-        Parameters:
-        -> solver: Solver instance containing snapshot data
+        Parameters
+        ----------
+        solver : object
+            Solver object with data.
+
         """
         with h5py.File(snapshots_path, "w") as f:
             f.create_dataset(
@@ -52,9 +61,13 @@ class OutputManager:
     def save_diagnostics(self, solver, grid):
         """Save diagnostic data to HDF5 file.
 
-        Parameters:
-        -> solver: Solver instance containing diagnostic data
-        -> grid: Grid instance containing coordinate information
+        Parameters
+        ----------
+        solver : object
+            Solver object with data.
+        grid : object
+            Contains the grid input parameters.
+
         """
         with h5py.File(diagnostic_path, "w") as f:
             # Envelope data
@@ -96,9 +109,13 @@ class OutputManager:
     def save_results(self, solver, grid):
         """Save all simulation results.
 
-        Parameters:
-        -> solver: Solver instance containing all data
-        -> grid: Grid instance containing coordinate information
+        Parameters
+        ----------
+        solver : object
+            Solver object with data.
+        grid : object
+            Contains the grid input parameters.
+
         """
         self.save_snapshots(solver)
         self.save_diagnostics(solver, grid)

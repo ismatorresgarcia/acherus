@@ -18,12 +18,18 @@ def validate_step(solver, exit_on_error=True):
     """
     Validate numerical results from solver state.
 
-    Parameters:
-    -> solver: Solver instance to validate
-    -> exit_on_error: Whether to exit program on validation failure (default: True)
+    Parameters
+    ----------
+    solver : object
+        Solver object with data.
+    exit_on_error : bool, default: True
+        Whether to exit program on validation failure.
 
-    Returns:
-    -> bool: True if valid, False if invalid (when exit_on_error is False)
+    Returns
+    -------
+    out : bool
+        True if valid, False if invalid (when exit_on_error is False).
+
     """
     # Check envelope for non-finite values
     if np.any(~np.isfinite(solver.envelope_rt)):
@@ -47,11 +53,16 @@ def validate_step(solver, exit_on_error=True):
 
 
 def cheap_diagnostics(solver, step):
-    """Save memory cheap diagnostics data for current step.
+    """
+    Save memory cheap diagnostics data for current step.
 
-    Parameters:
-    -> solver: Solver instance containing the data to save
-    -> step: Current propagation step
+    Parameters
+    ----------
+    solver : object
+        Solver object with data.
+    step : integer
+        Current propagation step.
+
     """
     # Validate current solver state
     validate_step(solver)
@@ -75,12 +86,17 @@ def cheap_diagnostics(solver, step):
 
 
 def inter_diagnostics(solver, step):
-    """Save diagnostics progressively every desired number of steps
+    """
+    Save diagnostics progressively every desired number of steps
     and write them in a HDF5 file on the run.
 
-    Parameters:
-    -> solver: Solver instance containing the data to save
-    -> step: Current propagation step
+    Parameters
+    ----------
+    solver : object
+        Solver object with data.
+    step : integer
+        Current propagation step.
+
     """
     if step == 1:
         with h5py.File(temp_ofdiagnostic_path, "w") as f:
@@ -122,11 +138,16 @@ def inter_diagnostics(solver, step):
 
 
 def expensive_diagnostics(solver, step):
-    """Save memory expensive diagnostics data for current step.
+    """
+    Save memory expensive diagnostics data for current step.
 
-    Parameters:
-    -> solver: Solver instance containing the data to save
-    -> step: Current propagation step index for snapshots (1-based)
+    Parameters
+    ----------
+    solver : object
+        Solver object with data.
+    step : integer
+        Current propagation step.
+
     """
     solver.envelope_snapshot_rzt[:, step, :] = solver.envelope_rt
     solver.density_snapshot_rzt[:, step, :] = solver.density_rt
@@ -139,13 +160,20 @@ def profiler_log(profiler, save_path=None, top_n=20):
     """
     Profiler analysis for the func execution and save a detailed report.
 
-    Parameters:
-    -> profiler: cProfile.Profile object after disable() is called
-    -> save_path: Path to save the report (default: PROFILER_PATH)
-    -> top_n: Top N time-consuming functions to display (default: 20)
+    Parameters
+    ----------
+    profiler : object
+        cProfile.Profile object after disable() is called.
+    save_path : str
+        Path to save the report (default: PROFILER_PATH).
+    top_n : integer, default: 20
+        Top N time-consuming functions to display.
 
-    Returns:
-    -> stats: pstats.Stats object with profiling report
+    Returns
+    -------
+    stats : object
+        pstats.Stats object with profiling report.
+
     """
     prof_path = save_path if save_path else profiler_path
 
@@ -182,12 +210,12 @@ def profiler_log(profiler, save_path=None, top_n=20):
 
         # Solvers analysis
         main_routines = [
-            "solve_density",
-            "solve_scattering",
-            "solve_dispersion",
-            "solve_envelope",
-            "solve_nonlinear_rk4",
-            "solve_nonlinear_rk4_freq",
+            "compute_density",
+            "compute_raman",
+            "compute_dispersion",
+            "compute_envelope",
+            "compute_nlin_rk4",
+            "compute_nlin_rk4_freq",
             "solve_step",
         ]
 

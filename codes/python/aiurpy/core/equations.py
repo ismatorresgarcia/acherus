@@ -30,7 +30,7 @@ class EquationParameters:
         self._init_operators(material, laser)
 
     def _init_densities(self, material, laser):
-        "Initialize density parameters."
+        """Initialize density parameters."""
         self.density_critical = (
             eps_0 * m_electron * (self.frequency_0 / q_electron) ** 2
         )
@@ -42,7 +42,7 @@ class EquationParameters:
         )
 
     def _init_coefficients(self, material):
-        "Initialize equations coefficients."
+        """Initialize equations coefficients."""
         # PPT ionization rate coefficients
         w_atomic_u = 1 / physical_constants["atomic unit of time"][0]
         f_atomic_u = physical_constants["atomic unit of electric field"][0]
@@ -84,7 +84,7 @@ class EquationParameters:
             self.raman_coefficient_2 = 0
 
     def _init_operators(self, material, laser):
-        "Initialize equation operators."
+        """Initialize equation operators."""
         # Plasma coefficient calculation
         self.coefficient_plasma = (
             -0.5 * self.bremsstrahlung_cross_section_0 * (1 + 1j * self.frequency_tau)

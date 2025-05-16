@@ -6,14 +6,20 @@ import numpy as np
 
 def initialize_envelope(grid, laser):
     """
-    Set up the initial envelope at z = 0.
+    Compute the initial condition for an envelope at z = 0.
 
-    Parameters:
-    -> grid: GridParameters object containing simulation parameters
-    -> laser: LaserPulseParameters object containing laser parameters
+    Parameters
+    ----------
+    grid : object
+        Contains the grid input parameters.
+    laser : object
+        Contains the laser input parameters.
 
-    Returns:
-    -> complex 2D-array: Initial envelope
+    Returns
+    -------
+    out : (M, N) ndarray
+        The initial complex envelope. M is the number of radial
+        nodes and N the number of time nodes.
     """
     space_decaying_term = -(
         (grid.r_grid_2d / laser.params.waist) ** laser.gaussian_order

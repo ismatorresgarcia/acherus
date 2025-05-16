@@ -78,6 +78,7 @@ class MaterialParameters:
                 "refraction_index_nonlinear": 4.1e-20,
                 "constant_gvd": 248e-28,
                 "number_photons": 5,
+                "effective_charge": 1.0,
                 "constant_mpa": 1e-61,
                 "constant_mpi": 1.2e-72,
                 "ionization_energy": 1.04e-18,  # 6.5 eV

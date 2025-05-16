@@ -3,8 +3,8 @@
 import numpy as np
 
 from ..core.initial import initialize_envelope
-from ..numerical.shared.fluence import calculate_fluence
-from ..numerical.shared.radius import calculate_radius
+from ..numerical.shared.fluence import compute_fluence
+from ..numerical.shared.radius import compute_radius
 from ..results.routines import (
     cheap_diagnostics,
     expensive_diagnostics,
@@ -18,13 +18,21 @@ class SolverBase:
     def __init__(self, material, laser, grid, eqn, method_opt="rk4", ion_model="mpi"):
         """Initialize solver with common parameters.
 
-        Parameters:
-        -> material: MaterialParameters object with material properties
-        -> laser: LaserPulseParameters object with laser properties
-        -> grid: GridParameters object with grid definition
-        -> eqn: EquationParameters object with equation parameters
-        -> method_opt: Nonlinear solver method (default: "rk4")
-        -> ion_model: Ionization model to use (default: "mpi")
+        Parameters
+        ----------
+        material : object
+            Contains the chosen medium parameters.
+        laser : object
+            Contains the laser input parameters.
+        grid : object
+            Contains the grid input parameters.
+        eqn : object
+            Contains the equation parameters.
+        method_opt : str, default: "rk4"
+            Nonlinear solver method chosen.
+        ion_model : str, default: "mpi"
+            Ionization model chosen.
+
         """
         self.material = material
         self.laser = laser
@@ -33,36 +41,26 @@ class SolverBase:
         self.method = method_opt
         self.ion_model = ion_model
 
-        # Setup arrays
+        # Initialize arrays
         self._init_arrays()
 
-        # Compute Runge-Kutta constants
+        # Set up frequent constants
         self.del_z = grid.del_z
-        self.del_z_2 = self.del_z * 0.5
-        self.del_z_6 = self.del_z / 6
         self.del_t = grid.del_t
-        self.del_t_2 = self.del_t * 0.5
-        self.del_t_6 = self.del_t / 6
+        self.density_neutral = self.material.density_neutral
+        self.coefficient_ava = eqn.coefficient_ava
+        self.coefficient_plasma = eqn.coefficient_plasma
+        self.coefficient_mpa = eqn.coefficient_mpa
+        self.coefficient_kerr = eqn.coefficient_kerr
+        self.coefficient_raman = eqn.coefficient_raman
 
-        self.envelope_arguments = (
-            self.material.density_neutral,
-            eqn.coefficient_plasma,
-            eqn.coefficient_mpa,
-            eqn.coefficient_kerr,
-            eqn.coefficient_raman,
-        )
-        self.density_arguments = (
-            self.material.density_neutral,
-            eqn.coefficient_ava,
-        )
-
-        # Setup flags
+        # Set up flags
         self.use_raman = material.has_raman
 
-        # Setup tracking variables
+        # Set up tracking variables
         self.snapshot_z_index = np.empty(self.grid.zd.z_snapshots + 1, dtype=int)
 
-    # Setup (pre-allocate) arrays
+    # Set up (pre-allocate) arrays
     def _init_arrays(self):
         """Initialize arrays for simulation."""
         shape_r = (self.grid.r_nodes,)
@@ -114,8 +112,8 @@ class SolverBase:
         # Initial conditions
         self.envelope_rt[:] = initialize_envelope(self.grid, self.laser)
         self.density_rt[:, 0] = 0
-        self.fluence_rz[:, 0] = calculate_fluence(self.envelope_rt, dt=self.grid.del_t)
-        self.radius_z[0] = calculate_radius(self.fluence_rz[:, 0], r_g=self.grid.r_grid)
+        self.fluence_rz[:, 0] = compute_fluence(self.envelope_rt, dt=self.grid.del_t)
+        self.radius_z[0] = compute_radius(self.fluence_rz[:, 0], r_g=self.grid.r_grid)
 
         # Store initial values for diagnostics
         self.envelope_snapshot_rzt[:, 0, :] = self.envelope_rt

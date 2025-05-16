@@ -8,7 +8,7 @@ from scipy.fft import fftfreq
 
 @dataclass
 class RadialGrid:
-    """Radial (r) grid properties."""
+    """Radial (r) grid parameters."""
 
     r_min: float = 0
     r_max: float = 5e-3
@@ -17,7 +17,7 @@ class RadialGrid:
 
 @dataclass
 class AxialGrid:
-    """Axial (z) grid properties."""
+    """Axial (z) grid parameter."""
 
     z_min: float = 0
     z_max: float = 4
@@ -27,7 +27,7 @@ class AxialGrid:
 
 @dataclass
 class TemporalGrid:
-    """Temporal (t) grid properties."""
+    """Temporal (t) grid parameters."""
 
     t_min: float = -250e-15
     t_max: float = 250e-15
@@ -35,10 +35,10 @@ class TemporalGrid:
 
 
 class GridParameters:
-    "Grid parameters calculations."
+    "Grid parameters computation."
 
     def __init__(self):
-        """Initialize grid properties."""
+        """Initialize grid."""
         self.rd = RadialGrid()
         self.zd = AxialGrid()
         self.td = TemporalGrid()

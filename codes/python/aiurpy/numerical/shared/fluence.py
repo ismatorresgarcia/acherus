@@ -4,17 +4,24 @@ import numpy as np
 from scipy.integrate import trapezoid
 
 
-def calculate_fluence(env, flu=None, dt=None):
+def compute_fluence(env, flu=None, dt=None):
     """
-    Calculate fluence distribution for the current step.
+    Compute fluence distribution for the current step.
 
-    Parameters:
-    -> env: envelope at current propagation step
-    -> flu: fluence at current propagation step (output)
-    -> dt: time step
+    Parameters
+    ----------
+    env : (M, N) array_like
+        Complex envelope at current propagation step.
+    flu : (M,) array_like
+        Fluence at current propagation step (output).
+    dt : float
+        Time step.
 
-    Returns:
-    -> float 2D-array: Fluence distribution at current propagation step
+    Returns
+    -------
+    fluence : (M, N) ndarray
+        Fluence distribution at current propagation step
+
     """
     env_2 = np.abs(env) ** 2
     fluence = trapezoid(env_2, dx=dt, axis=1)

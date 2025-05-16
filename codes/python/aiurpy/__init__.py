@@ -6,7 +6,7 @@ from ._version import __version__
 from .config import config_options
 from .core.equations import EquationParameters
 from .core.initial import initialize_envelope
-from .core.ionization import calculate_ionization
+from .core.ionization import compute_ionization
 from .core.laser import LaserInputParameters, LaserPulseParameters
 from .core.materials import MaterialParameters
 from .mesh.grid import GridParameters
@@ -25,7 +25,7 @@ __all__ = [
     "LaserInputParameters",
     "LaserPulseParameters",
     "initialize_envelope",
-    "calculate_ionization",
+    "compute_ionization",
     "MaterialParameters",
     "EquationParameters",
     "SolverBase",
