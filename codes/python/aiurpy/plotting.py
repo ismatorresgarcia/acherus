@@ -121,7 +121,7 @@ class PlotConfiguration:
             },
             "fluence": {
                 "cmap": self.colormaps["fluence"],
-                "colorbar_label": r"Fluence $\Bigl[\mathrm{mJ/cm^2}\Bigr]$",
+                "colorbar_label": r"Fluence $\Bigl[\mathrm{J/cm^2}\Bigr]$",
                 "titles": {
                     "z": "On-axis fluence distribution",
                     "rz": "Fluence distribution",
@@ -129,7 +129,7 @@ class PlotConfiguration:
                 "labels": {
                     "x_r": r"$r$ $[\mathrm{mm}]$",
                     "x_z": r"$z$ $[\mathrm{m}]$",
-                    "y_z": r"$F(r=0,z)$ $\Bigl[\mathrm{mJ/cm^2}\Bigr]$",
+                    "y_z": r"$F(r=0,z)$ $\Bigl[\mathrm{J/cm^2}\Bigr]$",
                 },
             },
             "radius": {
@@ -200,7 +200,7 @@ class Units:
         factor_t=1e15,
         factor_m2=1e-4,
         factor_m3=1e-6,
-        factor_j=1e3,
+        factor_j=1,
     ):
 
         self.factor_r = factor_r
@@ -306,6 +306,13 @@ class SimulationBox:
 
         if self.radial_symmetry:
             self.nodes_r_sym = 2 * self.nodes_r - 1
+            self.node_r0 = (
+                -self.boundary_r[0]
+                * (self.nodes_r - 1)
+                / (self.r_max_ori - self.r_min_ori)
+            )
+        else:
+            self.node_r0 = 0
 
         self.nodes = {}
         for dim, (min_b, max_b, n_nodes, mini, maxi) in {
@@ -331,11 +338,6 @@ class SimulationBox:
             node_min = (min_b - mini) * (n_nodes - 1) / (maxi - mini)
             node_max = (max_b - mini) * (n_nodes - 1) / (maxi - mini)
             self.nodes[dim] = (int(node_min), int(node_max) + 1)
-
-        if self.radial_symmetry:
-            self.node_r0 = self.nodes_r - 1
-        else:
-            self.node_r0 = 0
 
     def _init_sliced_arrays(self):
         """Set up computational arrays"""
@@ -442,11 +444,8 @@ class SimulationBox:
         if not self.radial_symmetry:
             return data
 
-        data_flip = np.flip(data, axis=axis_r)
-        if data.shape[axis_r] > 1:
-            return np.concatenate((data_flip[:-1], data), axis=axis_r)
-
-        return np.concatenate((data, data), axis=axis_r)
+        data_flip = np.flip(data[:-1], axis=axis_r)
+        return np.concatenate((data_flip, data), axis=axis_r)
 
 
 class SimulationBoxUnits:
@@ -517,7 +516,7 @@ class BasePlot:
         self.config = config
         self.box_units = box_units
 
-    def calculate_intensity(self, envelope_dist, envelope_axis, envelope_peak):
+    def compute_intensity(self, envelope_dist, envelope_axis, envelope_peak):
         """Set up intensities for plotting."""
         return (
             self.units.factor_m2 * np.abs(envelope_dist) ** 2,
@@ -525,7 +524,7 @@ class BasePlot:
             self.units.factor_m2 * np.abs(envelope_peak) ** 2,
         )
 
-    def calculate_density(self, density_dist, density_axis, density_peak):
+    def compute_density(self, density_dist, density_axis, density_peak):
         """Set up densities for plotting."""
         return (
             self.units.factor_m3 * density_dist,
@@ -533,11 +532,11 @@ class BasePlot:
             self.units.factor_m3 * density_peak,
         )
 
-    def calculate_fluence(self, b_fluence):
+    def compute_fluence(self, b_fluence):
         """Set up fluence distribution for plotting."""
         return self.units.factor_m2 * self.units.factor_j * b_fluence
 
-    def calculate_radius(self, b_radius):
+    def compute_radius(self, b_radius):
         """Set up beam radius for plotting."""
         return self.units.factor_r * b_radius
 
@@ -945,24 +944,22 @@ class VisualManager:
         self.plot_3d = Plot3D(units, box, config, box_units)
 
     def get_intensity_data(self, envelope_dist, envelope_axis, envelope_peak):
-        """Calculate intensity data."""
-        return self.base_plot.calculate_intensity(
+        """Compute intensity data."""
+        return self.base_plot.compute_intensity(
             envelope_dist, envelope_axis, envelope_peak
         )
 
     def get_density_data(self, density_dist, density_axis, density_peak):
-        """Calculate density data."""
-        return self.base_plot.calculate_density(
-            density_dist, density_axis, density_peak
-        )
+        """Compute density data."""
+        return self.base_plot.compute_density(density_dist, density_axis, density_peak)
 
     def get_fluence_data(self, b_fluence):
-        """Calculate fluence data."""
-        return self.base_plot.calculate_fluence(b_fluence)
+        """Compute fluence data."""
+        return self.base_plot.compute_fluence(b_fluence)
 
     def get_radius_data(self, b_radius):
-        """Calculate beam radius data."""
-        return self.base_plot.calculate_radius(b_radius)
+        """Compute beam radius data."""
+        return self.base_plot.compute_radius(b_radius)
 
     def create_1d_plot(
         self, data, k_array=None, z_coor=None, plot_type="intensity", save_path=None
@@ -1364,7 +1361,7 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
     z_snap_idx = data["k_array"]
     z_snap_coor = box.set_snapshot_points(z_snap_idx)
 
-    # Calculate data based on type
+    # Compute data based on type
     if data_type == "intensity":
         plot_data_dist, plot_data_axis, plot_data_peak = plot.get_intensity_data(
             box.sliced_data["e_dist"],
