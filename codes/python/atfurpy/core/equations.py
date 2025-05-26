@@ -47,24 +47,27 @@ class EquationParameters:
         w_atomic_u = 1 / physical_constants["atomic unit of time"][0]
         f_atomic_u = physical_constants["atomic unit of electric field"][0]
         hartree_u = physical_constants["Hartree energy"][0]
-        self.coefficient_f0 = f_atomic_u * (2 * self.ion_energy / hartree_u) ** 1.5
+        self.coefficient_f0 = f_atomic_u * np.sqrt(
+            (2 * self.ion_energy / hartree_u) ** 3
+        )
+        self.coefficient_nc = 1 / np.sqrt(2 * self.ion_energy / hartree_u)
+        coefficient_nq = material.effective_charge * self.coefficient_nc
         self.coefficient_gamma = (
             self.frequency_0 * np.sqrt(2 * m_electron * self.ion_energy) / q_electron
         )
         self.coefficient_nu = self.ion_energy / (hbar * self.frequency_0)
-        self.coefficient_ns = material.effective_charge / np.sqrt(
-            2 * self.ion_energy / hartree_u
-        )
-        c_effective = 2 ** (2 * self.coefficient_ns) / (
-            self.coefficient_ns * eu_gamma(2 * self.coefficient_ns)
+        c_effective = 2 ** (2 * self.coefficient_nc) / (
+            self.coefficient_nc
+            * eu_gamma(1 + (2 - material.effective_charge) * self.coefficient_nc)
+            * eu_gamma(coefficient_nq)
         )
         self.coefficient_ion = (
             w_atomic_u
-            * 4
-            * np.sqrt(2)
+            * (16 / 3)
+            * (4 * np.sqrt(2) / np.pi)
             * c_effective
             * self.ion_energy
-            / (np.pi * hartree_u)
+            / hartree_u
         )
 
         # Density equation coefficients

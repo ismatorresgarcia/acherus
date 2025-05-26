@@ -1,4 +1,4 @@
-"""AiurPy configuration file module."""
+"""ATFURPy configuration file module."""
 
 
 def config_options():
@@ -24,7 +24,7 @@ def config_options():
     Returns
     -------
     opt : dict
-        Dictionary with the available options for AiurPy simulation.
+        Dictionary with the available options for ATFURPy simulation.
         The keys are the option names and the values are the selected
         options.
 

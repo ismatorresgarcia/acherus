@@ -1,4 +1,4 @@
-"""Main entry point for the AiurPy package."""
+"""Main entry point for the ATFURPy package."""
 
 import cProfile
 
@@ -20,7 +20,7 @@ def main():
     config = config_options()
 
     # Print package version
-    print(f"Running AiurPy v{__version__} simulation ")
+    print(f"Running ATFURPy v{__version__} simulation ")
 
     # Initialize classes
     material = MaterialParameters(material_opt=config["material"])

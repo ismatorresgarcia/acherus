@@ -1,4 +1,4 @@
-"""Information file for AiurPy package."""
+"""Information file for atfurpy package."""
 
 import re
 from pathlib import Path
@@ -7,7 +7,7 @@ from setuptools import find_packages, setup
 
 # Get package version
 # open the version file
-version_file = Path(__file__).parent / "aiurpy/_version.py"
+version_file = Path(__file__).parent / "atfurpy/_version.py"
 with open(version_file, "r", encoding="utf-8") as f:
     version_info = f.read()
 # search for the "__version__" pattern
@@ -24,7 +24,7 @@ with open("requirements.txt", encoding="utf-8") as f:
     plotting_required = f.read().splitlines()
 
 setup(
-    name="aiurpy",
+    name="atfurpy",
     version=__version__,
     description="2D spatiotemporal solver, focused in atmospheric laser-plasma filaments",
     keywords=[
@@ -40,14 +40,14 @@ setup(
     ],
     long_description=long_description,
     long_description_content_type="text/markdown",
-    # url="https://aiurpy.readthedocs.io/",
+    # url="https://atfurpy.readthedocs.io/",
     author="Ismael Torres García et al.",
     author_email="i.torresg@upm.es",
-    # download_url="https://pypi.python.org/pypi/aiurpy",
+    # download_url="https://pypi.python.org/pypi/atfurpy",
     project_urls={
         "Bug Tracker": "https://github.com/ismatorresgarcia/HASTUR/issues",
-        # "Documents": "https://aiurpy.readthedocs.io/en/latest/index.html",
-        "Source Code": "https://github.com/ismatorresgarcia/HASTUR/codes/python/aiurpy",
+        # "Documents": "https://atfurpy.readthedocs.io/en/latest/index.html",
+        "Source Code": "https://github.com/ismatorresgarcia/HASTUR/codes/python/atfurpy",
     },
     packages=find_packages(),
     include_package_data=True,
@@ -65,7 +65,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "aiurpy = aiurpy.main:main",
+            "atfurpy = atfurpy.main:main",
         ],
     },
     python_requires=">=3.8",

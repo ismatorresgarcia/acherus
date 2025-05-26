@@ -1,0 +1,3 @@
+> Open-source **AT**mosferic **F**ilamentation for **U**ltrasensitive detection and **R**anging in **Py**thon
+
+`ATFURPy` is a **(2+1)D filamentation solver** that solves the Nonlinear Envelope Equation (NEE) for ultrashort and ultraintense cylindrically symmetric laser pulses propagating through air using various numerical schemes. It computes the laser pulse **intensity, fluence and radius plasma** together with **free electron density and temperature** from the laser electric field envelope. It may also serve as a general filamentation solver, capable of simulating this incredible nonlinear regime of propagation with liquids, such as water or fused silica, as well as other gases.

@@ -4,9 +4,14 @@ Peremolov, Popov, and Terent'ev (PPT) ionization rate module for atoms.
 This module uses Talebpour et al. (1999) electron charge shielding correction
 for fitting the effective Coulomb barrier felt by electrons tunneling out
 of the atom.
+
+It also includes the Mishima et al. (2002) correction for the PPT ionization
+rate, which yields a more accurate prediction for molecules.
 """
 
 import numpy as np
+from scipy.constants import c as c_light
+from scipy.constants import epsilon_0 as eps_0
 from scipy.integrate import quad
 
 
@@ -18,7 +23,7 @@ def compute_ionization(
     n_r,
     n_t,
     coef_f0,
-    coef_ns,
+    coef_nc,
     coef_ga,
     coef_nu,
     coef_ion,
@@ -45,7 +50,7 @@ def compute_ionization(
         Number of time nodes.
     coef_f0 : float
         Electric field intensity constant in atomic units.
-    coef_ns : float
+    coef_nc : float
         Principal quantum number corrected for the chosen material.
     coef_ga : float
         Keldysh adiabaticity coefficient constant term.
@@ -75,6 +80,11 @@ def compute_ionization(
         ion_rate[:] = coef_ofi * env_mod ** (2 * n_k)
 
     elif ion_model == "ppt":
+        env_mod = np.abs(env) / np.sqrt(0.5 * c_light * eps_0)  # Peak field strength
+        zero_mask = env_mod == 0
+        if np.any(zero_mask):
+            env_mod[zero_mask] = 1e-25
+
         # Compute Keldysh adiabaticity coefficient
         gamma_ppt = coef_ga / env_mod
 
@@ -83,35 +93,31 @@ def compute_ionization(
         idx_ppt = compute_idx_gamma(gamma_ppt)
         beta_ppt = compute_b_gamma(gamma_ppt)
         alpha_ppt = compute_a_gamma(asinh_ppt, beta_ppt)
-        gfunc_ppt = compute_g_gamma(gamma_ppt, asinh_ppt, idx_ppt, beta_ppt)
+        g_ppt = compute_g_gamma(gamma_ppt, asinh_ppt, idx_ppt, beta_ppt)
 
-        # compute power term 2n_star - 3/2
-        ns_term = (2 * coef_f0 / (env_mod * np.sqrt(1 + gamma_ppt**2))) ** (
-            2 * coef_ns - 1.5
+        # Compute power term 2n_c - 1.5
+        nc_term = (2 * coef_f0 / (env_mod * np.sqrt(1 + gamma_ppt**2))) ** (
+            2 * coef_nc - 1.5
         )
 
-        # compute exponential g function term
-        g_term = np.exp(-2 * coef_f0 * gfunc_ppt / (3 * env_mod))
+        # Compute exponential g function term
+        g_term = np.exp(-2 * coef_f0 * g_ppt / (3 * env_mod))
 
-        # compute gamma squared quotient term
+        # Compute gamma squared quotient terms
         g_term_2 = (0.5 * beta_ppt) ** 2
+        g_term_3 = (2 * gamma_ppt**2 + 3) / (1 + gamma_ppt**2)
 
-        # compute ionization rate for each field strength point
-        for i in range(n_r):
-            for j in range(n_t):
-                # Skip points with extremely low field
-                if env_mod[i, j] < 1e-12:
-                    continue
+        # Compute ionization rate for each field strength point
+        for ii in range(n_r):
+            for jj in range(n_t):
+                alpha_ij = alpha_ppt[ii, jj]
+                beta_ij = beta_ppt[ii, jj]
+                idx_ij = idx_ppt[ii, jj]
 
-                alpha_ij = alpha_ppt[i, j]
-                beta_ij = beta_ppt[i, j]
-                gamma_ij = gamma_ppt[i, j]
+                ion_sum[ii, jj] = compute_sum(alpha_ij, beta_ij, idx_ij, coef_nu, tol)
 
-                # compute summation term
-                ion_sum[i, j] = compute_sum(alpha_ij, beta_ij, gamma_ij, coef_nu, tol)
-
-        # compute ionization rate
-        ion_rate[:] = coef_ion * ns_term * g_term * g_term_2 * ion_sum
+        # Compute ionization rate
+        ion_rate[:] = coef_ion * nc_term * g_term * g_term_2 * g_term_3 * ion_sum
 
     else:
         raise ValueError(
@@ -147,7 +153,7 @@ def compute_sum(alpha_s, beta_s, idx_ppt_s, coef_nu, tol):
     nu_thr = coef_nu * idx_ppt_s
 
     # Initialize the summation index
-    max_idx = 200
+    max_idx = 100
     idx_min = int(np.ceil(nu_thr))
 
     # Initialize partial sum
@@ -189,15 +195,10 @@ def phi_integral(upper_l):
         from 0 to upper_l is computed using the scipy quad function.
 
     """
-
-    def integrand(y):
-        return np.exp(y**2)
-
-    # Check if int_l is valid for integration range
     if upper_l <= 0:
         return 0.0
 
-    int_result, _ = quad(integrand, 0, upper_l)
+    int_result, _ = quad(lambda y: np.exp(y**2), 0, upper_l)
     return np.exp(-(upper_l**2)) * int_result
 
 
@@ -219,10 +220,10 @@ def compute_b_gamma(gamma):
 
 def compute_g_gamma(gamma, asinh, idx, beta):
     """
-    Compute the g function evaluated at
-    every gamma coefficient value.
+    Compute the g function evaluated
+    at every gamma coefficient value.
     """
-    return (1.5 / gamma) * (idx * asinh - 1 / beta)
+    return 1.5 * (idx * asinh - 1 / beta) / gamma
 
 
 def compute_asinh_gamma(gamma):

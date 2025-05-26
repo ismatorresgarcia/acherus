@@ -159,13 +159,13 @@ class SolverFSS(SolverBase):
             self.grid.r_nodes,
             self.grid.td.t_nodes,
             self.eqn.coefficient_f0,
-            self.eqn.coefficient_ns,
+            self.eqn.coefficient_nc,
             self.eqn.coefficient_gamma,
             self.eqn.coefficient_nu,
             self.eqn.coefficient_ion,
             self.eqn.coefficient_ofi,
             ion_model=self.ion_model,
-            tol=1e-2,
+            tol=1e-4,
         )
 
         # Compute density evolution

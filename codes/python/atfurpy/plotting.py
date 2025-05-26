@@ -1405,7 +1405,7 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
 
 def main():
     """Main execution function."""
-    print(f"Running AiurPy v{__version__} plotter")
+    print(f"Running ATFURPy v{__version__} plotter")
 
     # Initialize CLI arguments parsing
     args = parse_cli_options()
