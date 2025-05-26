@@ -51,14 +51,14 @@ class EquationParameters:
             (2 * self.ion_energy / hartree_units) ** 3
         )
         self.coefficient_nc = 1 / np.sqrt(2 * self.ion_energy / hartree_units)
-        coefficient_nq = material.effective_charge * self.coefficient_nc
+        coefficient_nq = material.effective_charge**2 * self.coefficient_nc
         self.coefficient_gamma = self.frequency_0 * np.sqrt(
             2 * m_electron * self.ion_energy / q_electron
         )
         self.coefficient_nu = self.ion_energy * q_electron / (hbar * self.frequency_0)
         c_effective = 2 ** (2 * self.coefficient_nc) / (
             self.coefficient_nc
-            * eu_gamma(1 + (2 - material.effective_charge) * self.coefficient_nc)
+            * eu_gamma(1 + (2 - material.effective_charge**2) * self.coefficient_nc)
             * eu_gamma(coefficient_nq)
         )
         self.coefficient_ion = (

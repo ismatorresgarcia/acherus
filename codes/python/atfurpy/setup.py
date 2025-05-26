@@ -1,4 +1,4 @@
-"""Information file for atfurpy package."""
+"""Information file for ATFURPy package."""
 
 import re
 from pathlib import Path

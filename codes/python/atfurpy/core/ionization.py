@@ -4,9 +4,6 @@ Peremolov, Popov, and Terent'ev (PPT) ionization rate module for atoms.
 This module uses Talebpour et al. (1999) electron charge shielding correction
 for fitting the effective Coulomb barrier felt by electrons tunneling out
 of the atom.
-
-It also includes the Mishima et al. (2002) correction for the PPT ionization
-rate, which yields a more accurate prediction for molecules.
 """
 
 import numpy as np
@@ -105,7 +102,7 @@ def compute_ionization(
 
         # Compute gamma squared quotient terms
         g_term_2 = (0.5 * beta_ppt) ** 2
-        g_term_3 = (2 * gamma_ppt**2 + 3) / (1 + gamma_ppt**2)
+        # g_term_3 = (2 * gamma_ppt**2 + 3) / (1 + gamma_ppt**2)  # Mishima term
 
         # Compute ionization rate for each field strength point
         for ii in range(n_r):
@@ -117,7 +114,7 @@ def compute_ionization(
                 ion_sum[ii, jj] = compute_sum(alpha_ij, beta_ij, idx_ij, coef_nu, tol)
 
         # Compute ionization rate
-        ion_rate[:] = coef_ion * nc_term * g_term * g_term_2 * g_term_3 * ion_sum
+        ion_rate[:] = coef_ion * nc_term * g_term * g_term_2 * ion_sum
 
     else:
         raise ValueError(
@@ -153,7 +150,6 @@ def compute_sum(alpha_s, beta_s, idx_ppt_s, coef_nu, tol):
     nu_thr = coef_nu * idx_ppt_s
 
     # Initialize the summation index
-    max_idx = 100
     idx_min = int(np.ceil(nu_thr))
 
     # Initialize partial sum
@@ -170,9 +166,6 @@ def compute_sum(alpha_s, beta_s, idx_ppt_s, coef_nu, tol):
             break
 
         idx += 1
-
-        if idx > idx_min + max_idx:
-            break
 
     return sum_value
 
