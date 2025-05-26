@@ -118,12 +118,11 @@ class SolverFSS(SolverBase):
         )
 
         # Setup CN operators for diffraction
-        matrix_constant = 1j * coefficient_diffraction
         self.matrix_cn_left = self.compute_matrix(
-            self.grid.r_nodes, "left", matrix_constant
+            self.grid.r_nodes, "left", 1j * coefficient_diffraction
         )
         self.matrix_cn_right = self.compute_matrix(
-            self.grid.r_nodes, "right", -matrix_constant
+            self.grid.r_nodes, "right", -1j * coefficient_diffraction
         )
 
     def compute_dispersion(self):
@@ -165,7 +164,7 @@ class SolverFSS(SolverBase):
             self.eqn.coefficient_ion,
             self.eqn.coefficient_ofi,
             ion_model=self.ion_model,
-            tol=1e-4,
+            tol=1e-2,
         )
 
         # Compute density evolution

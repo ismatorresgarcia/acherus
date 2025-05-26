@@ -12,7 +12,7 @@ rate, which yields a more accurate prediction for molecules.
 import numpy as np
 from scipy.constants import c as c_light
 from scipy.constants import epsilon_0 as eps_0
-from scipy.integrate import quad
+from scipy.special import dawsn
 
 
 def compute_ionization(
@@ -162,9 +162,8 @@ def compute_sum(alpha_s, beta_s, idx_ppt_s, coef_nu, tol):
     # Sum until convergence is achieved
     idx = idx_min
     while True:
-        sum_term = np.exp(-alpha_s * (idx - nu_thr)) * phi_integral(
-            np.sqrt(beta_s * (idx - nu_thr))
-        )
+        arg = idx - nu_thr
+        sum_term = np.exp(-alpha_s * arg) * dawsn(np.sqrt(beta_s * arg))
         sum_value += sum_term
 
         if sum_term < tol * sum_value:
@@ -176,30 +175,6 @@ def compute_sum(alpha_s, beta_s, idx_ppt_s, coef_nu, tol):
             break
 
     return sum_value
-
-
-def phi_integral(upper_l):
-    """
-    Compute Φ_0(x) using numerical integration.
-
-    Parameters
-    ----------
-    upper_l: float
-        Upper integration limit.
-
-    Returns
-    -------
-    out : float
-        The value of the ionization rate for the corresponding
-        number of photons index in the series sum. The integral
-        from 0 to upper_l is computed using the scipy quad function.
-
-    """
-    if upper_l <= 0:
-        return 0.0
-
-    int_result, _ = quad(lambda y: np.exp(y**2), 0, upper_l)
-    return np.exp(-(upper_l**2)) * int_result
 
 
 def compute_a_gamma(asinh, beta):

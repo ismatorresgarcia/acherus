@@ -35,7 +35,7 @@ class MaterialParameters:
                 "number_photons": 8,
                 "effective_charge": 0.53,
                 "constant_mpi": 2.81e-128,
-                "ionization_energy": 1.932e-18,  # 12.06 eV
+                "ionization_energy": 12.06,
                 "drude_collision_time": 3.5e-13,
                 "density_neutral": 0.54e25,
                 "raman_rotational_frequency": 16e12,
@@ -50,7 +50,7 @@ class MaterialParameters:
                 "number_photons": 11,
                 "effective_charge": 0.9,
                 "constant_mpi": 6.31e-184,
-                "ionization_energy": 2.495e-18,  # 15.576 eV
+                "ionization_energy": 15.576,
                 "drude_collision_time": 3.5e-13,
                 "density_neutral": 2.16e25,
                 "raman_rotational_frequency": 16e12,
@@ -65,7 +65,7 @@ class MaterialParameters:
                 "number_photons": 7,
                 "effective_charge": 1.0,
                 "constant_mpi": 1.3e-111,
-                "ionization_energy": 1.76e-18,  # 11 eV
+                "ionization_energy": 11,
                 "drude_collision_time": 3.5e-13,
                 "density_neutral": 2.7e25,
                 "raman_rotational_frequency": 16e12,
@@ -81,7 +81,7 @@ class MaterialParameters:
                 "effective_charge": 1.0,
                 "constant_mpa": 1e-61,
                 "constant_mpi": 1.2e-72,
-                "ionization_energy": 1.04e-18,  # 6.5 eV
+                "ionization_energy": 6.5,
                 "drude_collision_time": 3e-15,
                 "density_neutral": 6.68e28,
                 "raman_rotational_frequency": 0,

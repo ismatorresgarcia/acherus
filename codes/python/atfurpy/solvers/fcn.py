@@ -189,7 +189,7 @@ class SolverFCN(SolverBase):
             self.eqn.coefficient_ion,
             self.eqn.coefficient_ofi,
             ion_model=self.ion_model,
-            tol=1e-4,
+            tol=1e-2,
         )
 
         # Compute density evolution

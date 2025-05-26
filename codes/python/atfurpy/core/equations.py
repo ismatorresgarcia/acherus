@@ -44,35 +44,37 @@ class EquationParameters:
     def _init_coefficients(self, material):
         """Initialize equations coefficients."""
         # PPT ionization rate coefficients
-        w_atomic_u = 1 / physical_constants["atomic unit of time"][0]
-        f_atomic_u = physical_constants["atomic unit of electric field"][0]
-        hartree_u = physical_constants["Hartree energy"][0]
-        self.coefficient_f0 = f_atomic_u * np.sqrt(
-            (2 * self.ion_energy / hartree_u) ** 3
+        w_atomic_units = 1 / physical_constants["atomic unit of time"][0]
+        f_atomic_units = physical_constants["atomic unit of electric field"][0]
+        hartree_units = physical_constants["Hartree energy in eV"][0]
+        self.coefficient_f0 = f_atomic_units * np.sqrt(
+            (2 * self.ion_energy / hartree_units) ** 3
         )
-        self.coefficient_nc = 1 / np.sqrt(2 * self.ion_energy / hartree_u)
+        self.coefficient_nc = 1 / np.sqrt(2 * self.ion_energy / hartree_units)
         coefficient_nq = material.effective_charge * self.coefficient_nc
-        self.coefficient_gamma = (
-            self.frequency_0 * np.sqrt(2 * m_electron * self.ion_energy) / q_electron
+        self.coefficient_gamma = self.frequency_0 * np.sqrt(
+            2 * m_electron * self.ion_energy / q_electron
         )
-        self.coefficient_nu = self.ion_energy / (hbar * self.frequency_0)
+        self.coefficient_nu = self.ion_energy * q_electron / (hbar * self.frequency_0)
         c_effective = 2 ** (2 * self.coefficient_nc) / (
             self.coefficient_nc
             * eu_gamma(1 + (2 - material.effective_charge) * self.coefficient_nc)
             * eu_gamma(coefficient_nq)
         )
         self.coefficient_ion = (
-            w_atomic_u
+            w_atomic_units
             * (16 / 3)
             * (4 * np.sqrt(2) / np.pi)
             * c_effective
             * self.ion_energy
-            / hartree_u
+            / hartree_units
         )
 
         # Density equation coefficients
         self.coefficient_ofi = material.constant_mpi
-        self.coefficient_ava = self.bremsstrahlung_cross_section_0 / self.ion_energy
+        self.coefficient_ava = self.bremsstrahlung_cross_section_0 / (
+            self.ion_energy * q_electron
+        )
 
         # Raman equation coefficients
         if material.has_raman:
