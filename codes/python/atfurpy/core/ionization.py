@@ -17,8 +17,6 @@ def compute_ionization(
     ion_rate,
     ion_sum,
     n_k,
-    n_r,
-    n_t,
     coef_f0,
     coef_nc,
     coef_ga,
@@ -27,6 +25,7 @@ def compute_ionization(
     coef_ofi,
     ion_model="mpi",
     tol=1e-2,
+    max_iter=200,
 ):
     """
     Compute the ionization rates from the generalised "PPT" model.
@@ -41,10 +40,6 @@ def compute_ionization(
         Pre-allocated summation term array.
     n_k : integer
         Number of photons required for multiphoton ionization (MPI).
-    n_r : integer
-        Number of radial nodes.
-    n_t : integer
-        Number of time nodes.
     coef_f0 : float
         Electric field intensity constant in atomic units.
     coef_nc : float
@@ -62,6 +57,8 @@ def compute_ionization(
         limit or "ppt" for general PPT model.
     tol : float, default: 1e-2
         Tolerance for partial sum convergence checking.
+    max_iter : int, default: 200
+        Maximum number of iterations for the partial sum.
 
     Returns
     -------
@@ -79,11 +76,12 @@ def compute_ionization(
     elif ion_model == "ppt":
         env_mod = np.abs(env) / np.sqrt(0.5 * c_light * eps_0)  # Peak field strength
         zero_mask = env_mod == 0
-        if np.any(zero_mask):
-            env_mod[zero_mask] = 1e-25
+
+        env_mod_mask = env_mod.copy()
+        env_mod_mask[zero_mask] = 1.0
 
         # Compute Keldysh adiabaticity coefficient
-        gamma_ppt = coef_ga / env_mod
+        gamma_ppt = coef_ga / env_mod_mask
 
         # Compute gamma dependent terms
         asinh_ppt = compute_asinh_gamma(gamma_ppt)
@@ -93,28 +91,38 @@ def compute_ionization(
         g_ppt = compute_g_gamma(gamma_ppt, asinh_ppt, idx_ppt, beta_ppt)
 
         # Compute power term 2n_c - 1.5
-        nc_term = (2 * coef_f0 / (env_mod * np.sqrt(1 + gamma_ppt**2))) ** (
+        nc_term = (2 * coef_f0 / (env_mod_mask * np.sqrt(1 + gamma_ppt**2))) ** (
             2 * coef_nc - 1.5
         )
 
         # Compute exponential g function term
-        g_term = np.exp(-2 * coef_f0 * g_ppt / (3 * env_mod))
+        g_term = np.exp(-2 * coef_f0 * g_ppt / (3 * env_mod_mask))
 
         # Compute gamma squared quotient terms
         g_term_2 = (0.5 * beta_ppt) ** 2
         # g_term_3 = (2 * gamma_ppt**2 + 3) / (1 + gamma_ppt**2)  # Mishima term
 
         # Compute ionization rate for each field strength point
-        for ii in range(n_r):
-            for jj in range(n_t):
-                alpha_ij = alpha_ppt[ii, jj]
-                beta_ij = beta_ppt[ii, jj]
-                idx_ij = idx_ppt[ii, jj]
+        alpha_flat = alpha_ppt.ravel()
+        beta_flat = beta_ppt.ravel()
+        idx_flat = idx_ppt.ravel()
 
-                ion_sum[ii, jj] = compute_sum(alpha_ij, beta_ij, idx_ij, coef_nu, tol)
+        ion_sum_flat = compute_sum(
+            alpha_flat, beta_flat, idx_flat, coef_nu, tol, max_iter
+        )
+
+        ion_sum = ion_sum_flat.reshape(alpha_ppt.shape)
+        print("ion_rate shape:", ion_sum.shape)
+        print("result shape:", ion_sum.shape)
+        print("ion_rate dtype:", ion_rate.dtype)
+        print("result dtype:", ion_sum.dtype)
+        print("NaNs in result:", np.isnan(ion_sum).any())
+        print("Infs in result:", np.isinf(ion_sum).any())
 
         # Compute ionization rate
-        ion_rate[:] = coef_ion * nc_term * g_term * g_term_2 * ion_sum
+        res = coef_ion * nc_term * g_term * g_term_2 * ion_sum
+        res[zero_mask] = 0.0
+        ion_rate[:] = res
 
     else:
         raise ValueError(
@@ -123,22 +131,24 @@ def compute_ionization(
         )
 
 
-def compute_sum(alpha_s, beta_s, idx_ppt_s, coef_nu, tol):
+def compute_sum(alpha_a, beta_a, idx_a, coef_nu, tol, max_iter):
     """
     Compute the exponential series term.
 
     Parameters
     ----------
-    alpha_s : float
+    alpha_a : float
         Alpha function values for each field strength.
-    beta_s : float
+    beta_a : float
         Beta function values for each field strength.
-    idx_ppt_s : float
+    idx_a : float
         Gamma summation index for each field strength.
     coef_nu : float
         Keldysh number of photons index constant term.
     tol : float, default: 1e-2
         Tolerance for partial sum convergence checking
+    max_iter : int, default: 200
+        Maximum number of iterations for the partial sum.
 
     Returns
     -------
@@ -147,27 +157,30 @@ def compute_sum(alpha_s, beta_s, idx_ppt_s, coef_nu, tol):
         convergence checking.
 
     """
-    nu_thr = coef_nu * idx_ppt_s
-
     # Initialize the summation index
-    idx_min = int(np.ceil(nu_thr))
+    n = idx_a.size
+    nu_thr = coef_nu * idx_a
+    idx_min = np.ceil(nu_thr).astype(int)
 
-    # Initialize partial sum
-    sum_value = 0.0
+    # Create the 2D array of indices
+    ids = idx_min[:, None] + np.arange(max_iter)[None, :]
+    args = ids - nu_thr[:, None]
 
-    # Sum until convergence is achieved
-    idx = idx_min
-    while True:
-        arg = idx - nu_thr
-        sum_term = np.exp(-alpha_s * arg) * dawsn(np.sqrt(beta_s * arg))
-        sum_value += sum_term
+    # Compute partial sums terms
+    sum_terms = np.exp(-alpha_a[:, None] * args) * dawsn(
+        np.sqrt(beta_a[:, None] * args)
+    )
+    # Compute the cumulative sum for each row
+    sum_values = np.cumsum(sum_terms, axis=1)
 
-        if sum_term < tol * sum_value:
-            break
+    # Find the indices where convergence is fulfilled
+    stop = sum_terms < tol * sum_values
+    first_stop = np.argmax(stop, axis=1)
 
-        idx += 1
+    # Gather the sum at the stopping index for each row
+    ion_sums_flat = sum_values[np.arange(n), first_stop]
 
-    return sum_value
+    return ion_sums_flat
 
 
 def compute_a_gamma(asinh, beta):

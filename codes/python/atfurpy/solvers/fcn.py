@@ -180,8 +180,6 @@ class SolverFCN(SolverBase):
             self.ionization_rate,
             self.ionization_sum,
             self.material.number_photons,
-            self.grid.r_nodes,
-            self.grid.td.t_nodes,
             self.eqn.coefficient_f0,
             self.eqn.coefficient_nc,
             self.eqn.coefficient_gamma,
@@ -190,6 +188,7 @@ class SolverFCN(SolverBase):
             self.eqn.coefficient_ofi,
             ion_model=self.ion_model,
             tol=1e-2,
+            max_iter=250,
         )
 
         # Compute density evolution
