@@ -7,7 +7,7 @@ from dataclasses import dataclass
 class MaterialParameters:
     "Material parameters to be chosen."
 
-    materials_list = ["oxygen800", "nitrogen800", "airdsr", "water800"]
+    materials_list = ["oxygen800", "nitrogen800", "air775_1", "water800"]
 
     def __init__(self, material_opt="oxygen800"):
         if material_opt not in self.materials_list:
@@ -21,8 +21,8 @@ class MaterialParameters:
             self.material_atr = "oxygen800"  # oxygen at 800 nm
         elif material_opt == "nitrogen800":
             self.material_atr = "nitrogen800"  # nitrogen at 800 nm
-        elif material_opt == "airdsr":
-            self.material_atr = "airdsr"  # average air at 775 nm
+        elif material_opt == "air775_1":
+            self.material_atr = "air775_1"  # one average air at 775 nm
         else:
             self.material_atr = "water800"  # water at 800 nm
 
@@ -58,13 +58,13 @@ class MaterialParameters:
                 "raman_partition": 0.5,
                 "has_raman": True,
             },
-            "airdsr": {
+            "air775_1": {
                 "refraction_index_linear": 1.0,
                 "refraction_index_nonlinear": 5.57e-23,
                 "constant_gvd": 2e-28,
                 "number_photons": 7,
-                "effective_charge": 1.0,
-                "constant_mpi": 1.3e-111,
+                "effective_charge": 0.11,
+                "constant_mpi": 1.34e-111,
                 "ionization_energy": 11,
                 "drude_collision_time": 3.5e-13,
                 "density_neutral": 2.7e25,
