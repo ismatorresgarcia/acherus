@@ -6,7 +6,7 @@ from scipy.fft import fft, ifft
 
 
 def compute_fft(data):
-    """Transform data to frequency domain using FFT."""
+    """Transform data from time domain to frequency domain using FFT."""
     return fft(data, axis=1, workers=-1)
 
 
@@ -21,8 +21,8 @@ def compute_nlin_rk4(
     dens,
     ram,
     ion_rate,
-    env_rk4,
     nlin,
+    env_rk4,
     n_t,
     dens_n,
     coef_p,
@@ -45,10 +45,10 @@ def compute_nlin_rk4(
         Raman response at current propagation step.
     ion_rate : (M, N) array_like
         Ionization rate at current propagation step.
-    env_rk4 : (N,) array_like
-        Auxiliary envelope array for RK4 integration.
     nlin : (M, N) array_like
         Pre-allocated array for the nonlinear terms.
+    env_rk4 : (N,) array_like
+        Auxiliary envelope array for RK4 integration.
     n_t : integer
         Number of time nodes.
     dens_n : float
@@ -196,14 +196,13 @@ def _set_envelope_operator(
         M is the number of radial nodes.
 
     """
-    env_s_2 = np.abs(env_s) ** 2
-    env_s_2[-1] = 1e-25
+    intensity_s = np.abs(env_s) ** 2
     dens_s_sat = dens_n - dens_s
 
     nlin_s = env_s * (
         coef_p * dens_s
-        + coef_m * ion_rate_s * dens_s_sat / env_s_2
-        + coef_k * env_s_2
+        + coef_m * ion_rate_s * dens_s_sat / intensity_s
+        + coef_k * intensity_s
         + coef_r * ram_s
     )
 
@@ -215,9 +214,9 @@ def compute_nlin_rk4_frequency(
     dens,
     ram,
     ion_rate,
-    steep_op,
-    env_rk4,
     nlin,
+    env_rk4,
+    steep_op,
     dens_n,
     coef_p,
     coef_m,
@@ -239,12 +238,12 @@ def compute_nlin_rk4_frequency(
         Raman response at current propagation step.
     ion_rate : (M, N) array_like
         Ionization rate at current propagation step.
-    steep_op : (N,) array_like
-        Self-steepening operator for diffraction.
     env_rk4 : (N,) array_like
         Auxiliary envelope array for RK4 integration.
     nlin : (M, N) array_like
         Pre-allocated array for the nonlinear terms.
+    steep_op : (N,) array_like
+        Self-steepening operator for diffraction.
     dens_n : float
         Neutral density of the medium.
     coef_p : float
@@ -388,18 +387,17 @@ def _set_envelope_operator_frequency(
 
     """
     # Calculate shared quantities
-    env_2 = np.abs(env) ** 2
-    env_2[-1] = 1e-25
+    intensity = np.abs(env) ** 2
     dens_sat = dens_n - dens
 
     # Plasma term
     nlin_p = coef_p * compute_fft(dens * env) / steep_op
 
     # MPA term
-    nlin_m = coef_m * compute_fft(ion_rate * dens_sat * env / env_2)
+    nlin_m = coef_m * compute_fft(ion_rate * dens_sat * env / intensity)
 
     # Kerr term
-    nlin_k = steep_op * coef_k * compute_fft(env * env_2)
+    nlin_k = steep_op * coef_k * compute_fft(env * intensity)
 
     # Raman term
     nlin_r = steep_op * coef_r * compute_fft(env * ram)

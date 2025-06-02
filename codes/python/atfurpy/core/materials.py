@@ -1,4 +1,24 @@
-"""Material properties dictionary for laser propagation media."""
+"""
+Material properties dictionary for laser propagation media.
+
+The units used for every property in the dictionary are
+
+============================ ======================
+ refraction_index_linear      [-]
+ refraction_index_nonlinear   [m**2 / W]
+ constant_gvd                 [s**2 / m]
+ number_photons               [-]
+ effective_charge             [-]
+ constant_mpi                 [s-1 m**(2K) / W**K]
+ ionization_energy            [eV]
+ drude_collision_time         [s]
+ density_neutral              [m**(-3)]
+ raman_rotational_frequency   [Hz]
+ raman_response_time          [s]
+ raman_partition              [-]
+ has_raman                    [-]
+
+"""
 
 from dataclasses import dataclass
 

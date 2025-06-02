@@ -39,7 +39,7 @@ class SolverFSS(SolverBase):
         super().__init__(material, laser, grid, eqn, method_opt, ion_model)
 
         # Initialize FSS-specific arrays
-        self.envelope_split_rt = np.empty_like(self.envelope_rt)
+        self.envelope_split_rt = np.zeros_like(self.envelope_rt)
 
         # Setup operators and initial condition
         self.setup_operators()
@@ -130,7 +130,7 @@ class SolverFSS(SolverBase):
         Compute one step of the FFT propagation scheme for dispersion.
         """
         self.envelope_split_rt[:] = compute_fft(
-            self.propagator_fft * compute_ifft(self.envelope_rt),
+            self.propagator_fft * compute_ifft(self.envelope_rt[1:-1, :]),
         )
 
     def compute_envelope(self):
@@ -151,9 +151,9 @@ class SolverFSS(SolverBase):
         """Perform one propagation step."""
         # Compute ionization rate
         compute_ionization(
-            self.envelope_rt,
-            self.ionization_rate,
-            self.ionization_sum,
+            self.envelope_rt[1:-1, :],
+            self.ionization_rate[1:-1, :],
+            self.ionization_sum[1:-1, :],
             self.material.number_photons,
             self.eqn.coefficient_f0,
             self.eqn.coefficient_nc,
@@ -162,16 +162,16 @@ class SolverFSS(SolverBase):
             self.eqn.coefficient_ion,
             self.eqn.coefficient_ofi,
             ion_model=self.ion_model,
-            tol=1e-2,
+            tol=1e-3,
             max_iter=250,
         )
 
         # Compute density evolution
         compute_density(
-            self.envelope_rt,
-            self.density_rt,
-            self.ionization_rate,
-            self.density_rk4_stage,
+            self.envelope_rt[1:-1, :],
+            self.density_rt[1:-1, :],
+            self.ionization_rate[1:-1, :],
+            self.density_rk4_stage[1:-1],
             self.grid.td.t_nodes,
             self.density_neutral,
             self.coefficient_ava,
@@ -181,18 +181,16 @@ class SolverFSS(SolverBase):
         # Compute Raman response if requested
         if self.use_raman:
             compute_raman(
-                self.raman_rt,
-                self.draman_rt,
-                self.envelope_rt,
-                self.raman_rk4_stage,
-                self.draman_rk4_stage,
+                self.raman_rt[1:-1, :],
+                self.draman_rt[1:-1, :],
+                self.envelope_rt[1:-1, :],
+                self.raman_rk4_stage[1:-1],
+                self.draman_rk4_stage[1:-1],
                 self.grid.td.t_nodes,
                 self.eqn.raman_coefficient_1,
                 self.eqn.raman_coefficient_2,
                 self.del_t,
             )
-        else:
-            self.raman_rt.fill(0)
 
         # Compute dispersion part using FFT
         self.compute_dispersion()
@@ -200,12 +198,12 @@ class SolverFSS(SolverBase):
         # Compute nonlinear part using RK4
         if self.method == "rk4":
             compute_nlin_rk4(
-                self.envelope_split_rt,
-                self.density_rt,
-                self.raman_rt,
-                self.ionization_rate,
-                self.envelope_rk4_stage,
-                self.nonlinear_rt,
+                self.envelope_split_rt[1:-1, :],
+                self.density_rt[1:-1, :],
+                self.raman_rt[1:-1, :],
+                self.ionization_rate[1:-1, :],
+                self.nonlinear_rt[1:-1, :],
+                self.envelope_rk4_stage[1:-1],
                 self.grid.td.t_nodes,
                 self.density_neutral,
                 self.coefficient_plasma,
@@ -214,15 +212,15 @@ class SolverFSS(SolverBase):
                 self.coefficient_raman,
                 self.del_z,
             )
-        else:  # to be defined in the future!
-            pass
 
         # Compute envelope equation
         self.compute_envelope()
 
         # Compute beam fluence and radius
-        compute_fluence(self.envelope_next_rt, self.fluence_r, self.grid.del_t)
-        compute_radius(self.fluence_r, self.radius, self.grid.r_grid)
+        compute_fluence(
+            self.envelope_next_rt[1:-1, :], self.fluence_r[1:-1], self.grid.del_t
+        )
+        compute_radius(self.fluence_r[1:-1], self.radius, self.grid.r_grid)
 
         # Update arrays for next step
         self.envelope_rt[:], self.envelope_next_rt[:] = (

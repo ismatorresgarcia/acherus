@@ -68,20 +68,16 @@ def compute_ionization(
         time nodes.
 
     """
-    env_mod = np.abs(env)  # Peak field strength
+    env_mod = np.abs(env)  # Peak field strength inner values
 
     if ion_model == "mpi":
         ion_rate[:] = coef_ofi * env_mod ** (2 * n_k)
 
     elif ion_model == "ppt":
-        env_mod = np.abs(env) / np.sqrt(0.5 * c_light * eps_0)  # Peak field strength
-        zero_mask = env_mod == 0
-
-        env_mod_mask = env_mod.copy()
-        env_mod_mask[zero_mask] = 1.0
+        env_mod = env_mod / np.sqrt(0.5 * c_light * eps_0)  # Peak field strength
 
         # Compute Keldysh adiabaticity coefficient
-        gamma_ppt = coef_ga / env_mod_mask
+        gamma_ppt = coef_ga / env_mod
 
         # Compute gamma dependent terms
         asinh_ppt = compute_asinh_gamma(gamma_ppt)
@@ -91,12 +87,12 @@ def compute_ionization(
         g_ppt = compute_g_gamma(gamma_ppt, asinh_ppt, idx_ppt, beta_ppt)
 
         # Compute power term 2n_c - 1.5
-        nc_term = (2 * coef_f0 / (env_mod_mask * np.sqrt(1 + gamma_ppt**2))) ** (
+        nc_term = (2 * coef_f0 / (env_mod * np.sqrt(1 + gamma_ppt**2))) ** (
             2 * coef_nc - 1.5
         )
 
         # Compute exponential g function term
-        g_term = np.exp(-2 * coef_f0 * g_ppt / (3 * env_mod_mask))
+        g_term = np.exp(-2 * coef_f0 * g_ppt / (3 * env_mod))
 
         # Compute gamma squared quotient terms
         g_term_2 = (0.5 * beta_ppt) ** 2
@@ -112,17 +108,9 @@ def compute_ionization(
         )
 
         ion_sum = ion_sum_flat.reshape(alpha_ppt.shape)
-        print("ion_rate shape:", ion_sum.shape)
-        print("result shape:", ion_sum.shape)
-        print("ion_rate dtype:", ion_rate.dtype)
-        print("result dtype:", ion_sum.dtype)
-        print("NaNs in result:", np.isnan(ion_sum).any())
-        print("Infs in result:", np.isinf(ion_sum).any())
 
         # Compute ionization rate
-        res = coef_ion * nc_term * g_term * g_term_2 * ion_sum
-        res[zero_mask] = 0.0
-        ion_rate[:] = res
+        ion_rate[:] = coef_ion * nc_term * g_term * g_term_2 * ion_sum
 
     else:
         raise ValueError(

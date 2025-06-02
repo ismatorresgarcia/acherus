@@ -29,9 +29,6 @@ def compute_density(env, dens, ion_rate, dens_rk4, n_t, dens_n, coef_ava, dt):
         Time step.
 
     """
-    # Set the initial condition
-    dens[:, 0] = 0
-
     # Solve the electron density evolution
     # pylint: disable=not-an-iterable
     for ll in nb.prange(n_t - 1):
@@ -117,9 +114,9 @@ def _set_density_operator(dens_s, env_s, ion_rate_s, dens_n, coef_ava):
         M is the number of radial nodes.
 
     """
-    env_s_2 = np.abs(env_s) ** 2
+    intensity_s = np.abs(env_s) ** 2
 
     rate_ofi = ion_rate_s * (dens_n - dens_s)
-    rate_ava = coef_ava * dens_s * env_s_2
+    rate_ava = coef_ava * dens_s * intensity_s
 
     return rate_ofi + rate_ava

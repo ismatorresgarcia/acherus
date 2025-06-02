@@ -57,9 +57,6 @@ class SolverBase:
         # Set up flags
         self.use_raman = material.has_raman
 
-        # Set up tracking variables
-        self.snapshot_z_index = np.empty(self.grid.zd.z_snapshots + 1, dtype=int)
-
     # Set up (pre-allocate) arrays
     def _init_arrays(self):
         """Initialize arrays for simulation."""
@@ -74,44 +71,46 @@ class SolverBase:
         shape_rz = (self.grid.r_nodes, self.grid.zd.z_steps + 1)
 
         # Initialize envelope arrays
-        self.envelope_rt = np.empty(shape_rt, dtype=complex)
-        self.envelope_next_rt = np.empty_like(self.envelope_rt)
-        self.envelope_snapshot_rzt = np.empty(shape_rzt, dtype=complex)
-        self.envelope_r0_zt = np.empty(shape_zt, dtype=complex)
-        self.envelope_tp_rz = np.empty(shape_rz, dtype=complex)
+        self.envelope_rt = np.zeros(shape_rt, dtype=complex)
+        self.envelope_next_rt = np.zeros_like(self.envelope_rt)
+        self.envelope_snapshot_rzt = np.zeros(shape_rzt, dtype=complex)
+        self.envelope_r0_zt = np.zeros(shape_zt, dtype=complex)
+        self.envelope_tp_rz = np.zeros(shape_rz, dtype=complex)
 
         # Initialize density arrays
-        self.density_rt = np.empty(shape_rt)
-        self.density_snapshot_rzt = np.empty(shape_rzt)
-        self.density_r0_zt = np.empty(shape_zt)
-        self.density_tp_rz = np.empty(shape_rz)
+        self.density_rt = np.zeros(shape_rt)
+        self.density_snapshot_rzt = np.zeros(shape_rzt)
+        self.density_r0_zt = np.zeros(shape_zt)
+        self.density_tp_rz = np.zeros(shape_rz)
 
         # Initialize fluence and radius arrays
-        self.fluence_r = np.empty(shape_r)
-        self.fluence_rz = np.empty(shape_rz)
-        self.radius = np.empty(1)
-        self.radius_z = np.empty(self.grid.zd.z_steps + 1)
+        self.fluence_r = np.zeros(shape_r)
+        self.fluence_rz = np.zeros(shape_rz)
+        self.radius = np.zeros(1)
+        self.radius_z = np.zeros(self.grid.zd.z_steps + 1)
 
         # Initialize Raman arrays
-        self.raman_rt = np.empty(shape_rt, dtype=complex)
-        self.draman_rt = np.empty_like(self.raman_rt)
-        self.nonlinear_rt = np.empty_like(self.envelope_rt)
+        self.raman_rt = np.zeros(shape_rt, dtype=complex)
+        self.draman_rt = np.zeros_like(self.raman_rt)
+        self.nonlinear_rt = np.zeros_like(self.envelope_rt)
 
         # Initialize RK4 integration arrays
-        self.envelope_rk4_stage = np.empty(self.grid.r_nodes, dtype=complex)
-        self.density_rk4_stage = np.empty(self.grid.r_nodes)
-        self.raman_rk4_stage = np.empty(self.grid.r_nodes, dtype=complex)
-        self.draman_rk4_stage = np.empty_like(self.raman_rk4_stage)
+        self.envelope_rk4_stage = np.zeros(self.grid.r_nodes, dtype=complex)
+        self.density_rk4_stage = np.zeros(self.grid.r_nodes)
+        self.raman_rk4_stage = np.zeros(self.grid.r_nodes, dtype=complex)
+        self.draman_rk4_stage = np.zeros_like(self.raman_rk4_stage)
 
         # Initialize ionization arrays
-        self.ionization_rate = np.empty_like(self.density_rt)
-        self.ionization_sum = np.empty_like(self.density_rt)
+        self.ionization_rate = np.zeros_like(self.density_rt)
+        self.ionization_sum = np.zeros_like(self.density_rt)
+
+        # Initialize tracking variables
+        self.snapshot_z_index = np.zeros(self.grid.zd.z_snapshots + 1, dtype=int)
 
     def setup_initial_condition(self):
         """Setup initial conditions."""
         # Initial conditions
         self.envelope_rt[:] = initialize_envelope(self.grid, self.laser)
-        self.density_rt[:, 0] = 0
         self.fluence_rz[:, 0] = compute_fluence(self.envelope_rt, dt=self.grid.del_t)
         self.radius_z[0] = compute_radius(self.fluence_rz[:, 0], r_g=self.grid.r_grid)
 
@@ -119,10 +118,8 @@ class SolverBase:
         self.envelope_snapshot_rzt[:, 0, :] = self.envelope_rt
         self.envelope_r0_zt[0, :] = self.envelope_rt[0, :]
         self.envelope_tp_rz[:, 0] = self.envelope_rt[:, self.grid.t0_node]
-        self.density_snapshot_rzt[:, 0, :].fill(0)
         self.density_r0_zt[0, :] = self.density_rt[0, :]
         self.density_tp_rz[:, 0] = self.density_rt[:, self.grid.t0_node]
-        self.snapshot_z_index[0] = 0
 
     # Method that should exist in all solvers
     def setup_operators(self):

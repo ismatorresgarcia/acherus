@@ -30,9 +30,6 @@ def compute_raman(ram, dram, env, ram_rk4, dram_rk4, n_t, coef_ode1, coef_ode2, 
         Time step.
 
     """
-    # Set the initial conditions
-    ram[:, 0], dram[:, 0] = 0, 0
-
     # Solve the raman scattering response
     # pylint: disable=not-an-iterable
     for ll in nb.prange(n_t - 1):
