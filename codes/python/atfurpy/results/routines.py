@@ -69,20 +69,22 @@ def cheap_diagnostics(solver, step):
 
     envelope_rt = solver.envelope_rt
     density_rt = solver.density_rt
+    fluence_r = solver.fluence_r
+    radius = solver.radius
 
-    axis_data_envelope = envelope_rt[0]
-    axis_data_density = density_rt[0]
-    axis_data_intensity = np.abs(axis_data_envelope)
+    max_intensity_idx = np.argmax(np.abs(envelope_rt), axis=1)
+    max_density_idx = np.argmax(density_rt, axis=1)
 
-    peak_node_intensity = np.argmax(axis_data_intensity)
-    peak_node_density = np.argmax(axis_data_density)
-
-    solver.envelope_r0_zt[step] = axis_data_envelope
-    solver.envelope_tp_rz[:, step] = envelope_rt[:, peak_node_intensity]
-    solver.density_r0_zt[step] = axis_data_density
-    solver.density_tp_rz[:, step] = density_rt[:, peak_node_density]
-    solver.fluence_rz[:, step] = solver.fluence_r
-    solver.radius_z[step] = solver.radius[0]
+    solver.envelope_r0_zt[step] = envelope_rt[0]
+    solver.envelope_tp_rz[:, step] = envelope_rt[
+        np.arange(envelope_rt.shape[0]), max_intensity_idx
+    ]
+    solver.density_r0_zt[step] = density_rt[0]
+    solver.density_tp_rz[:, step] = density_rt[
+        np.arange(density_rt.shape[0]), max_density_idx
+    ]
+    solver.fluence_rz[:, step] = fluence_r
+    solver.radius_z[step] = radius[0]
 
 
 def inter_diagnostics(solver, step):
