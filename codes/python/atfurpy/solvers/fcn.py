@@ -1,5 +1,8 @@
 """Fourier Crank-Nicolson (FCN) solver module."""
 
+import concurrent.futures
+import os
+
 import numpy as np
 from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
@@ -141,34 +144,43 @@ class SolverFCN(SolverBase):
         """
         self.envelope_fourier_rt[1:-1, :] = compute_fft(self.envelope_rt[1:-1, :])
 
-        for ll in range(self.grid.td.t_nodes):
+        def solve_frequency_slice(omega):
             matrix_cn_left = self.compute_matrix(
                 self.grid.r_nodes,
                 "left",
                 self.diag_down,
                 self.diag_up,
-                self.matrix_cnt_left[ll],
-                self.diff_operator[ll],
+                self.matrix_cnt_left[omega],
+                self.diff_operator[omega],
             )
             matrix_cn_right = self.compute_matrix(
                 self.grid.r_nodes,
                 "right",
                 self.diag_down,
                 self.diag_up,
-                self.matrix_cnt_right[ll],
-                -self.diff_operator[ll],
+                self.matrix_cnt_right[omega],
+                -self.diff_operator[omega],
             )
 
             # Compute matrix-vector product using "DIA" sparse format
-            rhs_linear = matrix_cn_right @ self.envelope_fourier_rt[:, ll]
+            rhs_linear = matrix_cn_right @ self.envelope_fourier_rt[:, omega]
 
             # Compute the left-hand side of the equation
-            rhs = rhs_linear + self.nonlinear_rt[:, ll]
+            rhs = rhs_linear + self.nonlinear_rt[:, omega]
 
             # Solve the tridiagonal system using the banded solver
-            self.envelope_fourier_next_rt[:, ll] = solve_banded(
-                (1, 1), matrix_cn_left, rhs
-            )
+            return omega, solve_banded((1, 1), matrix_cn_left, rhs)
+
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=os.cpu_count()
+        ) as executor:
+            futures = [
+                executor.submit(solve_frequency_slice, ll)
+                for ll in range(self.grid.td.t_nodes)
+            ]
+            for future in concurrent.futures.as_completed(futures):
+                ll, fourier_next = future.result()
+                self.envelope_fourier_next_rt[:, ll] = fourier_next
 
         self.envelope_next_rt[1:-1, :] = compute_ifft(
             self.envelope_fourier_next_rt[1:-1, :]
