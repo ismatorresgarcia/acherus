@@ -6,6 +6,8 @@ for fitting the effective Coulomb barrier felt by electrons tunneling out
 of the atom.
 """
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
 import numpy as np
 from scipy.constants import c as c_light
 from scipy.constants import epsilon_0 as eps_0
@@ -25,7 +27,6 @@ def compute_ionization(
     coef_ofi,
     ion_model="mpi",
     tol=1e-2,
-    max_iter=200,
 ):
     """
     Compute the ionization rates from the generalised "PPT" model.
@@ -57,8 +58,6 @@ def compute_ionization(
         limit or "ppt" for general PPT model.
     tol : float, default: 1e-2
         Tolerance for partial sum convergence checking.
-    max_iter : int, default: 200
-        Maximum number of iterations for the partial sum.
 
     Returns
     -------
@@ -99,15 +98,26 @@ def compute_ionization(
         # g_term_3 = (2 * gamma_ppt**2 + 3) / (1 + gamma_ppt**2)  # Mishima term
 
         # Compute ionization rate for each field strength point
-        alpha_flat = alpha_ppt.ravel()
-        beta_flat = beta_ppt.ravel()
-        idx_flat = idx_ppt.ravel()
+        args_list = [
+            (alpha_ppt.flat[ii], beta_ppt.flat[ii], idx_ppt.flat[ii], coef_nu, tol)
+            for ii in range(alpha_ppt.size)
+        ]
 
-        ion_sum_flat = compute_sum(
-            alpha_flat, beta_flat, idx_flat, coef_nu, tol, max_iter
-        )
+        args_batches = list(batcher(args_list, 200))  # Number of batches chosen
+        results = [None] * len(args_batches)
 
-        ion_sum = ion_sum_flat.reshape(alpha_ppt.shape)
+        with ProcessPoolExecutor() as executor:
+            futures = {
+                executor.submit(compute_sum_batch, args_batch): ii
+                for ii, args_batch in enumerate(args_batches)
+            }
+            for future in as_completed(futures):
+                ii = futures[future]  # Map each future to the associated batch
+                results[ii] = future.result()
+
+        # Flatten the list of results in the correct order
+        flat_results = [item for batch in results for item in batch]
+        ion_sum.flat[:] = [result[0] for result in flat_results]
 
         # Compute ionization rate
         ion_rate[:] = coef_ion * nc_term * g_term * g_term_2 * ion_sum
@@ -119,7 +129,7 @@ def compute_ionization(
         )
 
 
-def compute_sum(alpha_a, beta_a, idx_a, coef_nu, tol, max_iter):
+def compute_sum(alpha_a, beta_a, idx_a, coef_nu, tol):
     """
     Compute the exponential series term.
 
@@ -135,8 +145,6 @@ def compute_sum(alpha_a, beta_a, idx_a, coef_nu, tol, max_iter):
         Keldysh number of photons index constant term.
     tol : float, default: 1e-2
         Tolerance for partial sum convergence checking
-    max_iter : int, default: 200
-        Maximum number of iterations for the partial sum.
 
     Returns
     -------
@@ -146,29 +154,48 @@ def compute_sum(alpha_a, beta_a, idx_a, coef_nu, tol, max_iter):
 
     """
     # Initialize the summation index
-    n = idx_a.size
     nu_thr = coef_nu * idx_a
     idx_min = np.ceil(nu_thr).astype(int)
 
-    # Create the 2D array of indices
-    ids = idx_min[:, None] + np.arange(max_iter)[None, :]
-    args = ids - nu_thr[:, None]
+    # Initialize the sum value
+    sum_value = 0.0
 
-    # Compute partial sums terms
-    sum_terms = np.exp(-alpha_a[:, None] * args) * dawsn(
-        np.sqrt(beta_a[:, None] * args)
-    )
-    # Compute the cumulative sum for each row
-    sum_values = np.cumsum(sum_terms, axis=1)
+    # Sum until convergence is reached
+    idx = idx_min
+    while True:
+        arg = idx - nu_thr
+        sum_term = np.exp(-alpha_a * arg) * dawsn(np.sqrt(beta_a * arg))
+        sum_value += sum_term
 
-    # Find the indices where convergence is fulfilled
-    stop = sum_terms < tol * sum_values
-    first_stop = np.argmax(stop, axis=1)
+        if sum_term < tol * sum_value:
+            break
 
-    # Gather the sum at the stopping index for each row
-    ion_sums_flat = sum_values[np.arange(n), first_stop]
+        idx += 1
 
-    return ion_sums_flat
+    return sum_value
+
+
+def compute_sum_wrap(args):
+    """
+    Wrapper function for compute_sum to unpack arguments.
+    """
+    alpha_a, beta_a, idx_a, nu_a, tolerance = args
+    return compute_sum(alpha_a, beta_a, idx_a, nu_a, tol=tolerance)
+
+
+def compute_sum_batch(args_batch):
+    """
+    Another compute_sum for batching the process.
+    """
+    return [compute_sum_wrap(args) for args in args_batch]
+
+
+def batcher(seq, size):
+    """
+    Batch the process into smaller pieces.
+    """
+    for ii in range(0, len(seq), size):
+        yield seq[ii : ii + size]
 
 
 def compute_a_gamma(asinh, beta):

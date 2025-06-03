@@ -117,11 +117,11 @@ class SolverFCN(SolverBase):
 
     def setup_operators(self):
         """Setup FCN operators."""
-        self.self_steepening = 1 + self.grid.w_grid / self.laser.frequency_0
+        self.shock_operator = 1 + self.grid.w_grid / self.laser.frequency_0
         coefficient_diffraction = (
             0.25
             * self.grid.del_z
-            / (self.laser.wavenumber * self.grid.del_r**2 * self.self_steepening)
+            / (self.laser.wavenumber * self.grid.del_r**2 * self.shock_operator)
         )
         coefficient_dispersion = (
             0.25 * self.grid.del_z * self.material.constant_gvd * self.grid.w_grid**2
@@ -240,7 +240,7 @@ class SolverFCN(SolverBase):
                 self.ionization_rate[1:-1, :],
                 self.nonlinear_rt[1:-1, :],
                 self.envelope_rk4_stage[1:-1],
-                self.self_steepening,
+                self.shock_operator,
                 self.density_neutral,
                 self.coefficient_plasma,
                 self.coefficient_mpa,
