@@ -75,15 +75,15 @@ def cheap_diagnostics(solver, step):
     max_intensity_idx = np.argmax(np.abs(envelope_rt), axis=1)
     max_density_idx = np.argmax(density_rt, axis=1)
 
-    solver.envelope_r0_zt[step] = envelope_rt[0]
+    solver.envelope_r0_zt[step, :] = envelope_rt[0, :]
     solver.envelope_tp_rz[:, step] = envelope_rt[
         np.arange(envelope_rt.shape[0]), max_intensity_idx
     ]
-    solver.density_r0_zt[step] = density_rt[0]
+    solver.density_r0_zt[step, :] = density_rt[0, :]
     solver.density_tp_rz[:, step] = density_rt[
         np.arange(density_rt.shape[0]), max_density_idx
     ]
-    solver.fluence_rz[:, step] = fluence_r
+    solver.fluence_rz[:, step] = fluence_r[:]
     solver.radius_z[step] = radius[0]
 
 

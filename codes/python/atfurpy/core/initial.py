@@ -24,14 +24,17 @@ def initialize_envelope(grid, laser):
     space_decaying_term = -(
         (grid.r_grid_2d / laser.params.waist) ** laser.gaussian_order
     )
-    time_decaying_term = (
-        -(1 + 1j * laser.params.chirp) * (grid.t_grid_2d / laser.params.duration) ** 2
-    )
+    time_decaying_term = -((grid.t_grid_2d / laser.params.duration) ** 2)
 
-    if laser.params.focal_length != 0:  # phase curvature due to focusing lens
+    if laser.params.focal_length != 0:  # phase curvature due to the focusing lens
         space_decaying_term = space_decaying_term + 0j
         space_decaying_term -= (
             0.5j * laser.wavenumber * grid.r_grid_2d**2 / laser.params.focal_length
+        )
+    if laser.params.chirp != 0:  # temporal phase due to the chirping system
+        time_decaying_term = time_decaying_term + 0j
+        time_decaying_term -= (
+            1j * laser.params.chirp * (grid.t_grid_2d / laser.params.duration) ** 2
         )
 
     return laser.amplitude * np.exp(space_decaying_term + time_decaying_term)

@@ -129,7 +129,7 @@ class SolverFSS(SolverBase):
         """
         Compute one step of the FFT propagation scheme for dispersion.
         """
-        self.envelope_split_rt[:] = compute_fft(
+        self.envelope_split_rt[1:-1, :] = compute_fft(
             self.propagator_fft * compute_ifft(self.envelope_rt[1:-1, :]),
         )
 

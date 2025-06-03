@@ -139,7 +139,7 @@ class SolverFCN(SolverBase):
         Compute one step of the generalized Crank-Nicolson scheme
         for envelope propagation.
         """
-        self.envelope_fourier_rt[:] = compute_fft(self.envelope_rt[1:-1, :])
+        self.envelope_fourier_rt[1:-1, :] = compute_fft(self.envelope_rt[1:-1, :])
 
         for ll in range(self.grid.td.t_nodes):
             matrix_cn_left = self.compute_matrix(
@@ -170,7 +170,9 @@ class SolverFCN(SolverBase):
                 (1, 1), matrix_cn_left, rhs
             )
 
-        self.envelope_next_rt[:] = compute_ifft(self.envelope_fourier_next_rt[1:-1, :])
+        self.envelope_next_rt[1:-1, :] = compute_ifft(
+            self.envelope_fourier_next_rt[1:-1, :]
+        )
 
     def solve_step(self):
         """Perform one propagation step."""
