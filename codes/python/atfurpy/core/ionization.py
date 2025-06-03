@@ -103,7 +103,7 @@ def compute_ionization(
             for ii in range(alpha_ppt.size)
         ]
 
-        args_batches = list(batcher(args_list, 200))  # Number of batches chosen
+        args_batches = list(batcher(args_list, 200))  # Choose the batch size
         results = [None] * len(args_batches)
 
         with ProcessPoolExecutor() as executor:
@@ -185,7 +185,7 @@ def compute_sum_wrap(args):
 
 def compute_sum_batch(args_batch):
     """
-    Another compute_sum for batching the process.
+    Wrapper function for compute_sum_wrap for batches.
     """
     return [compute_sum_wrap(args) for args in args_batch]
 
