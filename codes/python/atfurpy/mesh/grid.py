@@ -8,7 +8,7 @@ from scipy.fft import fftfreq
 
 @dataclass
 class GridParameters:
-    "Grid parameters computation."
+    """Fixed mesh for cylindrical propagation."""
 
     # Radial grid initialization
     r_min: float = 0
@@ -48,18 +48,24 @@ class GridParameters:
 
     def _init_grid_resolution(self):
         """Set grid resolution."""
-        self.r_res = (self.r_max - self.r_min) / (self.r_nodes - 1)
-        self.z_res = (self.z_max - self.z_min) / self.z_steps
-        self.t_res = (self.t_max - self.t_min) / (self.t_nodes - 1)
-        self.w_res = 2 * np.pi / (self.t_nodes * self.t_res)
+        self.r_res = np.float64((self.r_max - self.r_min) / (self.r_nodes - 1))
+        self.z_res = np.float64((self.z_max - self.z_min) / (self.z_nodes - 1))
+        self.t_res = np.float64((self.t_max - self.t_min) / (self.t_nodes - 1))
+        self.w_res = np.float64(2 * np.pi / (self.t_nodes * self.t_res))
 
     def _init_grid_arrays(self):
         """Set 1D and 2D grid arrays."""
-        self.r_grid = np.linspace(self.r_min, self.r_max, self.r_nodes)
-        self.z_grid = np.linspace(self.z_min, self.z_max, self.z_steps + 1)
-        self.t_grid = np.linspace(self.t_min, self.t_max, self.t_nodes)
-        self.w_grid = 2 * np.pi * fftfreq(self.t_nodes, self.t_res)
+        self.r_grid = np.linspace(
+            self.r_min, self.r_max, self.r_nodes, dtype=np.float64
+        )
+        self.z_grid = np.linspace(
+            self.z_min, self.z_max, self.z_nodes, dtype=np.float64
+        )
+        self.t_grid = np.linspace(
+            self.t_min, self.t_max, self.t_nodes, dtype=np.float64
+        )
+        self.w_grid = 2 * np.pi * fftfreq(self.t_nodes, self.t_res, dtype=np.float64)
 
         self.r_grid_2d, self.t_grid_2d = np.meshgrid(
-            self.r_grid, self.t_grid, indexing="ij"
+            self.r_grid, self.t_grid, indexing="ij", dtype=np.float64
         )

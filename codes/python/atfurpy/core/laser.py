@@ -52,11 +52,13 @@ class LaserPulseParameters:
 
     def compute_power(self):
         """Compute initial laser pulse power."""
-        return self.params.energy / (self.params.duration * np.sqrt(0.5 * np.pi))
+        return np.float64(
+            self.params.energy / (self.params.duration * np.sqrt(0.5 * np.pi))
+        )
 
     def compute_power_cr(self):
         """Compute critical power for self-focusing (valid for Gaussian beams)."""
-        return (
+        return np.float64(
             3.77
             * self.params.wavelength**2
             / (
@@ -70,7 +72,7 @@ class LaserPulseParameters:
     def compute_intensity(self):
         """Compute initial laser pulse intensity for any initial pulse."""
         order = self.gaussian_order
-        return (
+        return np.float64(
             order
             * self.power
             * 2 ** (2 / order)
@@ -79,9 +81,4 @@ class LaserPulseParameters:
 
     def compute_amplitude(self):
         """Compute initial laser pulse envelope amplitude."""
-        return np.sqrt(self.intensity)
-
-    @property
-    def power_ratio(self):
-        """Compute the initial ratio of the laser power to the critical power."""
-        return self.power / self.power_cr
+        return np.float64(np.sqrt(self.intensity))
