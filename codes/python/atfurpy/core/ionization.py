@@ -98,26 +98,30 @@ def compute_ionization(
         # g_term_3 = (2 * gamma_ppt**2 + 3) / (1 + gamma_ppt**2)  # Mishima term
 
         # Compute ionization rate for each field strength point
-        args_list = [
-            (alpha_ppt.flat[ii], beta_ppt.flat[ii], idx_ppt.flat[ii], coef_nu, tol)
-            for ii in range(alpha_ppt.size)
+        flat_results = np.empty(alpha_ppt.size, dtype=np.float64)
+        batch_size = 400
+        indices = list(range(alpha_ppt.size))
+        batches = [
+            indices[ii * ii + batch_size] for ii in range(0, len(indices), batch_size)
         ]
-
-        args_batches = list(batcher(args_list, 200))  # Choose the batch size
-        results = [None] * len(args_batches)
 
         with ProcessPoolExecutor() as executor:
             futures = {
-                executor.submit(compute_sum_batch, args_batch): ii
-                for ii, args_batch in enumerate(args_batches)
+                executor.submit(
+                    compute_sum_batch, batch, alpha_ppt, beta_ppt, idx_ppt, coef_nu, tol
+                ): ii
+                for ii, batch in enumerate(batches)
             }
             for future in as_completed(futures):
-                ii = futures[future]  # Map each future to the associated batch
-                results[ii] = future.result()
+                batch_idx = futures[future]
+                batch_indices = batches[batch_idx]
+                results = future.result()
+                flat_results[batch_indices[0] : batch_indices[0] + len(results)] = (
+                    results
+                )
 
         # Flatten the list of results in the correct order
-        flat_results = [item for batch in results for item in batch]
-        ion_sum.flat[:] = [result[0] for result in flat_results]
+        ion_sum.flat[:] = flat_results
 
         # Compute ionization rate
         ion_rate[:] = coef_ion * nc_term * g_term * g_term_2 * ion_sum
@@ -175,27 +179,11 @@ def compute_sum(alpha_a, beta_a, idx_a, coef_nu, tol):
     return sum_value
 
 
-def compute_sum_wrap(args):
-    """
-    Wrapper function for compute_sum to unpack arguments.
-    """
-    alpha_a, beta_a, idx_a, nu_a, tolerance = args
-    return compute_sum(alpha_a, beta_a, idx_a, nu_a, tol=tolerance)
-
-
-def compute_sum_batch(args_batch):
-    """
-    Wrapper function for compute_sum_wrap for batches.
-    """
-    return [compute_sum_wrap(args) for args in args_batch]
-
-
-def batcher(seq, size):
-    """
-    Batch the process into smaller pieces.
-    """
-    for ii in range(0, len(seq), size):
-        yield seq[ii : ii + size]
+def compute_sum_batch(indices, alpha_a, beta_a, idx_a, nu_a, tol):
+    return [
+        compute_sum(alpha_a.flat[ii], beta_a.flat[ii], idx_a.flat[ii], nu_a, tol)
+        for ii in indices
+    ]
 
 
 def compute_a_gamma(asinh, beta):

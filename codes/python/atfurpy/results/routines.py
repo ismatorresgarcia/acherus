@@ -105,21 +105,21 @@ def inter_diagnostics(solver, step):
             envelope_grp = f.create_group("envelope")
             envelope_grp.create_dataset(
                 "peak_rz",
-                shape=(solver.grid.r_nodes, solver.grid.zd.z_steps + 1),
+                shape=(solver.grid.r_nodes, solver.grid.z_steps + 1),
                 maxshape=(solver.grid.r_nodes, None),
                 dtype=complex,
                 compression="gzip",
                 chunks=(
                     solver.grid.r_nodes,
-                    min(INT_MONITOR, solver.grid.zd.z_steps + 1),
+                    min(INT_MONITOR, solver.grid.z_steps + 1),
                 ),
             )
 
             coords = f.create_group("coordinates")
-            coords.create_dataset("r_min", data=solver.grid.rd.r_min)
-            coords.create_dataset("r_max", data=solver.grid.rd.r_max)
-            coords.create_dataset("z_min", data=solver.grid.zd.z_min)
-            coords.create_dataset("z_max", data=solver.grid.zd.z_max)
+            coords.create_dataset("r_min", data=solver.grid.r_min)
+            coords.create_dataset("r_max", data=solver.grid.r_max)
+            coords.create_dataset("z_min", data=solver.grid.z_min)
+            coords.create_dataset("z_max", data=solver.grid.z_max)
             coords.create_dataset("r_grid", data=solver.grid.r_grid)
             coords.create_dataset("z_grid", data=solver.grid.z_grid)
 
@@ -128,7 +128,7 @@ def inter_diagnostics(solver, step):
             meta.create_dataset("last_step", data=0, dtype=int)
 
     # Update data
-    if step % INT_MONITOR == 0 or step == solver.grid.zd.z_steps:
+    if step % INT_MONITOR == 0 or step == solver.grid.z_steps:
         with h5py.File(temp_ofdiagnostic_path, "r+") as f:
             last_step = f["metadata/last_step"][()]
 

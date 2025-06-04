@@ -41,9 +41,9 @@ class SolverFSS(SolverBase):
         # Initialize FSS-specific arrays
         self.envelope_split_rt = np.zeros_like(self.envelope_rt)
 
-        # Setup operators and initial condition
-        self.setup_operators()
-        self.setup_initial_condition()
+        # Set operators and initial condition
+        self.set_operators()
+        self.set_initial_condition()
 
     def compute_matrix(self, n_r, m_p, coef_d):
         """
@@ -80,7 +80,7 @@ class SolverFSS(SolverBase):
             diag_main[0], diag_main[-1] = coef_main, 1
             diag_upper[0] = -2 * coef_d
 
-            band_matrix = np.zeros((3, n_r), dtype=complex)
+            band_matrix = np.zeros((3, n_r), dtype=np.complex128)
             band_matrix[0, 1:] = diag_upper
             band_matrix[1, :] = diag_main
             band_matrix[2, :-1] = diag_lower
@@ -103,26 +103,26 @@ class SolverFSS(SolverBase):
         # for tridiagonal matrices which is more efficient
         return diags_array(diags, offsets=diags_ind, format="dia")
 
-    def setup_operators(self):
-        """Setup FSS operators."""
+    def set_operators(self):
+        """Set FSS operators."""
         coefficient_diffraction = (
-            0.25 * self.grid.del_z / (self.laser.wavenumber * self.grid.del_r**2)
+            0.25 * self.z_res / (self.laser.wavenumber * self.r_res**2)
         )
         coefficient_dispersion = (
-            -0.25 * self.grid.del_z * self.material.constant_gvd / self.grid.del_t**2
+            -0.25 * self.r_res * self.material.constant_gvd / self.t_res**2
         )
 
-        # Setup Fourier propagator for dispersion
+        # Set Fourier propagator for dispersion
         self.propagator_fft = np.exp(
-            -2j * coefficient_dispersion * (self.grid.w_grid * self.grid.del_t) ** 2
+            -2j * coefficient_dispersion * (self.w_grid * self.t_res) ** 2
         )
 
-        # Setup CN operators for diffraction
+        # Set CN operators for diffraction
         self.matrix_cn_left = self.compute_matrix(
-            self.grid.r_nodes, "left", 1j * coefficient_diffraction
+            self.r_nodes, "left", 1j * coefficient_diffraction
         )
         self.matrix_cn_right = self.compute_matrix(
-            self.grid.r_nodes, "right", -1j * coefficient_diffraction
+            self.r_nodes, "right", -1j * coefficient_diffraction
         )
 
     def compute_dispersion(self):
@@ -149,7 +149,6 @@ class SolverFSS(SolverBase):
 
     def solve_step(self):
         """Perform one propagation step."""
-        # Compute ionization rate
         compute_ionization(
             self.envelope_rt[1:-1, :],
             self.ionization_rate[1:-1, :],
@@ -162,23 +161,19 @@ class SolverFSS(SolverBase):
             self.eqn.coefficient_ion,
             self.eqn.coefficient_ofi,
             ion_model=self.ion_model,
-            tol=1e-3,
+            tol=1e-4,
             max_iter=250,
         )
-
-        # Compute density evolution
         compute_density(
             self.envelope_rt[1:-1, :],
             self.density_rt[1:-1, :],
             self.ionization_rate[1:-1, :],
             self.density_rk4_stage[1:-1],
-            self.grid.td.t_nodes,
+            self.t_nodes,
             self.density_neutral,
             self.coefficient_ava,
-            self.del_t,
+            self.t_res,
         )
-
-        # Compute Raman response if requested
         if self.use_raman:
             compute_raman(
                 self.raman_rt[1:-1, :],
@@ -186,16 +181,12 @@ class SolverFSS(SolverBase):
                 self.envelope_rt[1:-1, :],
                 self.raman_rk4_stage[1:-1],
                 self.draman_rk4_stage[1:-1],
-                self.grid.td.t_nodes,
+                self.t_nodes,
                 self.eqn.raman_coefficient_1,
                 self.eqn.raman_coefficient_2,
-                self.del_t,
+                self.t_res,
             )
-
-        # Compute dispersion part using FFT
         self.compute_dispersion()
-
-        # Compute nonlinear part using RK4
         if self.method == "rk4":
             compute_nlin_rk4(
                 self.envelope_split_rt[1:-1, :],
@@ -204,25 +195,20 @@ class SolverFSS(SolverBase):
                 self.ionization_rate[1:-1, :],
                 self.nonlinear_rt[1:-1, :],
                 self.envelope_rk4_stage[1:-1],
-                self.grid.td.t_nodes,
+                self.t_nodes,
                 self.density_neutral,
                 self.coefficient_plasma,
                 self.coefficient_mpa,
                 self.coefficient_kerr,
                 self.coefficient_raman,
-                self.del_z,
+                self.z_res,
             )
-
-        # Compute envelope equation
         self.compute_envelope()
-
-        # Compute beam fluence and radius
         compute_fluence(
-            self.envelope_next_rt[1:-1, :], self.fluence_r[1:-1], self.grid.del_t
+            self.envelope_next_rt[1:-1, :], self.fluence_r[1:-1], self.t_res
         )
-        compute_radius(self.fluence_r[1:-1], self.radius, self.grid.r_grid)
+        compute_radius(self.fluence_r[1:-1], self.radius, self.r_grid)
 
-        # Update arrays for next step
         self.envelope_rt[:], self.envelope_next_rt[:] = (
             self.envelope_next_rt,
             self.envelope_rt,

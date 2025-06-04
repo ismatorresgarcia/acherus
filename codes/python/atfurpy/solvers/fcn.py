@@ -1,7 +1,6 @@
 """Fourier Crank-Nicolson (FCN) solver module."""
 
-import concurrent.futures
-import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 from scipy.linalg import solve_banded
@@ -49,9 +48,10 @@ class SolverFCN(SolverBase):
         self.envelope_fourier_rt = np.zeros_like(self.envelope_rt)
         self.envelope_fourier_next_rt = np.zeros_like(self.envelope_rt)
 
-        # Setup operators and initial condition
-        self.setup_operators()
-        self.setup_initial_condition()
+        # Set operators and initial condition
+        self.set_operators()
+        self.set_initial_condition()
+        self.set_frequency_batches(batch_size=270)
 
     def compute_matrix(self, n_r, m_p, r_low, r_up, coef_m_s, coef_o_s):
         """
@@ -92,7 +92,7 @@ class SolverFCN(SolverBase):
             diag_main[0], diag_main[-1] = coef_m_s, 1
             diag_upper[0] = -2 * coef_o_s
 
-            band_matrix = np.zeros((3, n_r), dtype=complex)
+            band_matrix = np.zeros((3, n_r), dtype=np.complex128)
             band_matrix[0, 1:] = diag_upper
             band_matrix[1, :] = diag_main
             band_matrix[2, :-1] = diag_lower
@@ -115,38 +115,44 @@ class SolverFCN(SolverBase):
         # for tridiagonal matrices which is more efficient
         return diags_array(diags, offsets=diags_ind, format="dia")
 
-    def setup_operators(self):
-        """Setup FCN operators."""
-        self.shock_operator = 1 + self.grid.w_grid / self.laser.frequency_0
+    def set_operators(self):
+        """Set FCN operators."""
+        self.shock_operator = 1 + self.w_grid / self.laser.frequency_0
         coefficient_diffraction = (
             0.25
-            * self.grid.del_z
-            / (self.laser.wavenumber * self.grid.del_r**2 * self.shock_operator)
+            * self.z_res
+            / (self.laser.wavenumber * self.r_res**2 * self.shock_operator)
         )
         coefficient_dispersion = (
-            0.25 * self.grid.del_z * self.material.constant_gvd * self.grid.w_grid**2
+            0.25 * self.z_res * self.material.constant_gvd * self.w_grid**2
         )
 
-        # Setup FCN coefficients
+        # Set FCN coefficients
         self.diff_operator = 1j * coefficient_diffraction
         self.disp_operator = 1j * coefficient_dispersion
         self.matrix_cnt_left = 1 + 2 * self.diff_operator - self.disp_operator
         self.matrix_cnt_right = 1 - 2 * self.diff_operator + self.disp_operator
 
-        # Setup CN outer diagonals radial index dependence
-        self.diag_down = 1 - 0.5 / np.arange(1, self.grid.r_nodes - 1)
-        self.diag_up = 1 + 0.5 / np.arange(1, self.grid.r_nodes - 1)
+        # Set CN outer diagonals radial index dependence
+        self.diag_down = 1 - 0.5 / np.arange(1, self.r_nodes - 1)
+        self.diag_up = 1 + 0.5 / np.arange(1, self.r_nodes - 1)
 
-    def compute_envelope(self):
+    def set_frequency_batches(self, batch_size=200):
         """
-        Compute one step of the generalized Crank-Nicolson scheme
-        for envelope propagation.
+        Set frequency batches for parallel processing
+        the Crank-Nicolson propagation scheme in Fourier space.
         """
-        self.envelope_fourier_rt[1:-1, :] = compute_fft(self.envelope_rt[1:-1, :])
+        t_nodes = self.t_nodes
+        omega_indices = list(range(t_nodes))
+        self.batches = [
+            omega_indices[ll : ll + batch_size] for ll in range(0, t_nodes, batch_size)
+        ]
 
-        def solve_frequency_slice(omega):
+    def compute_frequency_batch(self, omega_batch):
+        results = []
+        for omega in omega_batch:
             matrix_cn_left = self.compute_matrix(
-                self.grid.r_nodes,
+                self.r_nodes,
                 "left",
                 self.diag_down,
                 self.diag_up,
@@ -154,7 +160,7 @@ class SolverFCN(SolverBase):
                 self.diff_operator[omega],
             )
             matrix_cn_right = self.compute_matrix(
-                self.grid.r_nodes,
+                self.r_nodes,
                 "right",
                 self.diag_down,
                 self.diag_up,
@@ -169,18 +175,26 @@ class SolverFCN(SolverBase):
             rhs = rhs_linear + self.nonlinear_rt[:, omega]
 
             # Solve the tridiagonal system using the banded solver
-            return omega, solve_banded((1, 1), matrix_cn_left, rhs)
+            fourier_next = solve_banded((1, 1), matrix_cn_left, rhs)
+            results.append((omega, fourier_next))
 
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=os.cpu_count()
-        ) as executor:
+        return results
+
+    def compute_envelope(self):
+        """
+        Compute one step of the generalized Crank-Nicolson scheme
+        for envelope propagation.
+        """
+        self.envelope_fourier_rt[1:-1, :] = compute_fft(self.envelope_rt[1:-1, :])
+
+        with ProcessPoolExecutor() as executor:
             futures = [
-                executor.submit(solve_frequency_slice, ll)
-                for ll in range(self.grid.td.t_nodes)
+                executor.submit(self.compute_frequency_batch, batch)
+                for batch in self.batches
             ]
-            for future in concurrent.futures.as_completed(futures):
-                ll, fourier_next = future.result()
-                self.envelope_fourier_next_rt[:, ll] = fourier_next
+            for future in as_completed(futures):
+                for omega, fourier_next in future.result():
+                    self.envelope_fourier_next_rt[:, omega] = fourier_next
 
         self.envelope_next_rt[1:-1, :] = compute_ifft(
             self.envelope_fourier_next_rt[1:-1, :]
@@ -188,7 +202,6 @@ class SolverFCN(SolverBase):
 
     def solve_step(self):
         """Perform one propagation step."""
-        # Compute ionization rate
         compute_ionization(
             self.envelope_rt[1:-1, :],
             self.ionization_rate[1:-1, :],
@@ -204,20 +217,16 @@ class SolverFCN(SolverBase):
             tol=1e-3,
             max_iter=250,
         )
-
-        # Compute density evolution
         compute_density(
             self.envelope_rt[1:-1, :],
             self.density_rt[1:-1, :],
             self.ionization_rate[1:-1, :],
             self.density_rk4_stage[1:-1],
-            self.grid.td.t_nodes,
+            self.t_nodes,
             self.density_neutral,
             self.coefficient_ava,
-            self.del_t,
+            self.t_res,
         )
-
-        # Compute Raman response if requested
         if self.use_raman:
             compute_raman(
                 self.raman_rt[1:-1, :],
@@ -225,13 +234,11 @@ class SolverFCN(SolverBase):
                 self.envelope_rt[1:-1, :],
                 self.raman_rk4_stage[1:-1],
                 self.draman_rk4_stage[1:-1],
-                self.grid.td.t_nodes,
+                self.t_nodes,
                 self.eqn.raman_coefficient_1,
                 self.eqn.raman_coefficient_2,
-                self.del_t,
+                self.t_res,
             )
-
-        # Compute nonlinear part using RK4
         if self.method == "rk4":
             compute_nlin_rk4_frequency(
                 self.envelope_rt[1:-1, :],
@@ -246,19 +253,14 @@ class SolverFCN(SolverBase):
                 self.coefficient_mpa,
                 self.coefficient_kerr,
                 self.coefficient_raman,
-                self.del_z,
+                self.z_res,
             )
-
-        # Compute envelope equation
         self.compute_envelope()
-
-        # Compute beam fluence and radius
         compute_fluence(
-            self.envelope_next_rt[1:-1, :], self.fluence_r[1:-1], self.grid.del_t
+            self.envelope_next_rt[1:-1, :], self.fluence_r[1:-1], self.t_res
         )
-        compute_radius(self.fluence_r[1:-1], self.radius, self.grid.r_grid)
+        compute_radius(self.fluence_r[1:-1], self.radius, self.r_grid)
 
-        # Update arrays for next step
         self.envelope_rt[:], self.envelope_next_rt[:] = (
             self.envelope_next_rt,
             self.envelope_rt,
