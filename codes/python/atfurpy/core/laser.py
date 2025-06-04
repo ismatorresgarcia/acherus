@@ -36,19 +36,27 @@ class LaserPulseParameters:
             )
 
         if self.pulse_opt == "gaussian":
-            self.gaussian_order = gauss_opt
+            self.gaussian_order = np.float64(gauss_opt)
         elif self.pulse_opt == "to_be_defined":
             print("Other pulse types are not implemented yet.")
 
         # Compute derived laser pulse properties
-        self.wavenumber_0 = 2 * np.pi / self.params.wavelength
-        self.wavenumber = self.wavenumber_0 * material.refraction_index_linear
-        self.frequency_0 = self.wavenumber_0 * c_light
-
+        self.wavenumber_0, self.wavenumber = self.compute_wavenumbers()
+        self.frequency_0 = self.compute_frequency()
         self.power = self.compute_power()
         self.power_cr = self.compute_power_cr()
         self.intensity = self.compute_intensity()
         self.amplitude = self.compute_amplitude()
+
+    def compute_frequency(self):
+        """Compute laser central frequencies."""
+        return np.float64(2 * np.pi * c_light / self.params.wavelength)
+
+    def compute_wavenumber(self):
+        """Compute laser wavenumbers in vacuum and in the medium."""
+        return np.float64(2 * np.pi / self.params.wavelength), np.float64(
+            2 * np.pi * self.material.refraction_index_linear / self.params.wavelength
+        )
 
     def compute_power(self):
         """Compute initial laser pulse power."""

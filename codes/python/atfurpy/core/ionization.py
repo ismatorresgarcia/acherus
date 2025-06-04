@@ -94,7 +94,7 @@ def compute_ionization(
         g_term = np.exp(-2 * coef_f0 * g_ppt / (3 * env_mod))
 
         # Compute gamma squared quotient terms
-        g_term_2 = (0.5 * beta_ppt) ** 2
+        g_term_2 = 0.25 * beta_ppt**2
         # g_term_3 = (2 * gamma_ppt**2 + 3) / (1 + gamma_ppt**2)  # Mishima term
 
         # Compute ionization rate for each field strength point

@@ -13,12 +13,12 @@ def config_options():
     The available options are
 
     ================ =======================================================
-     material:        "oxygen800" (see "materials.py" module for the list)
+     material:        see "materials.py" module for the list
      pulse:           "gaussian"
-     gaussian_order:  "2" (or any positive integer)
+     gaussian_order:  any positive integer >= 2
      method:          "rk4"
-     solver:          "fss" (or "fcn")
-     ion_model:       "mpi" (or "ppt")
+     solver:          "fss" | "fcn"
+     ion_model:       "mpi" | "ppt"
     ================ =======================================================
 
     Returns
