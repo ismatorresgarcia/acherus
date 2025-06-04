@@ -197,11 +197,10 @@ def _set_envelope_operator(
 
     """
     intensity_s = np.abs(env_s) ** 2
-    dens_s_sat = dens_n - dens_s
 
     nlin_s = env_s * (
         coef_p * dens_s
-        + coef_m * ion_rate_s * dens_s_sat / intensity_s
+        + coef_m * ion_rate_s * (dens_n - dens_s) / intensity_s
         + coef_k * intensity_s
         + coef_r * ram_s
     )
@@ -388,13 +387,12 @@ def _set_envelope_operator_frequency(
     """
     # Calculate shared quantities
     intensity = np.abs(env) ** 2
-    dens_sat = dens_n - dens
 
     # Plasma term
     nlin_p = coef_p * compute_fft(dens * env) / steep_op
 
     # MPA term
-    nlin_m = coef_m * compute_fft(ion_rate * dens_sat * env / intensity)
+    nlin_m = coef_m * compute_fft(ion_rate * (dens_n - dens) * env / intensity)
 
     # Kerr term
     nlin_k = steep_op * coef_k * compute_fft(env * intensity)

@@ -149,8 +149,9 @@ class SolverFSS(SolverBase):
 
     def solve_step(self):
         """Perform one propagation step."""
+        self.compute_intensity(self.envelope_rt[1:-1, :], self.intensity_rt[1:-1, :])
         compute_ionization(
-            self.envelope_rt[1:-1, :],
+            self.intensity[1:-1, :],
             self.ionization_rate[1:-1, :],
             self.ionization_sum[1:-1, :],
             self.material.number_photons,
@@ -165,7 +166,7 @@ class SolverFSS(SolverBase):
             max_iter=250,
         )
         compute_density(
-            self.envelope_rt[1:-1, :],
+            self.intensity_rt[1:-1, :],
             self.density_rt[1:-1, :],
             self.ionization_rate[1:-1, :],
             self.density_rk4_stage[1:-1],
@@ -178,7 +179,7 @@ class SolverFSS(SolverBase):
             compute_raman(
                 self.raman_rt[1:-1, :],
                 self.draman_rt[1:-1, :],
-                self.envelope_rt[1:-1, :],
+                self.intensity_rt[1:-1, :],
                 self.raman_rk4_stage[1:-1],
                 self.draman_rk4_stage[1:-1],
                 self.t_nodes,
@@ -204,9 +205,10 @@ class SolverFSS(SolverBase):
                 self.z_res,
             )
         self.compute_envelope()
-        compute_fluence(
-            self.envelope_next_rt[1:-1, :], self.fluence_r[1:-1], self.t_res
+        self.compute_intensity(
+            self.envelope_next_rt[1:-1, :], self.intensity_rt[1:-1, :]
         )
+        compute_fluence(self.intensity_rt[1:-1, :], self.fluence_r[1:-1], self.t_res)
         compute_radius(self.fluence_r[1:-1], self.radius, self.r_grid)
 
         self.envelope_rt[:], self.envelope_next_rt[:] = (

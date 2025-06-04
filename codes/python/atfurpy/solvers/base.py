@@ -77,12 +77,13 @@ class SolverBase:
         shape_zt = (self.z_nodes, self.t_nodes)
         shape_rz = (self.r_nodes, self.z_nodes)
 
-        # Initialize envelope arrays
+        # Initialize envelope-related arrays
         self.envelope_rt = np.zeros(shape_rt, dtype=np.complex128)
         self.envelope_next_rt = np.zeros_like(self.envelope_rt)
         self.envelope_snapshot_rzt = np.zeros(shape_rzt, dtype=np.complex128)
         self.envelope_r0_zt = np.zeros(shape_zt, dtype=np.complex128)
         self.envelope_tp_rz = np.zeros(shape_rz, dtype=np.complex128)
+        self.intensity_rt = np.zeros_shape(shape_rt, dtype=np.float64)
 
         # Initialize density arrays
         self.density_rt = np.zeros(shape_rt, dtype=np.float64)
@@ -132,6 +133,12 @@ class SolverBase:
         self.density_tp_rz[:, 0] = self.density_rt[
             np.arange(self.r_nodes), np.argmax(self.density_rt, axis=1)
         ]
+
+    def compute_intensity(self, env, int):
+        """
+        Compute intensity of the laser field envelope.
+        """
+        int[:] = np.abs(env) ** 2
 
     # Methods that should exist in all solvers
     def set_operators(self):

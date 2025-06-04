@@ -5,14 +5,14 @@ import numpy as np
 
 
 @nb.njit(parallel=True)
-def compute_density(env, dens, ion_rate, dens_rk4, n_t, dens_n, coef_ava, dt):
+def compute_density(int, dens, ion_rate, dens_rk4, n_t, dens_n, coef_ava, dt):
     """
     Compute electron density evolution for all time steps.
 
     Parameters
     ----------
-    env : (M, N) array_like
-        Complex envelope at current propagation step.
+    int : (M, N) array_like
+        Laser field intensity at current propagation step.
     dens : (M, N) array_like
         Density at current propagation step.
     ion_rate : (M, N) array_like
@@ -32,27 +32,27 @@ def compute_density(env, dens, ion_rate, dens_rk4, n_t, dens_n, coef_ava, dt):
     # Solve the electron density evolution
     # pylint: disable=not-an-iterable
     for ll in nb.prange(n_t - 1):
-        env_s = env[:, ll]
+        int_s = int[:, ll]
         dens_s = dens[:, ll]
         ion_rate_s = ion_rate[:, ll]
 
         dens_s_rk4 = _rk4_density_step(
-            env_s, dens_s, ion_rate_s, dens_rk4, dens_n, coef_ava, dt
+            int_s, dens_s, ion_rate_s, dens_rk4, dens_n, coef_ava, dt
         )
 
         dens[:, ll + 1] = dens_s_rk4
 
 
 @nb.njit
-def _rk4_density_step(env_s, dens_s, ion_rate_s, dens_rk4, dens_n, coef_ava, dt):
+def _rk4_density_step(int_s, dens_s, ion_rate_s, dens_rk4, dens_n, coef_ava, dt):
     """
     Compute one time step of the RK4 integration for electron
     density evolution.
 
     Parameters
     ----------
-    env_s: (M,) array_like
-        Complex envelope at current time slice.
+    int_s: (M,) array_like
+        Laser field intensity at current time slice.
     dens_s: (M,) array_like
         Density at current time slice.
     ion_rate_s: (M,) array_like
@@ -73,16 +73,16 @@ def _rk4_density_step(env_s, dens_s, ion_rate_s, dens_rk4, dens_n, coef_ava, dt)
         M is the number of radial nodes.
 
     """
-    k1_dens = _set_density_operator(dens_s, env_s, ion_rate_s, dens_n, coef_ava)
+    k1_dens = _set_density_operator(dens_s, int_s, ion_rate_s, dens_n, coef_ava)
     dens_rk4 = dens_s + 0.5 * dt * k1_dens
 
-    k2_dens = _set_density_operator(dens_rk4, env_s, ion_rate_s, dens_n, coef_ava)
+    k2_dens = _set_density_operator(dens_rk4, int_s, ion_rate_s, dens_n, coef_ava)
     dens_rk4 = dens_s + 0.5 * dt * k2_dens
 
-    k3_dens = _set_density_operator(dens_rk4, env_s, ion_rate_s, dens_n, coef_ava)
+    k3_dens = _set_density_operator(dens_rk4, int_s, ion_rate_s, dens_n, coef_ava)
     dens_rk4 = dens_s + dt * k3_dens
 
-    k4_dens = _set_density_operator(dens_rk4, env_s, ion_rate_s, dens_n, coef_ava)
+    k4_dens = _set_density_operator(dens_rk4, int_s, ion_rate_s, dens_n, coef_ava)
 
     dens_s_rk4 = dens_s + dt * (k1_dens + 2 * k2_dens + 2 * k3_dens + k4_dens) / 6
 
@@ -90,7 +90,7 @@ def _rk4_density_step(env_s, dens_s, ion_rate_s, dens_rk4, dens_n, coef_ava, dt)
 
 
 @nb.njit
-def _set_density_operator(dens_s, env_s, ion_rate_s, dens_n, coef_ava):
+def _set_density_operator(dens_s, int_s, ion_rate_s, dens_n, coef_ava):
     """
     Compute the electron density evolution terms.
 
@@ -98,8 +98,8 @@ def _set_density_operator(dens_s, env_s, ion_rate_s, dens_n, coef_ava):
     ----------
     dens_s : (M,) array_like
         Density at current time slice.
-    env_s : (M,) array_like
-        Complex envelope at current time slice.
+    int_s : (M,) array_like
+        Laser field intensity at current time slice.
     ion_rate_s : array_like
         Ionization rate at current time slice.
     dens_n : float
@@ -114,9 +114,7 @@ def _set_density_operator(dens_s, env_s, ion_rate_s, dens_n, coef_ava):
         M is the number of radial nodes.
 
     """
-    intensity_s = np.abs(env_s) ** 2
-
     rate_ofi = ion_rate_s * (dens_n - dens_s)
-    rate_ava = coef_ava * dens_s * intensity_s
+    rate_ava = coef_ava * dens_s * int_s
 
     return rate_ofi + rate_ava

@@ -15,7 +15,7 @@ from scipy.special import dawsn
 
 
 def compute_ionization(
-    env,
+    int,
     ion_rate,
     ion_sum,
     n_k,
@@ -33,8 +33,8 @@ def compute_ionization(
 
     Parameters
     ----------
-    env : (M, N) array_like
-        Complex envelope at current propagation step.
+    int : (M, N) array_like
+        Laser field intensity at current propagation step.
     ion_rate : (M, N) array_like
         Pre-allocated ionization rate array.
     ion_sum : (M, N) array_like
@@ -67,13 +67,11 @@ def compute_ionization(
         time nodes.
 
     """
-    env_mod = np.abs(env)  # Peak field strength inner values
-
     if ion_model == "mpi":
-        ion_rate[:] = coef_ofi * env_mod ** (2 * n_k)
+        ion_rate[:] = coef_ofi * int**n_k
 
     elif ion_model == "ppt":
-        env_mod = env_mod / np.sqrt(0.5 * c_light * eps_0)  # Peak field strength
+        env_mod = np.sqrt(int / 0.5 * c_light * eps_0)  # in SI
 
         # Compute Keldysh adiabaticity coefficient
         gamma_ppt = coef_ga / env_mod

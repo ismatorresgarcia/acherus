@@ -4,7 +4,7 @@ import numba as nb
 
 
 @nb.njit(parallel=True)
-def compute_raman(ram, dram, env, ram_rk4, dram_rk4, n_t, coef_ode1, coef_ode2, dt):
+def compute_raman(ram, dram, int, ram_rk4, dram_rk4, n_t, coef_ode1, coef_ode2, dt):
     """
     Compute molecular Raman scattering delayed response for all time steps.
 
@@ -14,8 +14,8 @@ def compute_raman(ram, dram, env, ram_rk4, dram_rk4, n_t, coef_ode1, coef_ode2, 
         Raman response at all time slices.
     dram : (M, N) array_like
         Raman response time derivative at all time slices.
-    env : (M, N) array_like
-        Complex envelope at all time slices.
+    int : (M, N) array_like
+        Laser field intensity at all time slices.
     ram_rk4 : (M,) array_like
         Auxiliary raman response array.
     dram_rk4 : (M,) array_like
@@ -35,12 +35,12 @@ def compute_raman(ram, dram, env, ram_rk4, dram_rk4, n_t, coef_ode1, coef_ode2, 
     for ll in nb.prange(n_t - 1):
         ram_s = ram[:, ll]
         dram_s = dram[:, ll]
-        env_s = env[:, ll]
+        int_s = int[:, ll]
 
         ram_s_rk4, dram_s_rk4 = _rk4_raman_step(
             ram_s,
             dram_s,
-            env_s,
+            int_s,
             ram_rk4,
             dram_rk4,
             coef_ode1,
@@ -53,7 +53,7 @@ def compute_raman(ram, dram, env, ram_rk4, dram_rk4, n_t, coef_ode1, coef_ode2, 
 
 
 @nb.njit
-def _rk4_raman_step(ram_s, dram_s, env_s, ram_rk4, dram_rk4, coef_ode1, coef_ode2, dt):
+def _rk4_raman_step(ram_s, dram_s, int_s, ram_rk4, dram_rk4, coef_ode1, coef_ode2, dt):
     """
     Compute one time step of the RK4 integration for Raman
     scattering evolution.
@@ -64,8 +64,8 @@ def _rk4_raman_step(ram_s, dram_s, env_s, ram_rk4, dram_rk4, coef_ode1, coef_ode
         Raman response at current time slice
     dram_s : (M,) array_like
         Time derivative raman response at current time slice
-    env_s : (M,) array_like
-        Complex envelope at current time slice
+    int_s : (M,) array_like
+        Laser field intensity at current time slice
     ram_rk4: (M,) array_like
         Auxiliary raman response array for RK4 integration
     dram_rk4: (M,) array_like
@@ -85,24 +85,24 @@ def _rk4_raman_step(ram_s, dram_s, env_s, ram_rk4, dram_rk4, coef_ode1, coef_ode
         Raman response derivative and at next time slice
 
     """
-    k1_ram, k1_dram = _set_raman_operator(ram_s, dram_s, env_s, coef_ode1, coef_ode2)
+    k1_ram, k1_dram = _set_raman_operator(ram_s, dram_s, int_s, coef_ode1, coef_ode2)
     ram_rk4 = ram_s + 0.5 * dt * k1_ram
     dram_rk4 = dram_s + 0.5 * dt * k1_dram
 
     k2_ram, k2_dram = _set_raman_operator(
-        ram_rk4, dram_rk4, env_s, coef_ode1, coef_ode2
+        ram_rk4, dram_rk4, int_s, coef_ode1, coef_ode2
     )
     ram_rk4 = ram_s + 0.5 * dt * k2_ram
     dram_rk4 = dram_s + 0.5 * dt * k2_dram
 
     k3_ram, k3_dram = _set_raman_operator(
-        ram_rk4, dram_rk4, env_s, coef_ode1, coef_ode2
+        ram_rk4, dram_rk4, int_s, coef_ode1, coef_ode2
     )
     ram_rk4 = ram_s + dt * k3_ram
     dram_rk4 = dram_s + dt * k3_dram
 
     k4_ram, k4_dram = _set_raman_operator(
-        ram_rk4, dram_rk4, env_s, coef_ode1, coef_ode2
+        ram_rk4, dram_rk4, int_s, coef_ode1, coef_ode2
     )
 
     ram_s_rk4 = ram_s + dt * (k1_ram + 2 * k2_ram + 2 * k3_ram + k4_ram) / 6
@@ -112,7 +112,7 @@ def _rk4_raman_step(ram_s, dram_s, env_s, ram_rk4, dram_rk4, coef_ode1, coef_ode
 
 
 @nb.njit
-def _set_raman_operator(ram_s, dram_s, env_s, coef_ode1, coef_ode2):
+def _set_raman_operator(ram_s, dram_s, int_s, coef_ode1, coef_ode2):
     """
     Compute the Raman scattering evolution terms.
 
@@ -122,8 +122,8 @@ def _set_raman_operator(ram_s, dram_s, env_s, coef_ode1, coef_ode2):
         Raman response at current time slice.
     dram_s : (M,) array_like
         Raman response time derivative at current time slice.
-    env_s : (M,) array_like
-        Complex envelope at current time slice.
+    int_s : (M,) array_like
+        Laser field intensity at current time slice.
     coef_ode1 : float
         Raman frequency coefficient for the first ODE term.
     coef_ode2 : float
@@ -131,11 +131,10 @@ def _set_raman_operator(ram_s, dram_s, env_s, coef_ode1, coef_ode2):
 
     Returns
     -------
-    drhs : (M,) ndarray
-        Raman scattering RHS at current time slice.
     rhs : (M,) ndarray
+        Raman scattering RHS at current time slice.
+    drhs : (M,) ndarray
         Raman scattering derivative RHS at current time slice.
 
     """
-    diff_s = env_s - ram_s
-    return dram_s, coef_ode1 * diff_s + coef_ode2 * dram_s
+    return dram_s, coef_ode1 * (int_s - ram_s) + coef_ode2 * dram_s
