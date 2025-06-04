@@ -13,7 +13,7 @@ def config_options():
     The available options are
 
     ================ =======================================================
-     material:        "oxygen800" (or "nitrogen800", "air775_1", "water800")
+     material:        "oxygen800" (see "materials.py" module for the list)
      pulse:           "gaussian"
      gaussian_order:  "2" (or any positive integer)
      method:          "rk4"

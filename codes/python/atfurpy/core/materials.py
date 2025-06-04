@@ -27,7 +27,7 @@ from dataclasses import dataclass
 class MaterialParameters:
     "Material parameters to be chosen."
 
-    materials_list = ["oxygen800", "nitrogen800", "air775_1", "water800"]
+    materials_list = ["oxygen800", "nitrogen800", "air775_1", "water800", "silica800"]
 
     def __init__(self, material_opt="oxygen800"):
         if material_opt not in self.materials_list:
@@ -43,8 +43,10 @@ class MaterialParameters:
             self.material_atr = "nitrogen800"  # nitrogen at 800 nm
         elif material_opt == "air775_1":
             self.material_atr = "air775_1"  # one average air at 775 nm
-        else:
+        elif material_opt == "water800":
             self.material_atr = "water800"  # water at 800 nm
+        elif material_opt == "silica800":
+            self.material_atr = "silica800"  # fused silica at 800 nm
 
         # Define material properties dictionary
         materials_dict = {
@@ -104,6 +106,21 @@ class MaterialParameters:
                 "ionization_energy": 6.5,
                 "drude_collision_time": 3e-15,
                 "density_neutral": 6.68e28,
+                "raman_rotational_frequency": 0,
+                "raman_response_time": 0,
+                "raman_partition": 0,
+                "has_raman": False,
+            },
+            "silica800": {
+                "refraction_index_linear": 1.453,
+                "refraction_index_nonlinear": 3.54e-20,
+                "constant_gvd": 361e-28,
+                "number_photons": 6,
+                "effective_charge": 1.0,
+                "constant_mpi": 1.5e-95,
+                "ionization_energy": 9.0,
+                "drude_collision_time": 2.33e-14,
+                "density_neutral": 2.1e28,
                 "raman_rotational_frequency": 0,
                 "raman_response_time": 0,
                 "raman_partition": 0,
