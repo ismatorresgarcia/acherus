@@ -1,0 +1,85 @@
+"""Main entry point for the ACHERUS package."""
+
+import cProfile
+
+from ._version import __version__
+from .config import config_options
+from .data.routines import profiler_log
+from .data.store import OutputManager
+from .mesh.grid import GridParameters
+from .physics.equations import EquationParameters
+from .physics.materials import MaterialParameters
+from .physics.optics import LaserParameters
+from .solvers.fcn import SolverFCN
+from .solvers.fss import SolverFSS
+
+
+def main():
+    """Main function."""
+    # Initialize configuration options
+    config = config_options()
+
+    # Print package version
+    print(f"Running ACHERUS v{__version__} for Python simulation ")
+
+    # Initialize classes
+    grid = GridParameters()
+    material = MaterialParameters(material_opt=config["material"])
+    if config["pulse"] == "gaussian":
+        laser = LaserParameters(
+            material, pulse_opt=config["pulse"], gauss_opt=config["gauss_n"]
+        )
+    else:
+        raise ValueError(
+            f"Invalid pulse type: '{config['pulse']}. "
+            f"Choose 'gaussian' or 'to_be_defined'."
+        )
+    eqn = EquationParameters(material, laser)
+
+    # Initialize solver
+    if config["solver"] == "fss":
+        solver = SolverFSS(
+            material,
+            laser,
+            grid,
+            eqn,
+            method_opt=config["method"],
+            ion_model=config["ion_model"],
+        )
+    elif config["solver"] == "fcn":
+        solver = SolverFCN(
+            material,
+            laser,
+            grid,
+            eqn,
+            method_opt=config["method"],
+            ion_model=config["ion_model"],
+        )
+    else:
+        raise ValueError(
+            f"Not available solver: '{config["solver"]}'. "
+            f"Available solvers are: 'fss' or 'fcn'."
+        )
+    # Add more solvers here as needed
+    # ... future solvers to be added in the future!
+
+    # Initialize profiler
+    profiler = cProfile.Profile()
+    profiler.enable()
+
+    # Run simulation
+    solver.propagate()
+
+    # Stop profiler
+    profiler.disable()
+
+    # Initialize and run data saving class
+    output_manager = OutputManager()
+    output_manager.save_results(solver, grid)
+
+    # Generate profiler report
+    profiler_log(profiler)
+
+
+if __name__ == "__main__":
+    main()
