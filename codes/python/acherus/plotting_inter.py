@@ -45,14 +45,14 @@ def plot_peak_intensity(data, save_dir):
 
     r_grid_2d, z_grid_2d = np.meshgrid(r_grid, z_grid, indexing="ij")
 
-    fig, axis = plt.subplots(figsize=(12, 6))
+    fig, axis = plt.subplots()
 
     im = axis.pcolormesh(z_grid_2d, r_grid_2d, peak_intensity)
 
     cbar = fig.colorbar(im, ax=axis)
     cbar.set_label("Intensity [W/m2]")
-    axis.set_ylabel("z [m]")
-    axis.set_xlabel("r [m]")
+    axis.set_xlabel("z [m]")
+    axis.set_ylabel("r [m]")
     axis.set_title("Peak intensity over time")
 
     save_path = save_dir / "peak_intensity.png"
@@ -65,7 +65,7 @@ def plot_peak_intensity(data, save_dir):
 
 def plot_on_axis_peak_intensity(data, z_grid, save_dir):
     """Plot on-axis peak intensity over time values."""
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots()
 
     peak_intensity = data["peak_intensity"]
     peak_intensity_r0 = peak_intensity[0, :]
