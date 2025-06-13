@@ -20,7 +20,7 @@ def main():
     config = config_options()
 
     # Print package version
-    print(f"Running ACHERUS v{__version__} for Python simulation ")
+    print(f"Running ACHERUS v{__version__} for Python")
 
     # Initialize classes
     grid = GridParameters()

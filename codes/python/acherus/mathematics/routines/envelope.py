@@ -1,12 +1,12 @@
 """Envelope evolution module."""
 
 import numpy as np
-from numba import njit
+from numba import njit, prange
 
 from ..shared.fourier import compute_fft, compute_ifft
 
 
-@njit
+@njit(parallel=True)
 def compute_nlin_rk4(
     env_a,
     dens_a,
@@ -53,7 +53,7 @@ def compute_nlin_rk4(
         Axial step.
 
     """
-    for ll in range(n_t_a):
+    for ll in prange(n_t_a):
         env_s = env_a[:, ll]
         dens_s = dens_a[:, ll]
         ram_s = ram_a[:, ll]

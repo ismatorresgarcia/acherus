@@ -9,9 +9,9 @@ import numpy as np
 
 from .paths import sim_dir as path
 
-MONITOR_STEPS = 100
-inter_diagnostic_path = path / "inter_diagnostic.h5"
-profiler_path = path / "onyxia_log.txt"
+MONITORING_STEPS = 100
+monitoring_path = path / "acherus_monitoring.h5"
+profiler_path = path / "acherus_log.txt"
 
 
 def validate_step(solver, exit_on_error=True):
@@ -87,7 +87,7 @@ def cheap_diagnostics(solver, step):
     solver.radius_z[step] = radius[0]
 
 
-def inter_diagnostics(solver, step):
+def monitor_diagnostics(solver, step):
     """
     Save diagnostics progressively every desired number of steps
     and write them in a HDF5 file on the run.
@@ -101,17 +101,17 @@ def inter_diagnostics(solver, step):
 
     """
     if step == 1:
-        with h5py.File(inter_diagnostic_path, "w") as f:
+        with h5py.File(monitoring_path, "w") as f:
             envelope_grp = f.create_group("envelope")
             envelope_grp.create_dataset(
                 "peak_rz",
                 shape=(solver.grid.r_nodes, solver.grid.z_nodes),
                 maxshape=(solver.grid.r_nodes, None),
-                dtype=complex,
+                dtype=np.complex128,
                 compression="gzip",
                 chunks=(
                     solver.grid.r_nodes,
-                    min(MONITOR_STEPS, solver.grid.z_nodes),
+                    min(MONITORING_STEPS, solver.grid.z_nodes),
                 ),
             )
 
@@ -128,8 +128,8 @@ def inter_diagnostics(solver, step):
             meta.create_dataset("last_step", data=0, dtype=int)
 
     # Update data
-    if step % MONITOR_STEPS == 0 or step == solver.grid.z_steps:
-        with h5py.File(inter_diagnostic_path, "r+") as f:
+    if step % MONITORING_STEPS == 0 or step == solver.grid.z_steps:
+        with h5py.File(monitoring_path, "r+") as f:
             last_step = f["metadata/last_step"][()]
 
             if step > last_step:
@@ -213,7 +213,7 @@ def profiler_log(profiler, top_n=20):
             "compute_dispersion",
             "compute_envelope",
             "compute_nlin_rk4",
-            "compute_nlin_rk4_freq",
+            "compute_nlin_rk4_w",
             "solve_step",
         ]
 

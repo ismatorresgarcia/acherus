@@ -4,8 +4,8 @@ import h5py
 
 from .paths import sim_dir as path
 
-snapshots_path = path / "snapshots.h5"
-final_diagnostic_path = path / "final_diagnostic.h5"
+snapshots_path = path / "acherus_snapshots.h5"
+diagnostics_path = path / "acherus_diagnostics.h5"
 
 
 class OutputManager:
@@ -69,7 +69,7 @@ class OutputManager:
             Contains the grid input parameters.
 
         """
-        with h5py.File(final_diagnostic_path, "w") as f:
+        with h5py.File(diagnostics_path, "w") as f:
             # Envelope data
             envelope_grp = f.create_group("envelope")
             envelope_grp.create_dataset(

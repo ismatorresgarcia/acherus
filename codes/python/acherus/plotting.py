@@ -687,7 +687,6 @@ class Plot2D(BasePlot):
         resolution="medium",
         save_path=None,
         stride_pair=None,
-        log_scale=False,
     ):
         """
         Create 2D (colormap) plots for different coordinate systems.
@@ -700,7 +699,6 @@ class Plot2D(BasePlot):
             resolution: Plot quality (low, medium, high).
             stride_pair: Tuple specifying the stride for mesh plotting (faster rendering).
             save_path: Path to save figures instead of displaying them.
-            log_scale: Whether to use logarithmic scale.
         """
         # Configuration for different plot types
         plot_config = self.config.get_plot_config(plot_type, "2d")
@@ -727,28 +725,14 @@ class Plot2D(BasePlot):
                     xlabel = plot_config["labels"]["x_r"]
                     ylabel = plot_config["labels"]["x_t"]
 
-                    # Plot in logarithmic scale if requested
-                    if log_scale and plot_type == "intensity":
-                        mesh = ax.pcolormesh(
-                            x_strided,
-                            y_strided,
-                            data_strided,
-                            cmap=plot_config["cmap"],
-                            norm=LogNorm(
-                                vmin=data_strided.min(),
-                                vmax=data_strided.max(),
-                            ),
-                        )
-                        colorbar_label = plot_config["colorbar_label"] + " (log scale)"
-                    else:
-                        # Apply stride to mesh plotting
-                        mesh = ax.pcolormesh(
-                            x_strided,
-                            y_strided,
-                            data_strided,
-                            cmap=plot_config["cmap"],
-                        )
-                        colorbar_label = plot_config["colorbar_label"]
+                    # Apply stride to mesh plotting
+                    mesh = ax.pcolormesh(
+                        x_strided,
+                        y_strided,
+                        data_strided,
+                        cmap=plot_config["cmap"],
+                    )
+                    colorbar_label = plot_config["colorbar_label"]
 
                     fig.colorbar(mesh, ax=ax, label=colorbar_label)
                     ax.set(xlabel=xlabel, ylabel=ylabel)
@@ -980,11 +964,10 @@ class VisualManager:
         resolution="medium",
         save_path=None,
         stride=None,
-        log_scale=False,
     ):
         """Create colormap plots."""
         self.plot_2d.render_2d_data(
-            data, k_array, z_coor, plot_type, resolution, save_path, stride, log_scale
+            data, k_array, z_coor, plot_type, resolution, save_path, stride
         )
 
     def create_3d_plot(
@@ -1068,12 +1051,6 @@ def parse_cli_options():
         default=False,
         help="Plot every radial axis symmetrically.",
     )
-    parser.add_argument(
-        "--log-scale",
-        action="store_true",
-        default=False,
-        help="Use logarithmic scale for intensity colormaps.",
-    )
 
     args = parser.parse_args()
 
@@ -1119,25 +1096,25 @@ def setup_output_directory(args):
 
 def load_simulation_data(base_file_path, args):
     """Load data from HDF5 or NPZ files."""
-    snapshots_path = base_file_path / "snapshots.h5"
-    diagnostic_path = base_file_path / "final_diagnostic.h5"
+    snapshots_path = base_file_path / "acherus_snapshots.h5"
+    diagnostics_path = base_file_path / "acherus_diagnostics.h5"
     npz_path = base_file_path / "data.npz"
 
     data = {}
 
     has_snapshots = snapshots_path.exists()
-    has_final_diag = diagnostic_path.exists()
+    has_diagnostics = diagnostics_path.exists()
 
-    if has_snapshots and has_final_diag:
+    if has_snapshots and has_diagnostics:
         print(
             f"Loading data from HDF5 files: {snapshots_path.relative_to(base_dir)}"
-            f" and {diagnostic_path.relative_to(base_dir)} ..."
+            f" and {diagnostics_path.relative_to(base_dir)} ..."
         )
 
         try:
             print(f"Using snapshots file: {snapshots_path.name}")
 
-            # Load the data from snapshot file
+            # Load the data from snapshots file
             with h5py.File(snapshots_path, "r") as f:
                 data["k_array"] = np.array(f["snap_z_idx"])
                 if "envelope_snapshot_rzt" in f:
@@ -1145,10 +1122,10 @@ def load_simulation_data(base_file_path, args):
                 if "density_snapshot_rzt" in f:
                     data["elec_dist"] = np.array(f["density_snapshot_rzt"])
 
-            print(f"Using diagnostic file: {diagnostic_path.name}")
+            print(f"Using diagnostics file: {diagnostics_path.name}")
 
-            # Load the data from diagnostic file
-            with h5py.File(diagnostic_path, "r") as f:
+            # Load the data from diagnostics file
+            with h5py.File(diagnostics_path, "r") as f:
                 coords = f["coordinates"]
                 data["ini_radi_coor"] = coords["r_min"][()]
                 data["fin_radi_coor"] = coords["r_max"][()]
@@ -1267,7 +1244,6 @@ def process_plot_request(
             args.resolution,
             args.save_path,
             args.stride,
-            args.log_scale,
         )
 
     if plot_types.get("3d", False) and data_type != "radius":
@@ -1409,7 +1385,7 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
 
 def main():
     """Main execution function."""
-    print(f"Running ACHERUS for Python v{__version__} plotter")
+    print(f"Plotting ACHERUS v{__version__} for Python data")
 
     # Initialize CLI arguments parsing
     args = parse_cli_options()

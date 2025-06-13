@@ -42,12 +42,11 @@ class LaserParameters:
             )
         )
         if self.pulse_opt == "gaussian":
-            n = self.gauss_opt
             self.ini_intensity = (
-                n
+                self.gauss_opt
                 * self.ini_power
-                * 2 ** (2 / n)
-                / (2 * np.pi * self.waist**2 * gamma(2 / n))
+                * 2 ** (2 / self.gauss_opt)
+                / (2 * np.pi * self.waist**2 * gamma(2 / self.gauss_opt))
             )
         else:
             raise ValueError(

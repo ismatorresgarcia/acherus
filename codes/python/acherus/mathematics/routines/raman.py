@@ -1,10 +1,10 @@
 """Raman scattering module."""
 
 import numpy as np
-from numba import njit
+from numba import njit, prange
 
 
-@njit
+@njit(parallel=True)
 def compute_raman(ram_a, dram_a, env_a, n_t_a, ram_c1_a, ram_c2_a, dt):
     """
     Compute molecular Raman scattering delayed response for all time steps.
@@ -28,7 +28,7 @@ def compute_raman(ram_a, dram_a, env_a, n_t_a, ram_c1_a, ram_c2_a, dt):
 
     """
     ram_a[:, 0], dram_a[:, 0] = 0, 0
-    for ll in range(n_t_a - 1):
+    for ll in prange(n_t_a - 1):
         ram_s = ram_a[:, ll]
         dram_s = dram_a[:, ll]
         env_s = env_a[:, ll]

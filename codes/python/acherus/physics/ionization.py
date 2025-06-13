@@ -157,7 +157,7 @@ def compute_sum(alpha_a, beta_a, idx_a, idx_c_a, tol):
     """
     # Initialize the summation index
     nu_thr = idx_c_a * idx_a
-    idx_min = np.ceil(nu_thr).astype(int)
+    idx_min = np.ceil(nu_thr).astype(np.int16)
 
     # Initialize the sum value
     sum_value = 0.0

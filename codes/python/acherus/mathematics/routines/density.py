@@ -1,10 +1,10 @@
 """Density evolution module."""
 
 import numpy as np
-from numba import njit
+from numba import njit, prange
 
 
-@njit
+@njit(parallel=True)
 def compute_density(env_a, dens_a, ion_a, n_t_a, dens_n_a, dens_0_a, ava_c_a, dt):
     """
     Compute electron density evolution for all time steps.
@@ -30,7 +30,7 @@ def compute_density(env_a, dens_a, ion_a, n_t_a, dens_n_a, dens_0_a, ava_c_a, dt
 
     """
     dens_a[:, 0] = dens_0_a
-    for ll in range(n_t_a - 1):
+    for ll in prange(n_t_a - 1):
         env_s = env_a[:, ll]
         dens_s = dens_a[:, ll]
         ion_s = ion_a[:, ll]

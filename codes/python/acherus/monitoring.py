@@ -1,7 +1,7 @@
 """
-Python quick tool for plotting short NumPy arrays
-saved while simulations are being executed
-on-the-fly.
+Python tool for monitoring some ACHERUS
+data chosen to be saved while a simulation
+is still running and did not finish.
 """
 
 from pathlib import Path
@@ -11,17 +11,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def load_inter_diagnostic_data(file_path):
-    """Load envelope data from HDF5 file."""
+def load_monitoring_data(file_path):
+    """Load data from HDF5 file."""
     data = {}  # Empty dictionary to extract the data
 
     with h5py.File(file_path, "r") as f:
         if "coordinates" in f:
             coords = f["coordinates"]
             data["r_min"] = coords["r_min"][()]
-            data["r_max"] = coords["r_max"][()]
+            data["r_peak"] = coords["r_peak"][()]
             data["z_min"] = coords["z_min"][()]
-            data["z_max"] = coords["z_max"][()]
+            data["z_peak"] = coords["z_peak"][()]
 
         if "envelope" in f:
             envelope = f["envelope"]
@@ -32,7 +32,7 @@ def load_inter_diagnostic_data(file_path):
 
 
 def plot_peak_intensity(data, save_dir):
-    """Plot peak intensity over time values."""
+    """Plot peak intensity over time."""
     if "peak_intensity" not in data:
         print("No intensity data available")
         return None
@@ -40,8 +40,8 @@ def plot_peak_intensity(data, save_dir):
     peak_intensity = data["peak_intensity"]
     r_nodes, z_nodes = peak_intensity.shape
 
-    r_grid = np.linspace(data["r_min"], data["r_max"], r_nodes)
-    z_grid = np.linspace(data["z_min"], data["z_max"], z_nodes)
+    r_grid = np.linspace(data["r_min"], data["r_peak"], r_nodes)
+    z_grid = np.linspace(data["z_min"], data["z_peak"], z_nodes)
 
     r_grid_2d, z_grid_2d = np.meshgrid(r_grid, z_grid, indexing="ij")
 
@@ -64,7 +64,7 @@ def plot_peak_intensity(data, save_dir):
 
 
 def plot_on_axis_peak_intensity(data, z_grid, save_dir):
-    """Plot on-axis peak intensity over time values."""
+    """Plot on-axis peak intensity over time."""
     fig, ax = plt.subplots()
 
     peak_intensity = data["peak_intensity"]
@@ -88,10 +88,10 @@ def main():
 
     sim_dir = base_dir / "sim_par_folder" / "data" / "sim_folder_name"
     fig_dir = base_dir / "sim_par_folder" / "figures" / "sim_folder_name"
-    diag_file = sim_dir / "inter_diagnostic.h5"
+    diag_file = sim_dir / "acherus_monitoring.h5"
     print(f"Loading data from: {diag_file.relative_to(base_dir)}")
 
-    save_dir = fig_dir / "figures_inter_diagnostic"
+    save_dir = fig_dir / "acherus_monitoring"
     save_dir.mkdir(parents=True, exist_ok=True)
     print(f"Saving plots to: {save_dir.relative_to(base_dir)}")
 
@@ -99,7 +99,7 @@ def main():
         print(f"File not found: {diag_file}")
         return
 
-    data = load_inter_diagnostic_data(diag_file)
+    data = load_monitoring_data(diag_file)
     if not data:
         return
 
