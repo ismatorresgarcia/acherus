@@ -87,7 +87,7 @@ def cheap_diagnostics(solver, step):
     solver.radius_z[step] = radius[0]
 
 
-def monitor_diagnostics(solver, step):
+def monitoring_diagnostics(solver, step):
     """
     Save diagnostics progressively every desired number of steps
     and write them in a HDF5 file on the run.

@@ -15,7 +15,7 @@ from scipy.special import dawsn
 
 
 def compute_ionization(
-    env_a,
+    inten_a,
     ionz_rate_a,
     ionz_sum_a,
     n_k_a,
@@ -33,8 +33,8 @@ def compute_ionization(
 
     Parameters
     ----------
-    env_a : (M, N) array_like
-        Complex envelope at current propagation step.
+    inten_a : (M, N) array_like
+        Intensity at current propagation step.
     ionz_rate_a : (M, N) array_like
         Pre-allocated ionization rate array.
     ionz_sum_a : (M, N) array_like
@@ -68,10 +68,10 @@ def compute_ionization(
 
     """
     if ion_model == "mpi":
-        ionz_rate_a[:] = mpi_a * np.abs(env_a) ** (2 * n_k_a)
+        ionz_rate_a[:] = mpi_a * inten_a**n_k_a
 
     elif ion_model == "ppt":
-        int_sqrt = np.sqrt(np.abs(env_a) ** 2 / (0.5 * c_light * eps_0))  # in SI
+        int_sqrt = np.sqrt(inten_a / (0.5 * c_light * eps_0))  # in SI
 
         # Compute Keldysh adiabaticity coefficient
         gamma_ppt = kel_a / int_sqrt

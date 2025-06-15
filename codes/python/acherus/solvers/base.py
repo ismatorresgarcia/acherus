@@ -2,7 +2,11 @@
 
 import numpy as np
 
-from ..data.routines import cheap_diagnostics, expensive_diagnostics, inter_diagnostics
+from ..data.routines import (
+    cheap_diagnostics,
+    expensive_diagnostics,
+    monitoring_diagnostics,
+)
 from ..mathematics.shared.fluence import compute_fluence
 from ..mathematics.shared.radius import compute_radius
 from ..physics.initialbeam import initialize_envelope
@@ -94,6 +98,7 @@ class SolverBase:
         self.envelope_snapshot_rzt = np.empty(shape_rzt, dtype=np.complex128)
         self.envelope_r0_zt = np.empty(shape_zt, dtype=np.complex128)
         self.envelope_tp_rz = np.empty(shape_rz, dtype=np.complex128)
+        self.intensity_rt = np.empty(shape_rt, dtype=np.float64)
 
         # Initialize density arrays
         self.density_rt = np.empty(shape_rt, dtype=np.float64)
@@ -166,5 +171,5 @@ class SolverBase:
                 step_idx = (snap_idx - 1) * z_spsnap + steps_snap_idx
                 self.solve_step()
                 cheap_diagnostics(self, step_idx)
-                inter_diagnostics(self, step_idx)
+                monitoring_diagnostics(self, step_idx)
             expensive_diagnostics(self, snap_idx)

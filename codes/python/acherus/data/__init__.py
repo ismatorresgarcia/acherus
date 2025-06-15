@@ -3,7 +3,7 @@
 from .routines import (
     cheap_diagnostics,
     expensive_diagnostics,
-    inter_diagnostics,
+    monitoring_diagnostics,
     profiler_log,
     validate_step,
 )
@@ -14,6 +14,6 @@ __all__ = [
     "validate_step",
     "cheap_diagnostics",
     "expensive_diagnostics",
-    "inter_diagnostics",
+    "monitoring_diagnostics",
     "profiler_log",
 ]

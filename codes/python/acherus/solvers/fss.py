@@ -10,6 +10,7 @@ from ..mathematics.routines.envelope import compute_nlin_rk4
 from ..mathematics.routines.raman import compute_raman
 from ..mathematics.shared.fluence import compute_fluence
 from ..mathematics.shared.fourier import compute_fft, compute_ifft
+from ..mathematics.shared.intensity import compute_intensity
 from ..mathematics.shared.radius import compute_radius
 from ..physics.ionization import compute_ionization
 from .base import SolverBase
@@ -142,8 +143,9 @@ class SolverFSS(SolverBase):
 
     def solve_step(self):
         """Perform one propagation step."""
+        compute_intensity(self.envelope_rt[:-1, :], self.intensity_rt[:-1, :])
         compute_ionization(
-            self.envelope_rt[:-1, :],
+            self.intensity_rt[:-1, :],
             self.ionization_rate[:-1, :],
             self.ionization_sum[:-1, :],
             self.number_photons,
@@ -157,7 +159,7 @@ class SolverFSS(SolverBase):
             tol=1e-4,
         )
         compute_density(
-            self.envelope_rt[:-1, :],
+            self.intensity_rt[:-1, :],
             self.density_rt[:-1, :],
             self.ionization_rate[:-1, :],
             self.t_nodes,
@@ -170,7 +172,7 @@ class SolverFSS(SolverBase):
             compute_raman(
                 self.raman_rt[:-1, :],
                 self.draman_rt[:-1, :],
-                self.envelope_rt[:-1, :],
+                self.intensity_rt[:-1, :],
                 self.t_nodes,
                 self.raman_c1,
                 self.raman_c2,

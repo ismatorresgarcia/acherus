@@ -19,9 +19,9 @@ def load_monitoring_data(file_path):
         if "coordinates" in f:
             coords = f["coordinates"]
             data["r_min"] = coords["r_min"][()]
-            data["r_peak"] = coords["r_peak"][()]
+            data["r_max"] = coords["r_max"][()]
             data["z_min"] = coords["z_min"][()]
-            data["z_peak"] = coords["z_peak"][()]
+            data["z_max"] = coords["z_max"][()]
 
         if "envelope" in f:
             envelope = f["envelope"]
@@ -40,8 +40,8 @@ def plot_peak_intensity(data, save_dir):
     peak_intensity = data["peak_intensity"]
     r_nodes, z_nodes = peak_intensity.shape
 
-    r_grid = np.linspace(data["r_min"], data["r_peak"], r_nodes)
-    z_grid = np.linspace(data["z_min"], data["z_peak"], z_nodes)
+    r_grid = np.linspace(data["r_min"], data["r_max"], r_nodes)
+    z_grid = np.linspace(data["z_min"], data["z_max"], z_nodes)
 
     r_grid_2d, z_grid_2d = np.meshgrid(r_grid, z_grid, indexing="ij")
 
