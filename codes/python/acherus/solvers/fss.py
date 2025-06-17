@@ -162,21 +162,19 @@ class SolverFSS(SolverBase):
             self.intensity_rt[:-1, :],
             self.density_rt[:-1, :],
             self.ionization_rate[:-1, :],
-            self.t_nodes,
+            self.t_grid,
             self.density_n,
             self.density_ini,
             self.avalanche_c,
-            self.t_res,
         )
         if self.use_raman:
             compute_raman(
                 self.raman_rt[:-1, :],
                 self.draman_rt[:-1, :],
                 self.intensity_rt[:-1, :],
-                self.t_nodes,
+                self.t_grid,
                 self.raman_c1,
                 self.raman_c2,
-                self.t_res,
             )
         else:
             self.raman_rt.fill(0.0)

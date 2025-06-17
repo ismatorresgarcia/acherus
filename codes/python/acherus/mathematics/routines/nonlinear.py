@@ -119,7 +119,7 @@ def _rk4_envelope_step(
         at next time slice. M is the number of radial nodes.
 
     """
-    k1_env = _set_envelope_operator(
+    k1_env = _set_envelope(
         env_s_a,
         dens_s_a,
         ram_s_a,
@@ -132,7 +132,7 @@ def _rk4_envelope_step(
     )
     env_1 = env_s_a + 0.5 * dz * k1_env
 
-    k2_env = _set_envelope_operator(
+    k2_env = _set_envelope(
         env_1,
         dens_s_a,
         ram_s_a,
@@ -145,7 +145,7 @@ def _rk4_envelope_step(
     )
     env_2 = env_s_a + 0.5 * dz * k2_env
 
-    k3_env = _set_envelope_operator(
+    k3_env = _set_envelope(
         env_2,
         dens_s_a,
         ram_s_a,
@@ -158,7 +158,7 @@ def _rk4_envelope_step(
     )
     env_3 = env_s_a + dz * k3_env
 
-    k4_env = _set_envelope_operator(
+    k4_env = _set_envelope(
         env_3,
         dens_s_a,
         ram_s_a,
@@ -176,7 +176,7 @@ def _rk4_envelope_step(
 
 
 @njit
-def _set_envelope_operator(
+def _set_envelope(
     env_s_a,
     dens_s_a,
     ram_s_a,
@@ -340,7 +340,7 @@ def _rk4_envelope_step_w(
         and N the number of time nodes.
 
     """
-    k1_env = _set_envelope_operator_w(
+    k1_env = _set_envelope_w(
         env_a,
         dens_a,
         ram_a,
@@ -354,7 +354,7 @@ def _rk4_envelope_step_w(
     )
     env_1 = env_a + 0.5 * dz * compute_ifft(k1_env)
 
-    k2_env = _set_envelope_operator_w(
+    k2_env = _set_envelope_w(
         env_1,
         dens_a,
         ram_a,
@@ -368,7 +368,7 @@ def _rk4_envelope_step_w(
     )
     env_2 = env_a + 0.5 * dz * compute_ifft(k2_env)
 
-    k3_env = _set_envelope_operator_w(
+    k3_env = _set_envelope_w(
         env_2,
         dens_a,
         ram_a,
@@ -382,7 +382,7 @@ def _rk4_envelope_step_w(
     )
     env_3 = env_a + dz * compute_ifft(k3_env)
 
-    k4_env = _set_envelope_operator_w(
+    k4_env = _set_envelope_w(
         env_3,
         dens_a,
         ram_a,
@@ -400,7 +400,7 @@ def _rk4_envelope_step_w(
     return nlin_rk4
 
 
-def _set_envelope_operator_w(
+def _set_envelope_w(
     env_a,
     dens_a,
     ram_a,

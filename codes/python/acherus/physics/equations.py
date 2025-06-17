@@ -68,9 +68,6 @@ class EquationParameters:
             raman_damping = 1 / self.material.raman_response_time
             self.raman_c1 = raman_damping**2 + self.w_r**2
             self.raman_c2 = -2 * raman_damping
-        else:
-            self.raman_c1 = 0.0
-            self.raman_c2 = 0.0
 
     def _init_operators(self):
         """Initialize equation operators."""
@@ -81,5 +78,5 @@ class EquationParameters:
             self.kerr_c = 1j * self.k_0 * (1 - self.alpha) * self.n_2
             self.raman_c = 1j * self.k_0 * self.alpha * self.n_2
         else:
-            self.kerr_c = 0.0
+            self.kerr_c = 1j * self.k_0 * self.n_2
             self.raman_c = 0.0
