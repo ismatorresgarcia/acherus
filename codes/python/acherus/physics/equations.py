@@ -25,7 +25,6 @@ class EquationParameters:
         self.k_0 = self.laser.wavenumber_0
         self.n_0 = self.material.refraction_index_linear
         self.n_2 = self.material.refraction_index_nonlinear
-        self.n_k = self.material.number_photons
         self.w_r = self.material.raman_rotational_frequency
         self.w_0 = self.laser.frequency_0
         self.w_0_tau = self.w_0 * self.material.drude_collision_time
@@ -39,6 +38,7 @@ class EquationParameters:
     def _init_densities(self):
         """Initialize density parameters."""
         rho_c = eps_0 * m_e * (self.w_0 / q_e) ** 2
+        self.n_k = np.ceil(self.e_gap * q_e / (hbar * self.w_0))
         self.sigma_0 = (self.k_0 * self.w_0_tau) / (
             (self.n_0 * rho_c) * (1 + self.w_0_tau**2)
         )

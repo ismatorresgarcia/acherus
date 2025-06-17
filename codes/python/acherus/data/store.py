@@ -1,6 +1,6 @@
 """Final results data saving module."""
 
-import h5py
+from h5py import File
 
 from .paths import sim_dir as path
 
@@ -37,7 +37,7 @@ class OutputManager:
             Solver object with data.
 
         """
-        with h5py.File(snapshots_path, "w") as f:
+        with File(snapshots_path, "w") as f:
             f.create_dataset(
                 "envelope_snapshot_rzt",
                 data=solver.envelope_snapshot_rzt,
@@ -69,7 +69,7 @@ class OutputManager:
             Contains the grid input parameters.
 
         """
-        with h5py.File(diagnostics_path, "w") as f:
+        with File(diagnostics_path, "w") as f:
             # Envelope data
             envelope_grp = f.create_group("envelope")
             envelope_grp.create_dataset(

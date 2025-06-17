@@ -9,11 +9,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
 
-import h5py
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import LogNorm
+from h5py import File
 
 from ._version import __version__
 from .data.paths import base_dir, fig_dir, sim_dir
@@ -1115,7 +1114,7 @@ def load_simulation_data(base_file_path, args):
             print(f"Using snapshots file: {snapshots_path.name}")
 
             # Load the data from snapshots file
-            with h5py.File(snapshots_path, "r") as f:
+            with File(snapshots_path, "r") as f:
                 data["k_array"] = np.array(f["snap_z_idx"])
                 if "envelope_snapshot_rzt" in f:
                     data["e_dist"] = np.array(f["envelope_snapshot_rzt"])
@@ -1125,7 +1124,7 @@ def load_simulation_data(base_file_path, args):
             print(f"Using diagnostics file: {diagnostics_path.name}")
 
             # Load the data from diagnostics file
-            with h5py.File(diagnostics_path, "r") as f:
+            with File(diagnostics_path, "r") as f:
                 coords = f["coordinates"]
                 data["ini_radi_coor"] = coords["r_min"][()]
                 data["fin_radi_coor"] = coords["r_max"][()]

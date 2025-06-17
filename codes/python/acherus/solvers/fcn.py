@@ -8,7 +8,7 @@ from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
 from ..mathematics.routines.density import compute_density
-from ..mathematics.routines.envelope import compute_nlin_rk4_w
+from ..mathematics.routines.nonlinear import compute_nlin_rk4_w
 from ..mathematics.routines.raman import compute_raman
 from ..mathematics.shared.fluence import compute_fluence
 from ..mathematics.shared.fourier import compute_fft, compute_ifft
@@ -117,9 +117,9 @@ class SolverFCN(SolverBase):
     def set_operators(self):
         """Set FCN operators."""
         w_grid = 2 * np.pi * fftfreq(self.t_nodes, self.t_res)
+        self.shock_op = 1 + (w_grid / self.w_0)
         diff_c = 0.25 * self.z_res / (self.k_n * self.r_res**2 * self.shock_op)
         disp_c = 0.25 * self.z_res * self.k_pp * w_grid**2
-        self.shock_op = 1 + (w_grid / self.w_0)
 
         # Set FCN coefficients
         self.diff_op = 1j * diff_c
@@ -249,8 +249,8 @@ class SolverFCN(SolverBase):
                 self.z_res,
             )
         self.compute_envelope()
-        compute_fluence(self.envelope_next_rt[:-1, :], self.fluence_r[:-1], self.t_grid)
-        compute_radius(self.fluence_r[:-1], self.radius, self.r_grid)
+        compute_fluence(self.envelope_next_rt[:-1, :], self.t_grid, self.fluence_r[:-1])
+        compute_radius(self.fluence_r[:-1], self.r_grid, self.radius)
 
         self.envelope_rt[:], self.envelope_next_rt[:] = (
             self.envelope_next_rt,

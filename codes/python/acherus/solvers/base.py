@@ -9,7 +9,7 @@ from ..data.routines import (
 )
 from ..mathematics.shared.fluence import compute_fluence
 from ..mathematics.shared.radius import compute_radius
-from ..physics.initialbeam import initialize_envelope
+from ..physics.initial_beam import initialize_envelope
 
 
 class SolverBase:
@@ -53,7 +53,7 @@ class SolverBase:
         self.r_grid = grid.r_grid
         self.z_grid = grid.z_grid
         self.t_grid = grid.t_grid
-        self.number_photons = self.material.number_photons
+        self.number_photons = self.eqn.n_k
         self.hydrogen_f0 = self.eqn.hyd_f0
         self.hydrogen_nc = self.eqn.hyd_nc
         self.keldysh_c = self.eqn.keld_c

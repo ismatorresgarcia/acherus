@@ -7,7 +7,6 @@ The units used in the module are
  refraction_index_linear       [-]
  refraction_index_nonlinear    [m**2 / W]
  constant_gvd                  [s**2 / m]
- number_photons                [-]
  effective_charge              [-]
  constant_mpi                  [s-1 m**(2K) / W**K]
  ionization_energy             [eV]
@@ -32,7 +31,6 @@ class Material:
     refraction_index_linear: float
     refraction_index_nonlinear: float
     constant_gvd: float
-    number_photons: int
     effective_charge: float
     constant_mpi: float
     ionization_energy: float
@@ -51,7 +49,6 @@ MATERIALS = {
         refraction_index_linear=1.0,
         refraction_index_nonlinear=3.2e-23,
         constant_gvd=0.2e-28,
-        number_photons=8,
         effective_charge=0.53,
         constant_mpi=2.81e-128,
         ionization_energy=12.063,
@@ -67,7 +64,6 @@ MATERIALS = {
         refraction_index_linear=1.0,
         refraction_index_nonlinear=3.2e-23,
         constant_gvd=0.2e-28,
-        number_photons=11,
         effective_charge=0.9,
         constant_mpi=6.31e-184,
         ionization_energy=15.576,
@@ -83,7 +79,6 @@ MATERIALS = {
         refraction_index_linear=1.0,
         refraction_index_nonlinear=5.57e-23,
         constant_gvd=2e-28,
-        number_photons=7,
         effective_charge=0.11,
         constant_mpi=1.34e-111,
         ionization_energy=11.0,
@@ -99,13 +94,12 @@ MATERIALS = {
         refraction_index_linear=1.334,
         refraction_index_nonlinear=4.1e-20,
         constant_gvd=248e-28,
-        number_photons=5,
         effective_charge=1.0,
         constant_mpi=1.2e-72,
         ionization_energy=6.5,
         drude_collision_time=3e-15,
         density_neutral=6.68e28,
-        density_initial=1e12,
+        density_initial=1e21,
         raman_rotational_frequency=0.0,
         raman_response_time=0.0,
         raman_partition=0.0,
@@ -115,13 +109,12 @@ MATERIALS = {
         refraction_index_linear=1.453,
         refraction_index_nonlinear=3.2e-20,
         constant_gvd=361e-28,
-        number_photons=5,
         effective_charge=1.0,
         constant_mpi=1.3e-75,
         ionization_energy=7.6,
         drude_collision_time=3.2e-15,
         density_neutral=2.1e28,
-        density_initial=1e12,
+        density_initial=1e21,
         raman_rotational_frequency=0.0,
         raman_response_time=0.0,
         raman_partition=0.0,

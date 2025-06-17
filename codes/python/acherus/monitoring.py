@@ -6,16 +6,16 @@ is still running and did not finish.
 
 from pathlib import Path
 
-import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+from h5py import File
 
 
 def load_monitoring_data(file_path):
     """Load data from HDF5 file."""
     data = {}  # Empty dictionary to extract the data
 
-    with h5py.File(file_path, "r") as f:
+    with File(file_path, "r") as f:
         if "coordinates" in f:
             coords = f["coordinates"]
             data["r_min"] = coords["r_min"][()]

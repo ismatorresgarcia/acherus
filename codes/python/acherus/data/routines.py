@@ -4,8 +4,8 @@ import pstats
 import sys
 from pstats import SortKey
 
-import h5py
 import numpy as np
+from h5py import File
 
 from .paths import sim_dir as path
 
@@ -101,7 +101,7 @@ def monitoring_diagnostics(solver, step):
 
     """
     if step == 1:
-        with h5py.File(monitoring_path, "w") as f:
+        with File(monitoring_path, "w") as f:
             envelope_grp = f.create_group("envelope")
             envelope_grp.create_dataset(
                 "peak_rz",
@@ -125,14 +125,17 @@ def monitoring_diagnostics(solver, step):
 
             # Add metadata
             meta = f.create_group("metadata")
-            meta.create_dataset("last_step", data=0, dtype=int)
+            meta.create_dataset("last_step", data=0, dtype=np.int16)
 
     # Update data
     if step % MONITORING_STEPS == 0 or step == solver.grid.z_steps:
-        with h5py.File(monitoring_path, "r+") as f:
+        with File(monitoring_path, "r+") as f:
             last_step = f["metadata/last_step"][()]
 
             if step > last_step:
+                f["envelope/peak_rz"][:, last_step + 1 : step + 1] = (
+                    solver.envelope_tp_rz[:, last_step + 1 : step + 1]
+                )
                 f["envelope/peak_rz"][:, last_step + 1 : step + 1] = (
                     solver.envelope_tp_rz[:, last_step + 1 : step + 1]
                 )

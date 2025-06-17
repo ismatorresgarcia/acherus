@@ -3,7 +3,7 @@
 import numpy as np
 
 
-def compute_radius(flu_a, rad_a=None, r_g_a=None):
+def compute_radius(flu_a, r_g_a, rad_a=None):
     """
     Compute the beam radius (HWHM of fluence distribution)
     at the current step.
@@ -12,10 +12,10 @@ def compute_radius(flu_a, rad_a=None, r_g_a=None):
     ----------
     flu_a : (M,) array_like
         Fluence distribution at current propagation step.
-    rad_a : float
-        Beam radius at current propagation step (output).
     r_g_a : (M,) array_like
         Radial coordinates grid.
+    rad_a : float (optional)
+        Beam radius at current propagation step (output).
 
     Returns
     -------
@@ -33,7 +33,8 @@ def compute_radius(flu_a, rad_a=None, r_g_a=None):
     hwhm_idx = indices[-1]
     hwhm = r_g_a[hwhm_idx]
 
+    if rad_a is None:
+        return hwhm
+
     if rad_a is not None:
         rad_a[0] = hwhm
-
-    return hwhm

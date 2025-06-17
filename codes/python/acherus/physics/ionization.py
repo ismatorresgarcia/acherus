@@ -100,7 +100,7 @@ def compute_ionization(
         batch_size = 400
         indices = list(range(alpha_ppt.size))
         batches = [
-            indices[ii * ii + batch_size] for ii in range(0, len(indices), batch_size)
+            indices[ii : ii + batch_size] for ii in range(0, len(indices), batch_size)
         ]
 
         with ProcessPoolExecutor() as executor:
