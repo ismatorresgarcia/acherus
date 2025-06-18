@@ -63,6 +63,7 @@ class PlotConfiguration:
                 "lines.linewidth": 1.5,
                 # Font configuration
                 "text.usetex": True,
+                "text.latex.preamble": r"\usepackage{siunitx}",
                 "font.family": "serif",
                 # Font options
                 "font.size": 10,
@@ -88,51 +89,51 @@ class PlotConfiguration:
         base_config = {
             "intensity": {
                 "cmap": self.colormaps["pls"],
-                "colorbar_label": r"Intensity $\Bigl[\mathrm{W/cm^2}\Bigr]$",
+                "colorbar_label": r"Intensity $\Bigl[\unit{W/cm^2}\Bigr]$",
                 "titles": {
                     "z": "On-axis peak intensity over time",
-                    "t": r"On-axis intensity at $z = {:.2f}$ $\mathrm{m}$",
+                    "t": r"On-axis intensity at $z = {:.2f}$ $\unit{m}$",
                     "zt": "On-axis intensity",
-                    "rt": r"Intensity at $z = {:.2f}$ $\mathrm{m}$",
+                    "rt": r"Intensity at $z = {:.2f}$ $\unit{m}$",
                     "rz": "Peak intensity over time",
                 },
                 "labels": {
-                    "x_r": r"$r$ $[\mathrm{mm}]$",
-                    "x_z": r"$z$ $[\mathrm{m}]$",
-                    "x_t": r"$t$ $[\mathrm{fs}]$",
-                    "y_t": r"$I(r=0,t)$ $\Bigl[\mathrm{W/cm^2}\Bigr]$",
-                    "y_z": r"$\max_t$ $I(r=0,z,t)$ $\Bigl[\mathrm{W/cm^2}\Bigr]$",
+                    "x_r": r"$r$ $[\unit{mm}]$",
+                    "x_z": r"$z$ $[\unit{m}]$",
+                    "x_t": r"$t$ $[\unit{fs}]$",
+                    "y_t": r"$I(r=0,t)$ $\Bigl[\unit{W/cm^2}\Bigr]$",
+                    "y_z": r"$\max_t$ $I(r=0,z,t)$ $\Bigl[\unit{W/cm^2}\Bigr]$",
                 },
             },
             "density": {
                 "cmap": self.colormaps["pls"],
-                "colorbar_label": r"Electron density $\Bigl[\mathrm{cm^{-3}}\Bigr]$",
+                "colorbar_label": r"Electron density $\Bigl[\unit{cm^{-3}}\Bigr]$",
                 "titles": {
                     "z": "On-axis peak electron density over time",
-                    "t": r"On-axis electron density at $z = {:.2f}$ $\mathrm{m}$",
+                    "t": r"On-axis electron density at $z = {:.2f}$ $\unit{m}$",
                     "zt": "On-axis electron density",
-                    "rt": r"Electron density at $z = {:.2f}$ $\mathrm{m}$",
+                    "rt": r"Electron density at $z = {:.2f}$ $\unit{m}$",
                     "rz": "Peak electron density over time",
                 },
                 "labels": {
-                    "x_r": r"$r$ $[\mathrm{mm}]$",
-                    "x_z": r"$z$ $[\mathrm{m}]$",
-                    "x_t": r"$t$ $[\mathrm{fs}]$",
-                    "y_t": r"$\rho_e(r=0,t)$ $\Bigl[\mathrm{cm^{-3}}\Bigr]$",
-                    "y_z": r"$\max_t$ $\rho_e(r=0,z,t)$ $\Bigl[\mathrm{cm^{-3}}\Bigr]$",
+                    "x_r": r"$r$ $[\unit{mm}]$",
+                    "x_z": r"$z$ $[\unit{m}]$",
+                    "x_t": r"$t$ $[\unit{fs}]$",
+                    "y_t": r"$\rho_e(r=0,t)$ $\Bigl[\unit{cm^{-3}}\Bigr]$",
+                    "y_z": r"$\max_t$ $\rho_e(r=0,z,t)$ $\Bigl[\unit{cm^{-3}}\Bigr]$",
                 },
             },
             "fluence": {
                 "cmap": self.colormaps["pls"],
-                "colorbar_label": r"Fluence $\Bigl[\mathrm{J/cm^2}\Bigr]$",
+                "colorbar_label": r"Fluence $\Bigl[\unit{J/cm^2}\Bigr]$",
                 "titles": {
                     "z": "On-axis fluence distribution",
                     "rz": "Fluence distribution",
                 },
                 "labels": {
-                    "x_r": r"$r$ $[\mathrm{mm}]$",
-                    "x_z": r"$z$ $[\mathrm{m}]$",
-                    "y_z": r"$F(r=0,z)$ $\Bigl[\mathrm{J/cm^2}\Bigr]$",
+                    "x_r": r"$r$ $[\unit{mm}]$",
+                    "x_z": r"$z$ $[\unit{m}]$",
+                    "y_z": r"$F(r=0,z)$ $\Bigl[\unit{J/cm^2}\Bigr]$",
                 },
             },
             "radius": {
@@ -141,8 +142,8 @@ class PlotConfiguration:
                     "z": "Beam radius",
                 },
                 "labels": {
-                    "x_z": r"$z$ $[\mathrm{m}]$",
-                    "y_z": r"$R(z)$ $[\mathrm{mm}]$",
+                    "x_z": r"$z$ $[\unit{m}]$",
+                    "y_z": r"$R(z)$ $[\unit{mm}]$",
                 },
             },
         }
