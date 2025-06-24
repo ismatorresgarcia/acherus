@@ -15,7 +15,17 @@ from ..physics.initial_beam import initialize_envelope
 class SolverBase:
     """Base solver class."""
 
-    def __init__(self, material, laser, grid, eqn, method_opt="rk4", ion_model="mpi"):
+    def __init__(
+        self,
+        material,
+        laser,
+        grid,
+        eqn,
+        method_d_opt="RK4",
+        method_r_opt="RK4",
+        method_nl_opt="RK4",
+        ion_model="MPI",
+    ):
         """Initialize solver with common parameters.
 
         Parameters
@@ -28,9 +38,13 @@ class SolverBase:
             Contains the grid input parameters.
         eqn : object
             Contains the equation parameters.
-        method_opt : str, default: "rk4"
+        method_d_opt : str, default: "RK4"
+            Density solver method chosen.
+        method_r_opt : str, default: "RK4"
+            Raman solver method chosen.
+        method_nl_opt : str, default: "RK4"
             Nonlinear solver method chosen.
-        ion_model : str, default: "mpi"
+        ion_model : str, default: "MPI"
             Ionization model chosen.
 
         """
@@ -38,7 +52,9 @@ class SolverBase:
         self.laser = laser
         self.grid = grid
         self.eqn = eqn
-        self.method = method_opt
+        self.method_d = method_d_opt
+        self.method_r = method_r_opt
+        self.method_nl = method_nl_opt
         self.ion_model = ion_model
 
         # Initialize frequent arguments

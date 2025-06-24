@@ -2,9 +2,11 @@
 
 from .routines import (
     compute_density,
-    compute_nlin_rk4,
-    compute_nlin_rk4_w,
+    compute_density_rk4,
+    compute_nonlinear_rk4,
+    compute_nonlinear_w_rk4,
     compute_raman,
+    compute_raman_rk4,
 )
 from .shared import compute_fft, compute_fluence, compute_ifft, compute_radius
 
@@ -13,8 +15,10 @@ __all__ = [
     "compute_ifft",
     "compute_fluence",
     "compute_radius",
+    "compute_density_rk4",
+    "compute_raman_rk4",
     "compute_density",
     "compute_raman",
-    "compute_nlin_rk4",
-    "compute_nlin_rk4_w",
+    "compute_nonlinear_rk4",
+    "compute_nonlinear_w_rk4",
 ]

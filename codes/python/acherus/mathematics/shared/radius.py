@@ -27,7 +27,7 @@ def compute_radius(flu_a, r_g_a, rad_a=None):
     indices = np.where(flu_a >= half_max)[0]
 
     if len(indices) == 0:
-        print(f"Warning: HWHM not found!")
+        print("Warning: HWHM not found!")
         return np.nan
 
     hwhm_idx = indices[-1]

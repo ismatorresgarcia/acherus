@@ -4,10 +4,12 @@
 def config_options(
     material: str = "oxygen800",
     pulse: str = "gaussian",
-    gauss_n: int = 2,
-    method: str = "rk4",
-    solver: str = "fss",
-    ion_model: str = "mpi",
+    gauss_order: int = 2,
+    method_density: str = "RK4",
+    method_raman: str = "RK4",
+    method_nonlin: str = "RK4",
+    solver: str = "FSS",
+    ion_model: str = "MPI",
 ) -> dict:
     """
     Available options for launching a simulation.
@@ -19,15 +21,17 @@ def config_options(
 
     The available options are
 
-    Parameters
-    ==================  =======================================================
-     material : str      see "materials.py" module for the list
-     pulse : str         "gaussian"
-     gauss_n : int       any positive number >= 2
-     method : str        "rk4"
-     solver : str        "fss" | "fcn"
-     ion_model : str     "mpi" | "ppt"
-    ==================  =======================================================
+    Parameters              Choice
+    ======================  ================================================================
+     material : str          see "materials.py" module for the list
+     pulse : str             "gaussian"
+     gauss_order : int       any positive number >= 2
+     method_density : str    "RK4" | "RK23" | "RK45" | "DOP853" | "Radau" | "BDF" | "LSODA"
+     method_raman : str      "RK4" | "RK23" | "RK45" | "DOP853" | "Radau" | "BDF" | "LSODA"
+     method_nonlin : str     "RK4"
+     solver : str            "FSS" | "FCN"
+     ion_model : str         "MPI" | "PPT"
+    ======================  ================================================================
 
     Returns
     -------
@@ -37,13 +41,15 @@ def config_options(
         options.
 
     """
-    config_dict = {
+    config_list = {
         "material": material,
         "pulse": pulse,
-        "gauss_n": gauss_n,
-        "method": method,
+        "gauss_n": gauss_order,
+        "method_d": method_density,
+        "method_r": method_raman,
+        "method_nl": method_nonlin,
         "solver": solver,
         "ion_model": ion_model,
     }
 
-    return config_dict
+    return config_list

@@ -1,4 +1,4 @@
-"""Fourier Crank-Nicolson (FCN) solver module."""
+"""Fourier-Crank-Nicolson (FCN) solver module."""
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -7,9 +7,9 @@ from scipy.fft import fftfreq
 from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
-from ..mathematics.routines.density import compute_density
-from ..mathematics.routines.nonlinear import compute_nlin_rk4_w
-from ..mathematics.routines.raman import compute_raman
+from ..mathematics.routines.density import compute_density, compute_density_rk4
+from ..mathematics.routines.nonlinear import compute_nonlinear_w_rk4
+from ..mathematics.routines.raman import compute_raman, compute_raman_rk4
 from ..mathematics.shared.fluence import compute_fluence
 from ..mathematics.shared.fourier import compute_fft, compute_ifft
 from ..mathematics.shared.intensity import compute_intensity
@@ -21,7 +21,17 @@ from .base import SolverBase
 class SolverFCN(SolverBase):
     """Fourier Crank-Nicolson class implementation."""
 
-    def __init__(self, material, laser, grid, eqn, method_opt="rk4", ion_model="mpi"):
+    def __init__(
+        self,
+        material,
+        laser,
+        grid,
+        eqn,
+        method_d_opt="RK4",
+        method_r_opt="RK4",
+        method_nl_opt="RK4",
+        ion_model="MPI",
+    ):
         """Initialize FCN solver.
 
         Parameters
@@ -34,14 +44,27 @@ class SolverFCN(SolverBase):
             Contains the grid input parameters.
         eqn : object
             Contains the equation parameters.
-        method_opt : str, default: "rk4"
+        method_d_opt : str, default: "RK4"
+            Density solver method chosen.
+        method_r_opt : str, default: "RK4"
+            Raman solver method chosen.
+        method_nl_opt : str, default: "RK4"
             Nonlinear solver method chosen.
-        ion_model : str, default: "mpi"
+        ion_model : str, default: "MPI"
             Ionization model chosen.
 
         """
         # Initialize base class
-        super().__init__(material, laser, grid, eqn, method_opt, ion_model)
+        super().__init__(
+            material,
+            laser,
+            grid,
+            eqn,
+            method_d_opt,
+            method_r_opt,
+            method_nl_opt,
+            ion_model,
+        )
 
         # Initialize FCN-specific arrays
         self.envelope_fourier_rt = np.empty_like(self.envelope_rt)
@@ -196,7 +219,12 @@ class SolverFCN(SolverBase):
 
     def solve_step(self):
         """Perform one propagation step."""
-        compute_intensity(self.envelope_rt[:-1, :], self.intensity_rt[:-1, :])
+        intensity_f = compute_intensity(
+            self.envelope_rt[:-1, :],
+            self.intensity_rt[:-1, :],
+            self.r_grid[:-1],
+            self.t_grid,
+        )
         compute_ionization(
             self.intensity_rt[:-1, :],
             self.ionization_rate[:-1, :],
@@ -211,28 +239,52 @@ class SolverFCN(SolverBase):
             ion_model=self.ion_model,
             tol=1e-4,
         )
-        compute_density(
-            self.intensity_rt[:-1, :],
-            self.density_rt[:-1, :],
-            self.ionization_rate[:-1, :],
-            self.t_grid,
-            self.density_n,
-            self.density_ini,
-            self.avalanche_c,
-        )
-        if self.use_raman:
-            compute_raman(
-                self.raman_rt[:-1, :],
-                self.draman_rt[:-1, :],
+        if self.method_d == "RK4":
+            compute_density_rk4(
                 self.intensity_rt[:-1, :],
+                self.density_rt[:-1, :],
+                self.ionization_rate[:-1, :],
                 self.t_grid,
-                self.raman_c1,
-                self.raman_c2,
+                self.density_n,
+                self.density_ini,
+                self.avalanche_c,
             )
         else:
+            compute_density(
+                intensity_f,
+                self.density_rt[:-1, :],
+                self.ionization_rate[:-1, :],
+                self.r_grid[:-1],
+                self.t_grid,
+                self.density_n,
+                self.density_ini,
+                self.avalanche_c,
+                self.method_d,
+            )
+        if self.use_raman:
+            if self.method_r == "RK4":
+                compute_raman_rk4(
+                    self.raman_rt[:-1, :],
+                    self.draman_rt[:-1, :],
+                    self.intensity_rt[:-1, :],
+                    self.t_grid,
+                    self.raman_c1,
+                    self.raman_c2,
+                )
+            else:
+                compute_raman(
+                    self.raman_rt[:-1, :],
+                    intensity_f,
+                    self.r_grid[:-1],
+                    self.t_grid,
+                    self.raman_c1,
+                    self.raman_c2,
+                    self.method_r,
+                )
+        else:
             self.raman_rt.fill(0.0)
-        if self.method == "rk4":
-            compute_nlin_rk4_w(
+        if self.method_nl == "RK4":
+            compute_nonlinear_w_rk4(
                 self.envelope_rt[:-1, :],
                 self.density_rt[:-1, :],
                 self.raman_rt[:-1, :],
@@ -248,7 +300,7 @@ class SolverFCN(SolverBase):
             )
         self.compute_envelope()
         compute_fluence(self.envelope_next_rt[:-1, :], self.t_grid, self.fluence_r[:-1])
-        compute_radius(self.fluence_r[:-1], self.r_grid, self.radius)
+        compute_radius(self.fluence_r[:-1], self.r_grid[:-1], self.radius)
 
         self.envelope_rt[:], self.envelope_next_rt[:] = (
             self.envelope_next_rt,

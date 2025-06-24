@@ -13,7 +13,7 @@ class EquationParameters:
     """Pulse propagation and electron density evolution
     parameters for the final numerical scheme."""
 
-    def __init__(self, material, laser, ion_model="mpi"):
+    def __init__(self, material, laser, ion_model="MPI"):
         # Initialize class attributes
         self.material = material
         self.laser = laser
@@ -68,6 +68,9 @@ class EquationParameters:
             raman_damping = 1 / self.material.raman_response_time
             self.raman_c1 = raman_damping**2 + self.w_r**2
             self.raman_c2 = -2 * raman_damping
+        else:
+            self.raman_c1 = 0.0
+            self.raman_c2 = 0.0
 
     def _init_operators(self):
         """Initialize equation operators."""

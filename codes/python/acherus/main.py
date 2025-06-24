@@ -37,28 +37,32 @@ def main():
     eqn = EquationParameters(material, laser)
 
     # Initialize solver
-    if config["solver"] == "fss":
+    if config["solver"] == "FSS":
         solver = SolverFSS(
             material,
             laser,
             grid,
             eqn,
-            method_opt=config["method"],
+            method_d_opt=config["method_d"],
+            method_r_opt=config["method_r"],
+            method_nl_opt=config["method_nl"],
             ion_model=config["ion_model"],
         )
-    elif config["solver"] == "fcn":
+    elif config["solver"] == "FCN":
         solver = SolverFCN(
             material,
             laser,
             grid,
             eqn,
-            method_opt=config["method"],
+            method_d_opt=config["method_d"],
+            method_r_opt=config["method_r"],
+            method_nl_opt=config["method_nl"],
             ion_model=config["ion_model"],
         )
     else:
         raise ValueError(
             f"Not available solver: '{config["solver"]}'. "
-            f"Available solvers are: 'fss' or 'fcn'."
+            f"Available solvers are: 'FSS' or 'FCN'."
         )
     # Add more solvers here as needed
     # ... future solvers to be added in the future!

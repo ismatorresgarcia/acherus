@@ -11,7 +11,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import numpy as np
 from scipy.constants import c as c_light
 from scipy.constants import epsilon_0 as eps_0
-from scipy.special import dawsn
+from scipy.special import dawsn  # pylint: disable=no-name-in-module
 
 
 def compute_ionization(
@@ -25,7 +25,7 @@ def compute_ionization(
     idx_c_a,
     ppt_c_a,
     mpi_a,
-    ion_model="mpi",
+    ion_model="MPI",
     tol=1e-2,
 ):
     """
@@ -67,10 +67,10 @@ def compute_ionization(
         time nodes.
 
     """
-    if ion_model == "mpi":
+    if ion_model == "MPI":
         ionz_rate_a[:] = mpi_a * inten_a**n_k_a
 
-    elif ion_model == "ppt":
+    elif ion_model == "PPT":
         int_sqrt = np.sqrt(inten_a / (0.5 * c_light * eps_0))  # in SI
 
         # Compute Keldysh adiabaticity coefficient
