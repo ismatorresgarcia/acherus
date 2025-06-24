@@ -238,7 +238,6 @@ class SolverFSS(SolverBase):
                 self.raman_rt[:-1, :],
                 self.ionization_rate[:-1, :],
                 self.nonlinear_rt[:-1, :],
-                self.t_nodes,
                 self.density_n,
                 self.plasma_c,
                 self.mpa_c,
