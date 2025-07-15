@@ -1,5 +1,0 @@
-> Open-source **ACHERUS** code for Python
-
-`ACHERUS` is a **3D spatiotemporal filamentation code** that solves the Nonlinear Envelope Equation (NEE) for ultrashort and ultraintense cylindrically symmetric laser pulses propagating through optically transparent media using various numerical schemes. `ACHERUS` computes the laser pulse **intensity and fluence distributions, as well as its radius**, together with both **electron density and temperature**. `ACHERUS` is capable of reproducing both numerical and experimental results in various scenarios, allowing the simulation of **condensed dielectric, liquid, and gaseous media**.
-
-For example, **atmospheric** filamentation can be studied thanks to the interaction of laser pulses with nitrogen and oxygen diatomic molecules. Another common medium where filamentation has been reported experimentally is **water** (or in any other aqueous media), as well as dense dielectrics like **fused silica**, since this phenomenon was originally discovered by M. Hercher (1964) when laser-induced damage tracks were found in glass during an experiment.
