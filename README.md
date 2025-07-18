@@ -1,6 +1,7 @@
-![image](./docs/images/acherus_logo_b.png)
+![image](./docs/images/acherus-logo-b.png)
 
 > Open-source **Acherus** code for laser filamentation
+
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0) ![Lines of Code](https://tokei.rs/b1/github/ismatorresgarcia/acherus) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15924923.svg)](https://doi.org/10.5281/zenodo.15924923)
 
 🚀 **HASTUR Project** - *Harnessing Atmospheric Lasing: Towards Ultrasensitive Detection of Toxic Agents and Pathogens*
