@@ -34,6 +34,22 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
+# Enable all syntax extensions for MyST Markdown.
+myst_enable_extensions = [
+    "amsmath",
+    "attrs_inline",
+    "colon_fence",
+    "deflist",
+    "dollarmath",
+    "fieldlist",
+    "html_admonition",
+    "html_image",
+    "replacements",
+    "smartquotes",
+    "strikethrough",
+    "substitution",
+    "tasklist",
+]
 source_suffix = {
     ".rst": "restructuredtext",
     ".md": "markdown",
@@ -53,8 +69,6 @@ html_static_path = ["../images"]
 html_logo = "../images/acherus-logo-b.png"
 html_theme_options = {
     "logo_only": True,
-    "home_page_in_toc": True,
-    "display_version": False,
     "collapse_navigation": False,
     "navigation_depth": 1,
 }
