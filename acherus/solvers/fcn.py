@@ -167,7 +167,7 @@ class SolverFCN(SolverBase):
             rhs = rhs_linear + self.nonlinear_rt[:, ww]
 
             # Solve the tridiagonal system using the banded solver
-            return solve_banded((1, 1), self.mats_right[ww], rhs)
+            return solve_banded((1, 1), self.mats_left[ww], rhs)
 
         with ThreadPoolExecutor() as executor:
             results = list(executor.map(slice_wrapper, range(self.t_nodes)))

@@ -71,11 +71,6 @@ class SolverBase:
         self.z_grid = grid.z_grid
         self.t_grid = grid.t_grid
         self.number_photons = self.eqn.n_k
-        self.hydrogen_f0 = self.eqn.hyd_f0
-        self.hydrogen_nc = self.eqn.hyd_nc
-        self.keldysh_c = self.eqn.keld_c
-        self.index_c = self.eqn.idx_c
-        self.ppt_c = self.eqn.ppt_c
         self.mpi_c = self.eqn.mpi_c
         self.w_0 = self.laser.frequency_0
         self.k_0 = self.laser.wavenumber_0
