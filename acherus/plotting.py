@@ -4,27 +4,25 @@ the simulations have finished execution.
 """
 
 import argparse
-import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
 
+import cmasher as cmr
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from h5py import File
+from matplotlib.colors import LogNorm
 
-from ._version import __version__
 from .data.paths import base_dir, fig_dir, sim_dir
-
-# from matplotlib.colors import LogNorm
 
 
 @dataclass
 class PlotConfiguration:
     """Plot style configuration."""
 
-    line_colors: Dict[str, str] = field(
+    colors1d: Dict[str, str] = field(
         default_factory=lambda: {
             "blue_dark": "#1E90FF",  # Electric Blue
             "green_dark": "#32CD32",  # Lime green
@@ -36,16 +34,22 @@ class PlotConfiguration:
             "yellow_white": "#CC9900",  # Brownish yellow
         }
     )
-    colormaps: Dict[str, Any] = field(
+    colors2d: Dict[str, Any] = field(
         default_factory=lambda: {
-            "vir": mpl.colormaps["viridis"],  # uniform
-            "pls": mpl.colormaps["plasma"],  # uniform
-            "inf": mpl.colormaps["inferno"],  # uniform
-            "mag": mpl.colormaps["magma"],  # uniform
-            "civ": mpl.colormaps["cividis"],  # uniform
-            "gnu": mpl.colormaps["gnuplot"],  # vibrant
-            "gnu2": mpl.colormaps["gnuplot2"],  # uniform
-            "rdbu": mpl.colormaps["RdBu"],  # quick changes
+            # Sequential colormaps
+            "vir": mpl.colormaps["viridis"],
+            "pls": mpl.colormaps["plasma"],
+            "inf": mpl.colormaps["inferno"],
+            "mag": mpl.colormaps["magma"],
+            "civ": mpl.colormaps["cividis"],
+            "sb": cmr.sunburst,  # pylint: disable=no-name-in-module
+            "tx": cmr.toxic,  # pylint: disable=no-name-in-module
+            # Diverging colormaps
+            "rdbu": mpl.colormaps["RdBu"],
+            "piyg": mpl.colormaps["PiYG"],
+            "sp": mpl.colormaps["Spectral"],
+            "rs": cmr.redshift,  # pylint: disable=no-name-in-module
+            "ib": cmr.iceburn,  # pylint: disable=no-name-in-module
         }
     )
 
@@ -55,23 +59,16 @@ class PlotConfiguration:
 
         plt.rcParams.update(
             {
-                # Figure size
                 "figure.figsize": (13, 7),
-                # Grid options
                 "axes.grid": False,
-                # Axis options
                 "axes.linewidth": 0.8,
-                # Line options
                 "lines.linewidth": 1.5,
-                # Font configuration
                 "text.usetex": True,
                 "text.latex.preamble": r"\usepackage{siunitx}",
                 "font.family": "serif",
-                # Font options
                 "font.size": 10,
                 "axes.labelsize": 11,
                 "axes.titlesize": 12,
-                # Legend options
                 "legend.framealpha": 0.8,
                 "legend.loc": "upper right",
             }
@@ -82,118 +79,107 @@ class PlotConfiguration:
         Return configuration for specified plot type and dimension.
 
         Args:
-        - plot_type: Type of data ("intensity" or "density")
-        - dimension: Plot dimension ("1d", "2d", "3d", or "all" for complete config)
+        - plot_type: Physical magnitude ("intensity", "density", "fluence", or "radius")
+        - dimension: Plot dimension ("1d", "2d", "3d", or "all" for all dimensions)
 
         Returns:
-        - Dictionary with plot configuration settings
+        - Dictionary with predefined configuration settings for plotting.
         """
-        base_config = {
+        # Physical magnitude configuration options
+        base_configuration = {
             "intensity": {
-                "cmap": self.colormaps["pls"],
-                "colorbar_label": r"Intensity $\Bigl[\unit{W/cm^2}\Bigr]$",
-                "titles": {
+                "cmap": self.colors2d["pls"],
+                "bar_label": r"Intensity $\Bigl[\unit{W/cm^2}\Bigr]$",
+                "title": {
                     "z": "On-axis peak intensity over time",
                     "t": r"On-axis intensity at $z = {:.2f}$ $\unit{m}$",
                     "zt": "On-axis intensity",
                     "rt": r"Intensity at $z = {:.2f}$ $\unit{m}$",
                     "rz": "Peak intensity over time",
                 },
-                "labels": {
-                    "x_r": r"$r$ $[\unit{mm}]$",
-                    "x_z": r"$z$ $[\unit{m}]$",
-                    "x_t": r"$t$ $[\unit{fs}]$",
-                    "y_t": r"$I(r=0,t)$ $\Bigl[\unit{W/cm^2}\Bigr]$",
-                    "y_z": r"$\max_t$ $I(r=0,z,t)$ $\Bigl[\unit{W/cm^2}\Bigr]$",
+                "label": {
+                    "xr": r"$r$ $[\unit{mm}]$",
+                    "xz": r"$z$ $[\unit{m}]$",
+                    "xt": r"$t$ $[\unit{fs}]$",
+                    "yt": r"$I(r=0,t)$ $\Bigl[\unit{W/cm^2}\Bigr]$",
+                    "yz": r"$\max_t$ $I(r=0,z,t)$ $\Bigl[\unit{W/cm^2}\Bigr]$",
                 },
             },
             "density": {
-                "cmap": self.colormaps["pls"],
-                "colorbar_label": r"Electron density $\Bigl[\unit{cm^{-3}}\Bigr]$",
-                "titles": {
+                "cmap": self.colors2d["pls"],
+                "bar_label": r"Electron density $\Bigl[\unit{cm^{-3}}\Bigr]$",
+                "title": {
                     "z": "On-axis peak electron density over time",
                     "t": r"On-axis electron density at $z = {:.2f}$ $\unit{m}$",
                     "zt": "On-axis electron density",
                     "rt": r"Electron density at $z = {:.2f}$ $\unit{m}$",
                     "rz": "Peak electron density over time",
                 },
-                "labels": {
-                    "x_r": r"$r$ $[\unit{mm}]$",
-                    "x_z": r"$z$ $[\unit{m}]$",
-                    "x_t": r"$t$ $[\unit{fs}]$",
-                    "y_t": r"$\rho_e(r=0,t)$ $\Bigl[\unit{cm^{-3}}\Bigr]$",
-                    "y_z": r"$\max_t$ $\rho_e(r=0,z,t)$ $\Bigl[\unit{cm^{-3}}\Bigr]$",
+                "label": {
+                    "xr": r"$r$ $[\unit{mm}]$",
+                    "xz": r"$z$ $[\unit{m}]$",
+                    "xt": r"$t$ $[\unit{fs}]$",
+                    "yt": r"$\rho_e(r=0,t)$ $\Bigl[\unit{cm^{-3}}\Bigr]$",
+                    "yz": r"$\max_t$ $\rho_e(r=0,z,t)$ $\Bigl[\unit{cm^{-3}}\Bigr]$",
                 },
             },
             "fluence": {
-                "cmap": self.colormaps["pls"],
-                "colorbar_label": r"Fluence $\Bigl[\unit{J/cm^2}\Bigr]$",
-                "titles": {
+                "cmap": self.colors2d["pls"],
+                "bar_label": r"Fluence $\Bigl[\unit{J/cm^2}\Bigr]$",
+                "title": {
                     "z": "On-axis fluence distribution",
                     "rz": "Fluence distribution",
                 },
-                "labels": {
-                    "x_r": r"$r$ $[\unit{mm}]$",
-                    "x_z": r"$z$ $[\unit{m}]$",
-                    "y_z": r"$F(r=0,z)$ $\Bigl[\unit{J/cm^2}\Bigr]$",
+                "label": {
+                    "xr": r"$r$ $[\unit{mm}]$",
+                    "xz": r"$z$ $[\unit{m}]$",
+                    "yz": r"$F(r=0,z)$ $\Bigl[\unit{J/cm^2}\Bigr]$",
                 },
             },
             "radius": {
-                "cmap": self.colormaps["pls"],
-                "titles": {
-                    "z": "Beam radius",
-                },
-                "labels": {
-                    "x_z": r"$z$ $[\unit{m}]$",
-                    "y_z": r"$R(z)$ $[\unit{mm}]$",
+                "cmap": self.colors2d["pls"],
+                "title": {"z": "Beam radius"},
+                "label": {
+                    "xz": r"$z$ $[\unit{m}]$",
+                    "yz": r"$R(z)$ $[\unit{mm}]$",
                 },
             },
         }
 
-        # Dimension-specific configuration
-        dimension_config = {
+        # Dimension configuration options
+        dimension_configuration = {
             "1d": {"dpi": 150},
             "2d": {
-                "resolutions": {
-                    "low": {"stride": (5, 5), "dpi": 100, "antialiased": False},
-                    "medium": {"stride": (2, 2), "dpi": 150, "antialiased": True},
-                    "high": {"stride": (1, 1), "dpi": 300, "antialiased": True},
+                "resolution": {
+                    "low": {"stride": (5, 5), "dpi": 100},
+                    "medium": {"stride": (2, 2), "dpi": 150},
+                    "high": {"stride": (1, 1), "dpi": 300},
                 },
             },
             "3d": {
-                "resolutions": {
-                    "low": {"stride": (5, 5), "dpi": 100, "antialiased": False},
-                    "medium": {"stride": (2, 2), "dpi": 150, "antialiased": True},
-                    "high": {"stride": (1, 1), "dpi": 300, "antialiased": True},
+                "resolution": {
+                    "low": {"stride": (5, 5), "dpi": 100},
+                    "medium": {"stride": (2, 2), "dpi": 150},
+                    "high": {"stride": (1, 1), "dpi": 300},
                 },
-                "camera_angles": {
-                    "rt": {
-                        "elevation": 15,
-                        "azimuth": 200,
-                        "rotation": 0,
-                    },
-                    "zt": {
-                        "elevation": 10,
-                        "azimuth": 235,
-                        "rotation": 0,
-                    },
-                    "rz": {
-                        "elevation": 10,
-                        "azimuth": 325,
-                        "rotation": 0,
-                    },
+                "camera_angle": {
+                    "rt": {"elevation": 15, "azimuth": 200},
+                    "zt": {"elevation": 10, "azimuth": 235},
+                    "rz": {"elevation": 10, "azimuth": 325},
                 },
             },
         }
 
-        # Return requested configuration
         if dimension == "all":
             return {
-                "base": base_config[plot_type],
-                **dimension_config,
+                "base": base_configuration[plot_type],
+                **dimension_configuration,
             }
 
-        return {**base_config[plot_type], **dimension_config.get(dimension, {})}
+        return {
+            **base_configuration[plot_type],
+            **dimension_configuration.get(dimension, {}),
+        }
 
 
 class Units:
@@ -209,12 +195,12 @@ class Units:
         factor_j=1,
     ):
 
-        self.factor_r = factor_r
-        self.factor_z = factor_z
-        self.factor_t = factor_t
-        self.factor_m2 = factor_m2
-        self.factor_m3 = factor_m3
-        self.factor_j = factor_j
+        self.fr = factor_r
+        self.fz = factor_z
+        self.ft = factor_t
+        self.fa = factor_m2
+        self.fv = factor_m3
+        self.fj = factor_j
 
 
 class SimulationBox:
@@ -231,10 +217,10 @@ class SimulationBox:
     ):
         self.units = units
         self.data = data
-        self.radial_symmetry = radial_symmetry
-        self.radial_limit = radial_limit
-        self.axial_range = axial_range
-        self.time_range = time_range
+        self.r_sym = radial_symmetry
+        self.r_limit = radial_limit
+        self.z_range = axial_range
+        self.t_range = time_range
         self._init_boundaries()
         self._init_grid_nodes()
         self._init_sliced_arrays()
@@ -248,210 +234,178 @@ class SimulationBox:
         self.t_min_ori = self.data["ini_time_coor"]
         self.t_max_ori = self.data["fin_time_coor"]
 
-        r_min = self.data["ini_radi_coor"]
-        r_max = self.data["fin_radi_coor"]
-        z_min = self.data["ini_dist_coor"]
-        z_max = self.data["fin_dist_coor"]
-        t_min = self.data["ini_time_coor"]
-        t_max = self.data["fin_time_coor"]
+        r_min = self.r_min_ori
+        r_max = self.r_max_ori
+        z_min = self.z_min_ori
+        z_max = self.z_max_ori
+        t_min = self.t_min_ori
+        t_max = self.t_max_ori
 
-        if self.radial_limit is not None and self.radial_limit < r_max:
-            r_max = self.radial_limit
-            r_max_units = r_max * self.units.factor_r
-            r_max_ori_units = self.r_max_ori * self.units.factor_r
-            print(
-                f"Radial grid maximum set from {r_max_ori_units} mm to {r_max_units:.2f} mm"
-            )
+        if self.r_limit is not None:
+            r_max = min(r_max, self.r_limit)
 
-        if self.axial_range is not None:
-            z_min_new, z_max_new = self.axial_range
-            if z_min_new > z_min:
-                z_min = z_min_new
-                z_min_units = z_min * self.units.factor_z
-                z_min_ori_units = self.z_min_ori * self.units.factor_z
-                print(
-                    f"Axial minimum set from {z_min_ori_units:.2f} m to {z_min_units:.2f} m"
-                )
-            if z_max_new < z_max:
-                z_max = z_max_new
-                z_max_units = z_max * self.units.factor_z
-                z_max_ori_units = self.z_max_ori * self.units.factor_z
-                print(
-                    f"Axial maximum set from {z_max_ori_units:.2f} m to {z_max_units:.2f} m"
-                )
+        if self.z_range is not None:
+            z_min_new, z_max_new = self.z_range
+            z_min = max(z_min, z_min_new)
+            z_max = min(z_max, z_max_new)
 
-        if self.time_range is not None:
-            t_min_new, t_max_new = self.time_range
-            if t_min_new > t_min:
-                t_min = t_min_new
-                t_min_units = t_min * self.units.factor_t
-                t_min_ori_units = self.t_min_ori * self.units.factor_t
-                print(
-                    f"Time minimum set from {t_min_ori_units:.2f} fs to {t_min_units:.2f} fs"
-                )
-            if t_max_new < t_max:
-                t_max = t_max_new
-                t_max_units = t_max * self.units.factor_t
-                t_max_ori_units = self.t_max_ori * self.units.factor_t
-                print(
-                    f"Time maximum set from {t_max_ori_units:.2f} fs to {t_max_units:.2f} fs"
-                )
+        if self.t_range is not None:
+            t_min_new, t_max_new = self.t_range
+            t_min = max(t_min, t_min_new)
+            t_max = min(t_max, t_max_new)
 
-        if self.radial_symmetry:
+        if self.r_sym:
             r_min = -r_max
 
-        self.boundary_r = (r_min, r_max)
-        self.boundary_z = (z_min, z_max)
-        self.boundary_t = (t_min, t_max)
+        self.b_r = (r_min, r_max)
+        self.b_z = (z_min, z_max)
+        self.b_t = (t_min, t_max)
 
     def _init_grid_nodes(self):
         """Set up the plotting box boundary nodes."""
-        self.nodes_r = self.data["e_dist"].shape[0]
-        self.nodes_z = self.data["e_axis"].shape[0]
-        self.nodes_t = self.data["e_axis"].shape[1]
+        self.nr = self.data["e_dist"].shape[0]
+        self.nz = self.data["e_axis"].shape[0]
+        self.nt = self.data["e_axis"].shape[1]
 
-        if self.radial_symmetry:
-            self.nodes_r_sym = 2 * self.nodes_r - 1
-            self.node_r0 = (
-                -self.boundary_r[0]
-                * (self.nodes_r - 1)
-                / (self.r_max_ori - self.r_min_ori)
-            )
+        if self.r_sym:
+            dr_ori = self.r_max_ori - self.r_min_ori
+            self.nr_sym = 2 * self.nr - 1
+            self.nr_0 = -self.b_r[0] * (self.nr - 1) / dr_ori
         else:
-            self.node_r0 = 0
+            self.nr_0 = 0
 
         self.nodes = {}
-        for dim, (min_b, max_b, n_nodes, mini, maxi) in {
+        for dim, (min_b, max_b, n_nodes, min_o, max_o) in {
             "r_data": (
-                *self.boundary_r,
-                self.nodes_r if not self.radial_symmetry else self.nodes_r_sym,
-                (self.r_min_ori if not self.radial_symmetry else -self.r_max_ori),
+                *self.b_r,
+                self.nr if not self.r_sym else self.nr_sym,
+                (self.r_min_ori if not self.r_sym else -self.r_max_ori),
                 self.r_max_ori,
             ),
             "z_data": (
-                *self.boundary_z,
-                self.nodes_z,
+                *self.b_z,
+                self.nz,
                 self.z_min_ori,
                 self.z_max_ori,
             ),
             "t_data": (
-                *self.boundary_t,
-                self.nodes_t,
+                *self.b_t,
+                self.nt,
                 self.t_min_ori,
                 self.t_max_ori,
             ),
         }.items():
-            node_min = (min_b - mini) * (n_nodes - 1) / (maxi - mini)
-            node_max = (max_b - mini) * (n_nodes - 1) / (maxi - mini)
-            self.nodes[dim] = (int(node_min), int(node_max) + 1)
+            n_min = (min_b - min_o) * (n_nodes - 1) / (max_o - min_o)
+            n_max = (max_b - min_o) * (n_nodes - 1) / (max_o - min_o)
+            self.nodes[dim] = (int(n_min), int(n_max) + 1)
 
     def _init_sliced_arrays(self):
         """Set up computational arrays"""
         self.sliced_data = {}
-        self.sliced_obj = {  # Get elements from n_min to n_max
+        self.sliced_coor = {  # Get elements from n_min to n_max
             "r": slice(*self.nodes["r_data"]),
             "z": slice(*self.nodes["z_data"]),
             "t": slice(*self.nodes["t_data"]),
         }
 
-        if self.radial_symmetry:
-            radi_positive = np.linspace(0, self.r_max_ori, self.nodes_r)
-            radi_negative = -np.flip(radi_positive[:-1])
-            radi = np.concatenate((radi_negative, radi_positive))
-            radi_slice = radi[self.sliced_obj["r"]]
+        if self.r_sym:
+            radius_p = np.linspace(0, self.r_max_ori, self.nr)
+            radius_n = -np.flip(radius_p[:-1])
+            radius = np.concatenate((radius_n, radius_p))
+            radius_slice = radius[self.sliced_coor["r"]]
         else:
-            radi_slice = np.linspace(self.r_min_ori, self.r_max_ori, self.nodes_r)[
-                self.sliced_obj["r"]
+            radius_slice = np.linspace(self.r_min_ori, self.r_max_ori, self.nr)[
+                self.sliced_coor["r"]
             ]
 
         # Create sliced grids
         self.sliced_grids = {
-            "r": radi_slice,
-            "z": np.linspace(self.z_min_ori, self.z_max_ori, self.nodes_z)[
-                self.sliced_obj["z"]
+            "r": radius_slice,
+            "z": np.linspace(self.z_min_ori, self.z_max_ori, self.nz)[
+                self.sliced_coor["z"]
             ],
-            "t": np.linspace(self.t_min_ori, self.t_max_ori, self.nodes_t)[
-                self.sliced_obj["t"]
+            "t": np.linspace(self.t_min_ori, self.t_max_ori, self.nt)[
+                self.sliced_coor["t"]
             ],
         }
 
         # Slice electric field data if present
         if "e_dist" in self.data:
-            if self.radial_symmetry:
+            if self.r_sym:
                 self.sliced_data["e_dist"] = self.flip_radial_data(
                     self.data["e_dist"], axis_r=0
-                )[self.sliced_obj["r"], :, self.sliced_obj["t"]]
+                )[self.sliced_coor["r"], :, self.sliced_coor["t"]]
             else:
                 self.sliced_data["e_dist"] = self.data["e_dist"][
-                    self.sliced_obj["r"], :, self.sliced_obj["t"]
+                    self.sliced_coor["r"], :, self.sliced_coor["t"]
                 ]
         if "e_axis" in self.data:
             self.sliced_data["e_axis"] = self.data["e_axis"][
-                self.sliced_obj["z"], self.sliced_obj["t"]
+                self.sliced_coor["z"], self.sliced_coor["t"]
             ]
         if "e_peak" in self.data:
-            if self.radial_symmetry:
+            if self.r_sym:
                 self.sliced_data["e_peak"] = self.flip_radial_data(
                     self.data["e_peak"], axis_r=0
-                )[self.sliced_obj["r"], self.sliced_obj["z"]]
+                )[self.sliced_coor["r"], self.sliced_coor["z"]]
             else:
                 self.sliced_data["e_peak"] = self.data["e_peak"][
-                    self.sliced_obj["r"], self.sliced_obj["z"]
+                    self.sliced_coor["r"], self.sliced_coor["z"]
                 ]
 
         # Slice electron density data if present
         if "elec_dist" in self.data:
-            if self.radial_symmetry:
+            if self.r_sym:
                 self.sliced_data["elec_dist"] = self.flip_radial_data(
                     self.data["elec_dist"], axis_r=0
-                )[self.sliced_obj["r"], :, self.sliced_obj["t"]]
+                )[self.sliced_coor["r"], :, self.sliced_coor["t"]]
             else:
                 self.sliced_data["elec_dist"] = self.data["elec_dist"][
-                    self.sliced_obj["r"], :, self.sliced_obj["t"]
+                    self.sliced_coor["r"], :, self.sliced_coor["t"]
                 ]
         if "elec_axis" in self.data:
             self.sliced_data["elec_axis"] = self.data["elec_axis"][
-                self.sliced_obj["z"], self.sliced_obj["t"]
+                self.sliced_coor["z"], self.sliced_coor["t"]
             ]
         if "elec_peak" in self.data:
-            if self.radial_symmetry:
+            if self.r_sym:
                 self.sliced_data["elec_peak"] = self.flip_radial_data(
                     self.data["elec_peak"], axis_r=0
-                )[self.sliced_obj["r"], self.sliced_obj["z"]]
+                )[self.sliced_coor["r"], self.sliced_coor["z"]]
             else:
                 self.sliced_data["elec_peak"] = self.data["elec_peak"][
-                    self.sliced_obj["r"], self.sliced_obj["z"]
+                    self.sliced_coor["r"], self.sliced_coor["z"]
                 ]
 
         # Slice beam fluence distribution data if present
         if "b_fluence" in self.data:
-            if self.radial_symmetry:
+            if self.r_sym:
                 self.sliced_data["b_fluence"] = self.flip_radial_data(
                     self.data["b_fluence"], axis_r=0
-                )[self.sliced_obj["r"], self.sliced_obj["z"]]
+                )[self.sliced_coor["r"], self.sliced_coor["z"]]
             else:
                 self.sliced_data["b_fluence"] = self.data["b_fluence"][
-                    self.sliced_obj["r"], self.sliced_obj["z"]
+                    self.sliced_coor["r"], self.sliced_coor["z"]
                 ]
 
         # Slice beam radius data if present
         if "b_radius" in self.data:
-            self.sliced_data["b_radius"] = self.data["b_radius"][self.sliced_obj["z"]]
+            self.sliced_data["b_radius"] = self.data["b_radius"][self.sliced_coor["z"]]
 
     def set_snapshot_points(self, indices):
         """Convert k-indices to their corresponding z-coordinates."""
-        z_min = self.data["ini_dist_coor"] * self.units.factor_z
-        z_max = self.data["fin_dist_coor"] * self.units.factor_z
-        z_snap_coor = z_min + (indices * (z_max - z_min) / (self.nodes_z - 1))
+        z_min = self.data["ini_dist_coor"] * self.units.fz
+        z_max = self.data["fin_dist_coor"] * self.units.fz
+        z_snap_coor = z_min + (indices * (z_max - z_min) / (self.nz - 1))
         return z_snap_coor
 
     def flip_radial_data(self, data, axis_r=0):
         """Mirror radial data for symmetry."""
-        if not self.radial_symmetry:
+        if not self.r_sym:
             return data
 
-        data_flip = np.flip(data[:-1], axis=axis_r)
-        return np.concatenate((data_flip, data), axis=axis_r)
+        flipped_data = np.flip(data[:-1], axis=axis_r)
+        return np.concatenate((flipped_data, data), axis=axis_r)
 
 
 class SimulationBoxUnits:
@@ -469,15 +423,15 @@ class SimulationBoxUnits:
         if grid_type not in self._scaled_1d_grid:
             if grid_type.startswith("r"):
                 self._scaled_1d_grid[grid_type] = (
-                    self.units.factor_r * self.box.sliced_grids[grid_type]
+                    self.units.fr * self.box.sliced_grids[grid_type]
                 )
             elif grid_type.startswith("z"):
                 self._scaled_1d_grid[grid_type] = (
-                    self.units.factor_z * self.box.sliced_grids[grid_type]
+                    self.units.fz * self.box.sliced_grids[grid_type]
                 )
             elif grid_type.startswith("t"):
                 self._scaled_1d_grid[grid_type] = (
-                    self.units.factor_t * self.box.sliced_grids[grid_type]
+                    self.units.ft * self.box.sliced_grids[grid_type]
                 )
 
         return self._scaled_1d_grid[grid_type]
@@ -525,32 +479,32 @@ class BasePlot:
     def compute_intensity(self, envelope_dist, envelope_axis, envelope_peak):
         """Set up intensities for plotting."""
         return (
-            self.units.factor_m2 * np.abs(envelope_dist) ** 2,
-            self.units.factor_m2 * np.abs(envelope_axis) ** 2,
-            self.units.factor_m2 * np.abs(envelope_peak) ** 2,
+            self.units.fa * np.abs(envelope_dist) ** 2,
+            self.units.fa * np.abs(envelope_axis) ** 2,
+            self.units.fa * np.abs(envelope_peak) ** 2,
         )
 
     def compute_density(self, density_dist, density_axis, density_peak):
         """Set up densities for plotting."""
         return (
-            self.units.factor_m3 * density_dist,
-            self.units.factor_m3 * density_axis,
-            self.units.factor_m3 * density_peak,
+            self.units.fv * density_dist,
+            self.units.fv * density_axis,
+            self.units.fv * density_peak,
         )
 
     def compute_fluence(self, b_fluence):
         """Set up fluence distribution for plotting."""
-        return self.units.factor_m2 * self.units.factor_j * b_fluence
+        return self.units.fa * self.units.fj * b_fluence
 
     def compute_radius(self, b_radius):
         """Set up beam radius for plotting."""
-        return self.units.factor_r * b_radius
+        return self.units.fr * b_radius
 
-    def save_or_display(self, fig, filename, save_path, dpi=150):
+    def save_or_display(self, fig, filename, fig_path, dpi=150):
         """Save figure or display it."""
-        if save_path:
-            save_path = Path(save_path)
-            filepath = save_path / filename
+        if fig_path:
+            fig_path = Path(fig_path)
+            filepath = fig_path / filename
             fig.tight_layout()
             fig.savefig(filepath, dpi=dpi)
             plt.close(fig)
@@ -573,110 +527,83 @@ class Plot1D(BasePlot):
     def render_1d_data(
         self,
         data,
-        k_array=None,
-        z_coor=None,
-        plot_type="intensity",
-        save_path=None,
+        k_i=None,
+        z_c=None,
+        magn="intensity",
+        fig_path=None,
     ):
         """
         Create 1D (line) plots for different coordinate systems.
 
         Arguments:
             data: Dictionary containing the datasets for different coordinates:
-            plot_type: "intensity", "density" or "radius".
-            save_path: Path to save figures instead of displaying them.
+            k_i: List of z indices to plot (for rt plots).
+            z_c: List of z coordinates corresponding to k_i.
+            magn: "intensity", "density", "fluence" or "radius".
+            fig_path: Path to save figures instead of displaying them.
         """
-        plot_config = self.config.get_plot_config(plot_type, "1d")
+        c = self.config.get_plot_config(magn, "1d")
 
         # Plot each coordinate system in a separate figure
-        for coord_sys, plot_data in data.items():
-            if coord_sys == "rt" and k_array is not None:
+        for ii, jj in data.items():
+            if ii == "rt" and k_i is not None:
                 # Plot intensity or density for each z-position
                 # with respect to time
-                time_array = self.get_1d_grid("t")
-                for idx in range(len(k_array)):
-                    fig, ax = plt.subplots()
-                    ax.plot(
-                        time_array,
-                        plot_data[self.box.node_r0, idx, :],
-                    )
+                x = self.get_1d_grid("t")
+                x_label = c["label"]["xt"]
+                y_label = c["label"]["yt"]
+                for idx in range(len(k_i)):
+                    y = jj[self.box.nr_0, idx, :]
 
-                    # Get actual z-position
-                    z_pos = z_coor[idx]
+                    fig, ax = plt.subplots()
+                    ax.plot(x, y, color="tab:blue")
+                    ax.set(xlabel=x_label, ylabel=y_label)
+
+                    z_pos = z_c[idx]
                     z_pos_format = f"{z_pos:.2f}"
-                    title = plot_config["titles"]["t"].replace("{:.2f}", z_pos_format)
+                    title = c["title"]["t"].replace("{:.2f}", z_pos_format)
                     ax.set_title(title)
 
-                    ax.set(
-                        xlabel=plot_config["labels"]["x_t"],
-                        ylabel=plot_config["labels"]["y_t"],
-                    )
+                    filename = f"1d_{magn}_t_{z_pos:.2f}".replace(".", "-") + ".png"
+                    self.save_or_display(fig, filename, fig_path, c["dpi"])
 
-                    filename = (
-                        f"1d_{plot_type}_t_{z_pos:.2f}".replace(".", "-") + ".png"
-                    )
-                    self.save_or_display(fig, filename, save_path, plot_config["dpi"])
-
-            elif coord_sys == "rz":
+            elif ii == "rz":
                 # Plot intensity or density peak value on-axis
                 # with respect to distance
-                dist_array = self.get_1d_grid("z")
-                fig, ax = plt.subplots()
+                x = self.get_1d_grid("z")
+                y = jj[self.box.nr_0, :]
+                x_label = c["label"]["xz"]
+                y_label = c["label"]["yz"]
 
-                ax.plot(
-                    dist_array,
-                    plot_data[self.box.node_r0, :],
-                )
-                ax.set(
-                    xlabel=plot_config["labels"]["x_z"],
-                    ylabel=plot_config["labels"]["y_z"],
-                )
+                fig, ax = plt.subplots()
+                ax.plot(x, y, color="tab:blue")
+                ax.set(xlabel=x_label, ylabel=y_label)
                 # ax.set_yscale("log")
                 # ax.set_ylim(bottom=1e11, top=1e13)
-                ax.set_title(plot_config["titles"]["z"])
+                ax.set_title(c["title"]["z"])
 
-                filename = f"1d_{plot_type}_z.png"
-                self.save_or_display(fig, filename, save_path, plot_config["dpi"])
+                filename = f"1d_{magn}_z.png"
+                self.save_or_display(fig, filename, fig_path, c["dpi"])
 
-            elif coord_sys == "z" and plot_type == "radius":
+            elif ii == "z" and magn == "radius":
                 # Plot beam radius with respect to distance
-                dist_array = self.get_1d_grid("z")
+                x = self.get_1d_grid("z")
+                y = jj
+                x_label = c["label"]["xz"]
+                y_label = c["label"]["yz"]
+
                 fig, ax = plt.subplots()
-
-                if self.box.radial_symmetry:
-                    y_max = np.max(plot_data)
-                    num_bands = 50
-                    cmap = plot_config["cmap"]
-
-                    for i in range(num_bands):
-                        fraction = i / num_bands
-                        scale = 1.0 - fraction
-                        y_pos = plot_data * scale
-                        y_neg = -plot_data * scale
-                        gradient = cmap(fraction)
-                        ax.fill_between(
-                            dist_array,
-                            y_pos,
-                            y_neg,
-                            color=gradient,
-                        )
-
-                    ax.plot(dist_array, plot_data)
-                    ax.plot(dist_array, -plot_data)
-
-                    ax.set_ylim(-1.1 * y_max, 1.1 * y_max)
-                    ax.axhline(y=0, color="gray", linestyle="--", alpha=0.5)
+                if self.box.r_sym:
+                    ax.plot(x, y, color="tab:blue")
+                    ax.plot(x, -y, color="tab:blue")
                 else:
-                    ax.plot(dist_array, plot_data)
+                    ax.plot(x, y, color="tab:blue")
 
-                ax.set(
-                    xlabel=plot_config["labels"]["x_z"],
-                    ylabel=plot_config["labels"]["y_z"],
-                )
-                ax.set_title(plot_config["titles"]["z"])
+                ax.set(xlabel=x_label, ylabel=y_label)
+                ax.set_title(c["title"]["z"])
 
-                filename = f"1d_{plot_type}_z.png"
-                self.save_or_display(fig, filename, save_path, plot_config["dpi"])
+                filename = f"1d_{magn}_z.png"
+                self.save_or_display(fig, filename, fig_path, c["dpi"])
 
 
 class Plot2D(BasePlot):
@@ -685,115 +612,117 @@ class Plot2D(BasePlot):
     def render_2d_data(
         self,
         data,
-        k_array=None,
-        z_coor=None,
-        plot_type="intensity",
-        resolution="medium",
-        save_path=None,
-        stride_pair=None,
+        k_i=None,
+        z_c=None,
+        magn="intensity",
+        qua="medium",
+        fig_path=None,
+        stride=None,
     ):
         """
         Create 2D (colormap) plots for different coordinate systems.
 
         Arguments:
             data: Dictionary containing the datasets for different coordinates.
-            k_array: List of z indices to plot (for rt plots).
-            z_coor: List of z coordinates corresponding to the k indices saved.
-            plot_type: "intensity" or "density".
-            resolution: Plot quality (low, medium, high).
-            stride_pair: Tuple specifying the stride for mesh plotting (faster rendering).
-            save_path: Path to save figures instead of displaying them.
+            k_i: List of z indices to plot (for rt plots).
+            z_c: List of z coordinates corresponding to k_i.
+            magn: "intensity", "density", "fluence" or "radius".
+            qua: Plot quality (low, medium, high).
+            fig_path: Path to save figures instead of displaying them.
+            str: Tuple specifying the stride for mesh plotting (faster rendering).
         """
-        # Configuration for different plot types
-        plot_config = self.config.get_plot_config(plot_type, "2d")
-
-        dimension_config = self.config.get_plot_config(plot_type, "all")
-        resolution_config = dimension_config.get("2d", {}).get("resolutions", {})
-        resolution_opt = resolution_config.get(
-            resolution, resolution_config.get("medium", {})
-        )
-        stride = stride_pair or resolution_opt.get("stride", (1, 1))
+        c = self.config.get_plot_config(magn, "2d")
+        resolution = c.get("resolution", {})
+        res = resolution.get(qua, resolution.get("medium", {}))
+        st = stride or res.get("stride", (1, 1))
 
         # Plot each coordinate system in a separate figure
-        for coord_sys, plot_data in data.items():
-            if coord_sys == "rt" and k_array is not None:
+        for ii, jj in data.items():
+            if ii == "rt" and k_i is not None:
                 # Plot intensity or density for each z position
-                for idx in range(len(k_array)):
+                y, x = self.get_2d_grid("rt")
+                x_st = x[:: st[0], :: st[1]]
+                y_st = y[:: st[0], :: st[1]]
+                x_label = c["label"]["xt"]
+                y_label = c["label"]["xr"]
+                c_label = c["bar_label"]
+                for idx in range(len(k_i)):
+                    z_st = jj[:, idx, :][:: st[0], :: st[1]]
+
                     fig, ax = plt.subplots()
-
-                    # Get the meshgrid
-                    x, y = self.get_2d_grid("rt")
-                    x_strided = x[:: stride[0], :: stride[1]]
-                    y_strided = y[:: stride[0], :: stride[1]]
-                    data_strided = plot_data[:, idx, :][:: stride[0], :: stride[1]]
-                    xlabel = plot_config["labels"]["x_r"]
-                    ylabel = plot_config["labels"]["x_t"]
-
-                    # Apply stride to mesh plotting
-                    mesh = ax.pcolormesh(
-                        x_strided,
-                        y_strided,
-                        data_strided,
-                        cmap=plot_config["cmap"],
-                    )
+                    # Choose between these plotting methods:
+                    # 1. Uncomment for linear scaling using `pcolormesh`
+                    mesh = ax.pcolormesh(x_st, y_st, z_st, cmap=c["cmap"])
+                    # 2. Uncomment for logarithmic scaling using `pcolormesh`
                     # mesh = ax.pcolormesh(
-                    #    x_strided,
-                    #    y_strided,
-                    #    data_strided / np.max(data_strided),
-                    #    norm=LogNorm(vmin=1e-5, vmax=1e0)
-                    #    cmap=plot_config["cmap"],
+                    #    x_st,
+                    #    y_st,
+                    #    z_st / np.max(z_st),
+                    #    norm=LogNorm(vmin=1e-6, vmax=1e-1)
+                    #    cmap=c["cmap"],
                     # )
-                    colorbar_label = plot_config["colorbar_label"]
+                    # 3. Uncomment for logarithmic scaling using `contourf`
+                    # lvls = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
+                    # mesh = ax.contourf(
+                    #    x_st,
+                    #    y_st,
+                    #    z_st / np.max(z_st),
+                    #    levels=lvls,
+                    #    norm=LogNorm(vmin=1e-6, vmax=1e-1)
+                    #    cmap=c["cmap"],
+                    # )
 
-                    fig.colorbar(mesh, ax=ax, label=colorbar_label)
-                    ax.set(xlabel=xlabel, ylabel=ylabel)
+                    fig.colorbar(mesh, ax=ax, label=c_label)
+                    ax.set(xlabel=x_label, ylabel=y_label)
 
-                    # Get actual z-position
-                    z_pos = z_coor[idx]
+                    z_pos = z_c[idx]
                     z_pos_format = f"{z_pos:.2f}"
-                    title = plot_config["titles"][coord_sys].replace(
-                        "{:.2f}", z_pos_format
-                    )
+                    title = c["title"][ii].replace("{:.2f}", z_pos_format)
                     ax.set_title(title)
 
-                    filename = (
-                        f"2d_{plot_type}_{coord_sys}_{z_pos:.2f}".replace(".", "-")
-                        + ".png"
-                    )
-                    self.save_or_display(
-                        fig, filename, save_path, resolution_opt["dpi"]
-                    )
+                    filename = f"2d_{magn}_{ii}_{z_pos:.2f}".replace(".", "-") + ".png"
+                    self.save_or_display(fig, filename, fig_path, res["dpi"])
 
-            else:
+            elif ii == "zt":
+                # Plot intensity or density on-axis
+                x, y = self.get_2d_grid("zt")
+                x_st = x[:: st[0], :: st[1]]
+                y_st = y[:: st[0], :: st[1]]
+                z_st = jj[:: st[0], :: st[1]]
+                x_label = c["label"]["xz"]
+                y_label = c["label"]["xt"]
+                c_label = c["bar_label"]
+                title = c["title"][ii]
+
                 fig, ax = plt.subplots()
+                mesh = ax.pcolormesh(x_st, y_st, z_st, cmap=c["cmap"])
+                fig.colorbar(mesh, ax=ax, label=c_label)
+                ax.set(xlabel=x_label, ylabel=y_label)
+                ax.set_title(title)
 
-                if coord_sys == "zt":
-                    # Plot intensity or density on-axis
-                    x, y = self.get_2d_grid("zt")
-                    x_strided = x[:: stride[0], :: stride[1]]
-                    y_strided = y[:: stride[0], :: stride[1]]
-                    data_strided = plot_data[:: stride[0], :: stride[1]]
-                    xlabel = plot_config["labels"]["x_z"]
-                    ylabel = plot_config["labels"]["x_t"]
-                elif coord_sys == "rz":
-                    # Plot intensity or density peak values
-                    # or fluence distribution
-                    x, y = self.get_2d_grid("rz")
-                    x_strided = y[:: stride[0], :: stride[1]]
-                    y_strided = x[:: stride[0], :: stride[1]]
-                    data_strided = plot_data[:: stride[0], :: stride[1]]
-                    xlabel = plot_config["labels"]["x_z"]
-                    ylabel = plot_config["labels"]["x_r"]
+                filename = f"2d_{magn}_{ii}.png"
+                self.save_or_display(fig, filename, fig_path, res["dpi"])
 
-                mesh = ax.pcolormesh(
-                    x_strided, y_strided, data_strided, cmap=plot_config["cmap"]
-                )
-                fig.colorbar(mesh, ax=ax, label=plot_config["colorbar_label"])
-                ax.set(xlabel=xlabel, ylabel=ylabel)
-                ax.set_title(plot_config["titles"][coord_sys])
+            elif ii == "rz":
+                # Plot intensity or density peak values
+                # or fluence distribution
+                y, x = self.get_2d_grid("rz")
+                x_st = x[:: st[0], :: st[1]]
+                y_st = y[:: st[0], :: st[1]]
+                z_st = jj[:: st[0], :: st[1]]
+                x_label = c["label"]["xz"]
+                y_label = c["label"]["xr"]
+                c_label = c["bar_label"]
+                title = c["title"][ii]
 
-                filename = f"2d_{plot_type}_{coord_sys}.png"
-                self.save_or_display(fig, filename, save_path, resolution_opt["dpi"])
+                fig, ax = plt.subplots()
+                mesh = ax.pcolormesh(x_st, y_st, z_st, cmap=c["cmap"])
+                fig.colorbar(mesh, ax=ax, label=c_label)
+                ax.set(xlabel=x_label, ylabel=y_label)
+                ax.set_title(title)
+
+                filename = f"2d_{magn}_{ii}.png"
+                self.save_or_display(fig, filename, fig_path, res["dpi"])
 
 
 class Plot3D(BasePlot):
@@ -802,129 +731,126 @@ class Plot3D(BasePlot):
     def render_3d_data(
         self,
         data,
-        k_array,
-        z_coor=None,
-        plot_type="intensity",
-        resolution="medium",
-        save_path=None,
-        stride_pair=None,
+        k_i,
+        z_c=None,
+        magn="intensity",
+        qua="medium",
+        fig_path=None,
+        stride=None,
     ):
         """
         Create 3D (surface) plots for different coordinate systems.
 
         Arguments:
             data: Dictionary containing the datasets for different coordinates.
-            k_array: List of z indices to plot (for rt plots).
-            z_coor: List of z coordinates corresponding to the k indices saved.
-            plot_type: "intensity" or "density".
-            resolution: Plot quality (low, medium, high).
-            stride: Tuple specifying the stride for mesh plotting (faster rendering).
-            save_path: Path to save figures instead of displaying them.
+            k_i: List of z indices to plot (for rt plots).
+            z_c: List of z coordinates corresponding to the k indices saved.
+            magn: "intensity", "density", "fluence" or "radius".
+            qua: Plot quality (low, medium, high).
+            str: Tuple specifying the stride for mesh plotting (faster rendering).
+            fig_path: Path to save figures instead of displaying them.
         """
-        # Set configuration
-        plot_config = self.config.get_plot_config(plot_type, "3d")
-        dimension_config = self.config.get_plot_config(plot_type, "all")
-        resolution_config = dimension_config.get("3d", {}).get("resolutions", {})
-        camera_angles = plot_config.get("camera_angles", {})
-        resolution_opt = resolution_config.get(
-            resolution, resolution_config.get("medium", {})
-        )
-        stride = stride_pair or resolution_opt.get("stride", (1, 1))
+        c = self.config.get_plot_config(magn, "3d")
+        resolution = c.get("resolution", {})
+        ang = c.get("camera_angle", {})
+        res = resolution.get(qua, resolution.get("medium", {}))
+        st = stride or res.get("stride", (1, 1))
 
-        # Disable interactive mode if saving
-        if save_path and plt.isinteractive():
-            plt.ioff()
-
-        for coord_sys, plot_data in data.items():
-            camera_curr = camera_angles[coord_sys]
-            if coord_sys == "rt" and k_array is not None:
+        for ii, jj in data.items():
+            aa = ang[ii]
+            if ii == "rt" and k_i is not None:
                 # Plot intensity or density for each z position
-                for idx in range(len(k_array)):
-                    fig = plt.figure(dpi=resolution_opt["dpi"])
+                x, y = self.get_2d_grid("rt")
+                x_st = x[:: st[0], :: st[1]]
+                y_st = y[:: st[0], :: st[1]]
+                x_label = c["label"]["xr"]
+                y_label = c["label"]["xt"]
+                c_label = c["bar_label"]
+                for idx in range(len(k_i)):
+                    z_st = jj[:, idx, :][:: st[0], :: st[1]]
+
+                    fig = plt.figure(dpi=res["dpi"])
                     ax = fig.add_subplot(projection="3d")
-
-                    # Get the meshgrid
-                    x, y = self.get_2d_grid("rt")
-                    x_strided = x[:: stride[0], :: stride[1]]
-                    y_strided = y[:: stride[0], :: stride[1]]
-                    data_strided = plot_data[:, idx, :][:: stride[0], :: stride[1]]
-                    xlabel = plot_config["labels"]["x_r"]
-                    ylabel = plot_config["labels"]["x_t"]
-
                     ax.plot_surface(
-                        x_strided,
-                        y_strided,
-                        data_strided,
-                        cmap=plot_config["cmap"],
-                        linewidth=0,
-                        antialiased=resolution_opt["antialiased"],
+                        x_st,
+                        y_st,
+                        z_st,
+                        cmap=c["cmap"],
                     )
-                    ax.view_init(
-                        elev=camera_curr["elevation"], azim=camera_curr["azimuth"]
-                    )
-                    # fig.colorbar(surf, label=plot_config["colorbar_label"])
+                    ax.view_init(elev=aa["elevation"], azim=aa["azimuth"])
                     ax.set(
-                        xlabel=xlabel,
-                        ylabel=ylabel,
-                        zlabel=plot_config["colorbar_label"],
+                        xlabel=x_label,
+                        ylabel=y_label,
+                        zlabel=c_label,
                     )
-                    # Get actual z-position
-                    z_pos = z_coor[idx]
+
+                    z_pos = z_c[idx]
                     z_pos_format = f"{z_pos:.2f}"
-                    title = plot_config["titles"][coord_sys].replace(
-                        "{:.2f}", z_pos_format
-                    )
+                    title = c["title"][ii].replace("{:.2f}", z_pos_format)
                     ax.set_title(title)
 
-                    filename = (
-                        f"3d_{plot_type}_{coord_sys}_{z_pos:.2f}".replace(".", "-")
-                        + ".png"
-                    )
-                    self.save_or_display(
-                        fig, filename, save_path, resolution_opt["dpi"]
-                    )
+                    filename = f"3d_{magn}_{ii}_{z_pos:.2f}".replace(".", "-") + ".png"
+                    self.save_or_display(fig, filename, fig_path, res["dpi"])
 
-            else:
-                fig = plt.figure(dpi=resolution_opt["dpi"])
+            elif ii == "zt":
+                # Plot intensity or density on-axis
+                x, y = self.get_2d_grid("zt")
+                x_st = x[:: st[0], :: st[1]]
+                y_st = y[:: st[0], :: st[1]]
+                z_st = jj[:: st[0], :: st[1]]
+                x_label = c["label"]["xz"]
+                y_label = c["label"]["xt"]
+                c_label = c["bar_label"]
+
+                fig = plt.figure(dpi=res["dpi"])
                 ax = fig.add_subplot(projection="3d")
 
-                if coord_sys == "zt":
-                    # Plot intensity or density on-axis
-                    x, y = self.get_2d_grid("zt")
-                    x_strided = x[:: stride[0], :: stride[1]]
-                    y_strided = y[:: stride[0], :: stride[1]]
-                    data_strided = plot_data[:: stride[0], :: stride[1]]
-                    xlabel = plot_config["labels"]["x_z"]
-                    ylabel = plot_config["labels"]["x_t"]
-                else:
-                    # Plot intensity or density peak value
-                    x, y = self.get_2d_grid("rz")
-                    x_strided = x[:: stride[0], :: stride[1]]
-                    y_strided = y[:: stride[0], :: stride[1]]
-                    data_strided = plot_data[:: stride[0], :: stride[1]]
-                    xlabel = plot_config["labels"]["x_r"]
-                    ylabel = plot_config["labels"]["x_z"]
-
-                # Apply stride for better performance
                 ax.plot_surface(
-                    x_strided,
-                    y_strided,
-                    data_strided,
-                    cmap=plot_config["cmap"],
-                    linewidth=0,
-                    antialiased=resolution_opt["antialiased"],
+                    x_st,
+                    y_st,
+                    z_st,
+                    cmap=c["cmap"],
                 )
-                ax.view_init(elev=camera_curr["elevation"], azim=camera_curr["azimuth"])
-                # fig.colorbar(surf, label=plot_config["colorbar_label"])
+                ax.view_init(elev=aa["elevation"], azim=aa["azimuth"])
                 ax.set(
-                    xlabel=xlabel,
-                    ylabel=ylabel,
-                    zlabel=plot_config["colorbar_label"],
+                    xlabel=x_label,
+                    ylabel=y_label,
+                    zlabel=c_label,
                 )
-                ax.set_title(plot_config["titles"][coord_sys])
+                ax.set_title(c["title"][ii])
 
-                filename = f"3d_{plot_type}_{coord_sys}.png"
-                self.save_or_display(fig, filename, save_path, resolution_opt["dpi"])
+                filename = f"3d_{magn}_{ii}.png"
+                self.save_or_display(fig, filename, fig_path, res["dpi"])
+
+            elif ii == "rz":
+                # Plot intensity or density peak value
+                x, y = self.get_2d_grid("rz")
+                x_st = x[:: st[0], :: st[1]]
+                y_st = y[:: st[0], :: st[1]]
+                z_st = jj[:: st[0], :: st[1]]
+                x_label = c["label"]["xr"]
+                y_label = c["label"]["xz"]
+                c_label = c["bar_label"]
+
+                fig = plt.figure(dpi=res["dpi"])
+                ax = fig.add_subplot(projection="3d")
+
+                ax.plot_surface(
+                    x_st,
+                    y_st,
+                    z_st,
+                    cmap=c["cmap"],
+                )
+                ax.view_init(elev=aa["elevation"], azim=aa["azimuth"])
+                ax.set(
+                    xlabel=x_label,
+                    ylabel=y_label,
+                    zlabel=c_label,
+                )
+                ax.set_title(c["title"][ii])
+
+                filename = f"3d_{magn}_{ii}.png"
+                self.save_or_display(fig, filename, fig_path, res["dpi"])
 
 
 class VisualManager:
@@ -960,75 +886,62 @@ class VisualManager:
         """Compute beam radius data."""
         return self.base_plot.compute_radius(b_radius)
 
-    def create_1d_plot(
-        self, data, k_array=None, z_coor=None, plot_type="intensity", save_path=None
-    ):
+    def create_1d_plot(self, data, k_i=None, z_c=None, magn="intensity", fig_path=None):
         """Create line plots."""
-        self.plot_1d.render_1d_data(data, k_array, z_coor, plot_type, save_path)
+        self.plot_1d.render_1d_data(data, k_i, z_c, magn, fig_path)
 
     def create_2d_plot(
         self,
         data,
-        k_array=None,
-        z_coor=None,
-        plot_type="intensity",
-        resolution="medium",
-        save_path=None,
+        k_i=None,
+        z_c=None,
+        magn="intensity",
+        qua="medium",
+        fig_path=None,
         stride=None,
     ):
         """Create colormap plots."""
-        self.plot_2d.render_2d_data(
-            data, k_array, z_coor, plot_type, resolution, save_path, stride
-        )
+        self.plot_2d.render_2d_data(data, k_i, z_c, magn, qua, fig_path, stride)
 
     def create_3d_plot(
         self,
         data,
-        k_array,
-        z_coor=None,
-        plot_type="intensity",
-        resolution="medium",
-        save_path=None,
+        k_i,
+        z_c=None,
+        magn="intensity",
+        qua="medium",
+        fig_path=None,
         stride=None,
     ):
         """Create 3D solution plots."""
-        self.plot_3d.render_3d_data(
-            data, k_array, z_coor, plot_type, resolution, save_path, stride
-        )
+        self.plot_3d.render_3d_data(data, k_i, z_c, magn, qua, fig_path, stride)
 
 
 def parse_cli_options():
     """Parse and validate CLI options."""
     parser = argparse.ArgumentParser(
-        description="Plot simulation data from HDF5 or NPZ files.",
+        description="Plot simulation data from HDF5 files.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
-        action="count",
-        default=0,
-        help="Increase output verbosity (can be used multiple times).",
-    )
-    parser.add_argument(
-        "--file",
+        "--sim-path",
         default=sim_dir,
-        help="Path to data file (.npz format).",
+        help="Path to simulation data file.",
     )
     parser.add_argument(
-        "--save-path",
+        "--fig-path",
         default=fig_dir,
-        help="Directory to save plots instead of displaying.",
+        help="Path to figures file.",
     )
     parser.add_argument(
-        "--data-types",
+        "--variables",
         default="intensity,density,fluence,radius",
-        help="Data types to plot: intensity,density,fluence,radius (comma-separated).",
+        help="Variables to plot: intensity,density,fluence,radius (comma-separated).",
     )
     parser.add_argument(
-        "--plot-types",
+        "--dimensions",
         default="1d,2d,3d",
-        help="Plot types to generate: 1d,2d,3d (comma-separated).",
+        help="Dimensions to generate: 1d,2d,3d (comma-separated).",
     )
     parser.add_argument(
         "--resolution",
@@ -1038,11 +951,10 @@ def parse_cli_options():
     parser.add_argument(
         "--stride",
         default="1,1",
-        help="Data stride (x,y format) for plotting 2D and 3D plots.",
+        help="Pixel stride (x,y format) for plotting 2D and 3D plots.",
     )
     parser.add_argument(
         "--radial-limit",
-        type=float,
         default=None,
         help="Maximum value for radial grid (in meters).",
     )
@@ -1058,9 +970,8 @@ def parse_cli_options():
     )
     parser.add_argument(
         "--radial-symmetry",
-        action="store_true",
         default=False,
-        help="Plot every radial axis symmetrically.",
+        help="Plot all radial axis symmetrically.",
     )
 
     args = parser.parse_args()
@@ -1071,7 +982,7 @@ def parse_cli_options():
             args.axial_range = (z_min, z_max)
         except ValueError:
             print(
-                "Error: Axial range format must be in format 'min,max'. Using full range."
+                "Error: Axial range format must be 'min,max'. Using full range."
             )
             args.axial_range = None
 
@@ -1081,14 +992,14 @@ def parse_cli_options():
             args.time_range = (t_min, t_max)
         except ValueError:
             print(
-                "Error: Time range format must be in format 'min,max'. Using full range."
+                "Error: Time range format must be 'min,max'. Using full range."
             )
             args.time_range = None
 
     # Convert comma-separated strings to dictionaries for easier access
     stride_pair = [int(s) for s in args.stride.split(",")]
-    args.data_types = {dtype: True for dtype in args.data_types.split(",")}
-    args.plot_types = {ptype: True for ptype in args.plot_types.split(",")}
+    args.variables = {dtype: True for dtype in args.variables.split(",")}
+    args.dimensions = {ptype: True for ptype in args.dimensions.split(",")}
     args.stride = (stride_pair[0], stride_pair[1])
 
     return args
@@ -1096,144 +1007,77 @@ def parse_cli_options():
 
 def setup_output_directory(args):
     """Setup environment for plotting based on arguments."""
-    # Ask if we have a save path when required
-    if args.save_path:
-        save_path = args.save_path
-        save_path.mkdir(parents=True, exist_ok=True)
-        print(f"Saving plots to: {save_path.relative_to(base_dir)}")
+    if args.fig_path:
+        fig_path = args.fig_path
+        fig_path.mkdir(parents=True, exist_ok=True)
+        print(f"Saving figures to file: {fig_path.relative_to(base_dir)}")
     else:
-        print("Displaying plots interactively.")
+        print("Displaying figures interactively.")
 
 
-def load_simulation_data(base_file_path, args):
-    """Load data from HDF5 or NPZ files."""
-    snapshots_path = base_file_path / "acherus_snapshots.h5"
-    diagnostics_path = base_file_path / "acherus_diagnostics.h5"
-    npz_path = base_file_path / "data.npz"
+def load_simulation_data(directory):
+    """Load simulation data from HDF5 files."""
+    snapshots_path = directory / "acherus_snapshots.h5"
+    diagnostics_path = directory / "acherus_diagnostics.h5"
 
     data = {}
 
     has_snapshots = snapshots_path.exists()
     has_diagnostics = diagnostics_path.exists()
 
-    if has_snapshots and has_diagnostics:
-        print(
-            f"Loading data from HDF5 files: {snapshots_path.relative_to(base_dir)}"
-            f" and {diagnostics_path.relative_to(base_dir)} ..."
-        )
+    if has_snapshots:
+        print(f"Loading data from file: {snapshots_path.relative_to(base_dir)}")
 
-        try:
-            print(f"Using snapshots file: {snapshots_path.name}")
+        with File(snapshots_path, "r") as f:
+            data["k_i"] = np.array(f["snap_z_idx"])
+            if "envelope_snapshot_rzt" in f:
+                data["e_dist"] = np.array(f["envelope_snapshot_rzt"])
+            if "density_snapshot_rzt" in f:
+                data["elec_dist"] = np.array(f["density_snapshot_rzt"])
 
-            # Load the data from snapshots file
-            with File(snapshots_path, "r") as f:
-                data["k_array"] = np.array(f["snap_z_idx"])
-                if "envelope_snapshot_rzt" in f:
-                    data["e_dist"] = np.array(f["envelope_snapshot_rzt"])
-                if "density_snapshot_rzt" in f:
-                    data["elec_dist"] = np.array(f["density_snapshot_rzt"])
+    if has_diagnostics:
+        print(f"Loading data from file: {diagnostics_path.relative_to(base_dir)}")
 
-            print(f"Using diagnostics file: {diagnostics_path.name}")
+        with File(diagnostics_path, "r") as f:
+            coor = f["coordinates"]
+            data["ini_radi_coor"] = coor["r_min"][()]
+            data["fin_radi_coor"] = coor["r_max"][()]
+            data["ini_dist_coor"] = coor["z_min"][()]
+            data["fin_dist_coor"] = coor["z_max"][()]
+            data["ini_time_coor"] = coor["t_min"][()]
+            data["fin_time_coor"] = coor["t_max"][()]
 
-            # Load the data from diagnostics file
-            with File(diagnostics_path, "r") as f:
-                coords = f["coordinates"]
-                data["ini_radi_coor"] = coords["r_min"][()]
-                data["fin_radi_coor"] = coords["r_max"][()]
-                data["ini_dist_coor"] = coords["z_min"][()]
-                data["fin_dist_coor"] = coords["z_max"][()]
-                data["ini_time_coor"] = coords["t_min"][()]
-                data["fin_time_coor"] = coords["t_max"][()]
+            if "envelope" in f:
+                envelope = f["envelope"]
+                if "axis_zt" in envelope:
+                    data["e_axis"] = np.array(envelope["axis_zt"])
+                if "peak_rz" in envelope:
+                    data["e_peak"] = np.array(envelope["peak_rz"])
 
-                if "envelope" in f:
-                    envelope = f["envelope"]
-                    if "axis_zt" in envelope:
-                        data["e_axis"] = np.array(envelope["axis_zt"])
-                    if "peak_rz" in envelope:
-                        data["e_peak"] = np.array(envelope["peak_rz"])
+            if "density" in f:
+                density = f["density"]
+                if "axis_zt" in density:
+                    data["elec_axis"] = np.array(density["axis_zt"])
+                if "peak_rz" in density:
+                    data["elec_peak"] = np.array(density["peak_rz"])
 
-                if "density" in f:
-                    density = f["density"]
-                    if "axis_zt" in density:
-                        data["elec_axis"] = np.array(density["axis_zt"])
-                    if "peak_rz" in density:
-                        data["elec_peak"] = np.array(density["peak_rz"])
+            if "pulse" in f:
+                pulse = f["pulse"]
+                if "fluence_rz" in pulse:
+                    data["b_fluence"] = np.array(pulse["fluence_rz"])
+                if "radius_z" in pulse:
+                    data["b_radius"] = np.array(pulse["radius_z"])
 
-                if "pulse" in f:
-                    pulse = f["pulse"]
-                    if "fluence_rz" in pulse:
-                        data["b_fluence"] = np.array(pulse["fluence_rz"])
-                    if "radius_z" in pulse:
-                        data["b_radius"] = np.array(pulse["radius_z"])
+    if not has_diagnostics and not has_snapshots:
+        raise FileNotFoundError(f"No files were found in {base_dir.name}")
 
-            return data
-
-        except Exception as e:
-            print(f"Error loading HDF5 data: {type(e).__name__}: {e}")
-            if args.verbose > 0:
-                traceback.print_exc()
-            else:
-                print("Run with -v for more information")
-            raise
-
-    elif npz_path.exists():
-        print(f"Loading data from NPZ file: {npz_path.relative_to(base_dir)} ...")
-        try:
-            npz_size = npz_path.stat().st_size / (1024**2)  # in MB
-
-            # Load the data from file using memory mapping
-            if npz_size > 500:
-                print("Using memory-mapped file loading")
-                with np.load(npz_path, mmap_mode="r") as npz:
-                    data = {
-                        key: np.array(npz[key])
-                        for key in npz.files
-                        if key
-                        in [
-                            "ini_radi_coor",
-                            "fin_radi_coor",
-                            "ini_dist_coor",
-                            "fin_dist_coor",
-                            "ini_time_coor",
-                            "fin_time_coor",
-                            "k_array",
-                        ]
-                    }
-                    # Reference large arrays without loading fully
-                    for key in [
-                        "e_dist",
-                        "e_axis",
-                        "e_peak",
-                        "elec_dist",
-                        "elec_axis",
-                        "elec_peak",
-                        "b_fluence",
-                        "b_radius",
-                    ]:
-                        if key in npz.files:
-                            data[key] = npz[key]  # Memory-mapped reference
-            else:
-                print("Loading full data file")
-                data = dict(np.load(npz_path))
-
-            return data
-
-        except Exception as e:
-            print(f"Error loading NPZ file: {type(e).__name__}: {e}")
-            if args.verbose > 0:
-                traceback.print_exc()
-            else:
-                print("Run with -v for more information")
-            raise
-
-    else:
-        raise FileNotFoundError(f"No HDF5 or NPZ files found at {base_file_path}")
+    return data
 
 
-def process_plot_request(
+def plot_request(
     data_type, plot_data, plot_types, plot, z_snap_idx, z_snap_coor, args
 ):
-    """Generate requested plot types for the specified data."""
+    """Generate requested physical magnitudes for the specified data."""
 
     if plot_types.get("1d", False):
         print(f"Generating 1D (line) plots for {data_type} ...")
@@ -1242,7 +1086,7 @@ def process_plot_request(
             z_snap_idx,
             z_snap_coor,
             data_type,
-            args.save_path,
+            args.fig_path,
         )
 
     if plot_types.get("2d", False) and data_type != "radius":
@@ -1253,106 +1097,30 @@ def process_plot_request(
             z_snap_coor,
             data_type,
             args.resolution,
-            args.save_path,
+            args.fig_path,
             args.stride,
         )
 
     if plot_types.get("3d", False) and data_type != "radius":
         print(f"Generating 3D (surface) plots for {data_type} ...")
-        try:
-            plot.create_3d_plot(
-                plot_data,
-                z_snap_idx,
-                z_snap_coor,
-                data_type,
-                resolution=args.resolution,
-                save_path=args.save_path,
-                stride=args.stride,
-            )
-        except MemoryError:
-            print(
-                "Warning: Not enough memory for 3D plots. Try using a lower resolution"
-            )
-            raise
-        except ValueError as e:
-            print(f"Warning: Value error in 3D plot for: {e}")
-            print(
-                "This may indicate incompatible array dimensions or invalid parameters"
-            )
-            raise
-        except RuntimeError as e:
-            print(f"Warning: Runtime error in 3D plot for: {e}")
-            print("This may be caused by a Matplotlib rendering issue or invalid data")
-            raise
-        except KeyError as e:
-            print(f"Missing key in 3D plot configuration for: {e}")
-            print("Check that your plot configuration contains all required settings")
-            raise
-        except (TypeError, AttributeError) as e:
-            print(f"Python error in 3D plots: {type(e).__name__}: {e}")
-            print("This may indicate incompatible data types or invalid method calls")
-            raise
-        except OSError as e:
-            print(f"I/O error in 3D plots: {e}")
-            print("Check disk space and write permissions in the save directory")
-            raise
-        except BaseException as e:
-            print(f"Unexpected error in 3D plot: {type(e).__name__}: {e}")
-            if args.verbose > 0:
-                traceback.print_exc()
-            else:
-                print("Run with -v for more information")
-            raise
+        plot.create_3d_plot(
+            plot_data,
+            z_snap_idx,
+            z_snap_coor,
+            data_type,
+            args.resolution,
+            args.fig_path,
+            args.stride,
+        )
 
 
 def process_simulation_data(data_type, data, plot, box, plot_types, args):
-    """Process a specific data type (intensity or density) and generate plots."""
+    """Process a specific physical variable and generate the plots."""
     print(f"Processing {data_type} data...")
 
-    # Ask if the data arrays exist
-    required_arrays = []
-    if data_type == "intensity":
-        required_arrays = ["e_dist", "e_axis", "e_peak"]
-    elif data_type == "density":
-        required_arrays = ["elec_dist", "elec_axis", "elec_peak"]
-    elif data_type == "fluence":
-        required_arrays = ["b_fluence"]
-    elif data_type == "radius":
-        required_arrays = ["b_radius"]
-
-    for key in required_arrays:
-        if key in data:
-            expected_shape = None
-            if key.endswith("_dist"):
-                expected_shape = (
-                    box.nodes_r,
-                    len(data["k_array"]),
-                    box.nodes_t,
-                )
-            elif key.endswith("_axis"):
-                expected_shape = (box.nodes_z, box.nodes_t)
-            elif key.endswith("_peak") or key.endswith("_fluence"):
-                expected_shape = (box.nodes_r, box.nodes_z)
-            elif key.endswith("_radius"):
-                expected_shape = (box.nodes_z,)
-
-            if expected_shape and data[key].shape != expected_shape:
-                print(
-                    f"Warning: {key} has unexpected shape: {data[key].shape}. "
-                    f"expected {expected_shape}. "
-                )
-
-    missing = [arr for arr in required_arrays if arr not in data]
-    if missing:
-        print(f"Warning: Missing required data for {data_type}: {', '.join(missing)}")
-        print(f"Omitting {data_type} plots")
-        return
-
-    # Load snapshot data
-    z_snap_idx = data["k_array"]
+    z_snap_idx = data["k_i"]
     z_snap_coor = box.set_snapshot_points(z_snap_idx)
 
-    # Compute data based on type
     if data_type == "intensity":
         plot_data_dist, plot_data_axis, plot_data_peak = plot.get_intensity_data(
             box.sliced_data["e_dist"],
@@ -1377,64 +1145,40 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
         }
     elif data_type == "fluence":
         plot_data_fluence = plot.get_fluence_data(box.sliced_data["b_fluence"])
-        plot_data = {
-            "rz": plot_data_fluence,
-        }
+        plot_data = {"rz": plot_data_fluence}
     elif data_type == "radius":
         plot_data_radius = plot.get_radius_data(box.sliced_data["b_radius"])
-        plot_data = {
-            "z": plot_data_radius,
-        }
+        plot_data = {"z": plot_data_radius}
     else:
-        raise ValueError(f"Unsupported data type: {data_type}")
+        raise ValueError(f"Unsupported physical variable: {data_type}")
 
-    # Generate requested plot types
-    process_plot_request(
-        data_type, plot_data, plot_types, plot, z_snap_idx, z_snap_coor, args
-    )
+    plot_request(data_type, plot_data, plot_types, plot, z_snap_idx, z_snap_coor, args)
 
 
 def main():
     """Main execution function."""
-    print(f"Plotting Acherus v{__version__} for Python data")
 
-    # Initialize CLI arguments parsing
     args = parse_cli_options()
-
-    # Initialize output directory
+    data = load_simulation_data(args.sim_path)
     setup_output_directory(args)
 
-    # Load data
-    data = load_simulation_data(args.file, args)
-
-    if args.verbose > 0:
-        print("Data file contents:")
-        print("   Data available:", ", ".join(data.keys()))
-        print(
-            f"   Data dimensions: {data['e_axis'].shape if 'e_axis' in data else 'unknown'}"
-        )
-        print(
-            f"   Duplicate radius: {'enabled' if args.radial_symmetry else 'disabled'}"
-        )
-
-    # Initialize classes
     units = Units()
     config = PlotConfiguration()
     box = SimulationBox(
         units,
         data,
-        radial_symmetry=args.radial_symmetry,
-        radial_limit=args.radial_limit,
-        axial_range=args.axial_range,
-        time_range=args.time_range,
+        args.radial_symmetry,
+        args.radial_limit,
+        args.axial_range,
+        args.time_range,
     )
     box_units = SimulationBoxUnits(units, box, config)
     plot = VisualManager(units, box, config, box_units)
 
     # Process each requested data type
-    for data_type, enabled in args.data_types.items():
-        if enabled and data_type in ["intensity", "density", "fluence", "radius"]:
-            process_simulation_data(data_type, data, plot, box, args.plot_types, args)
+    for variable, enabled in args.variables.items():
+        if enabled and variable in ["intensity", "density", "fluence", "radius"]:
+            process_simulation_data(variable, data, plot, box, args.dimensions, args)
 
     print("Plotting complete!")
 
