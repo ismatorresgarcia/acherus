@@ -7,8 +7,8 @@ from ..data.routines import (
     expensive_diagnostics,
     monitoring_diagnostics,
 )
-from ..mathematics.shared.fluence import compute_fluence
-from ..mathematics.shared.radius import compute_radius
+from ..functions.fluence import compute_fluence
+from ..functions.radius import compute_radius
 from ..physics.initial_beam import initialize_envelope
 from ..physics.ppt_rate import compute_ppt_rate
 

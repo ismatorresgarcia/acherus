@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from ..shared.fourier import compute_fft, compute_ifft
+from .fourier import compute_fft, compute_ifft
 
 
 def compute_nonlinear_rk4(

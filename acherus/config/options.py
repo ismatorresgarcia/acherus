@@ -9,6 +9,7 @@ def config_options(
     method_raman: str = "RK4",
     method_nonlin: str = "RK4",
     solver: str = "FSS",
+    gpu: bool = False,
     ion_model: str = "MPI",
 ) -> dict:
     """
@@ -30,6 +31,7 @@ def config_options(
      method_raman : str      "RK4" | "RK23" | "RK45" | "DOP853" | "Radau" | "BDF" | "LSODA"
      method_nonlin : str     "RK4"
      solver : str            "FSS" | "FCN"
+     gpu : bool              "True" | "False"
      ion_model : str         "MPI" | "PPT"
     ======================  ================================================================
 
@@ -50,6 +52,7 @@ def config_options(
         "method_nl": method_nonlin,
         "solver": solver,
         "ion_model": ion_model,
+        "gpu": gpu,
     }
 
     return config_list

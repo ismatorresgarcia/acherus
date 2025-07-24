@@ -7,14 +7,14 @@ from scipy.fft import fftfreq
 from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
-from ..mathematics.routines.density import compute_density, compute_density_rk4
-from ..mathematics.routines.nonlinear import compute_nonlinear_w_rk4
-from ..mathematics.routines.raman import compute_raman, compute_raman_rk4
-from ..mathematics.shared.fluence import compute_fluence
-from ..mathematics.shared.fourier import compute_fft, compute_ifft
-from ..mathematics.shared.intensity import compute_intensity
-from ..mathematics.shared.ionization import compute_ionization
-from ..mathematics.shared.radius import compute_radius
+from ..functions.density import compute_density, compute_density_rk4
+from ..functions.fluence import compute_fluence
+from ..functions.fourier import compute_fft, compute_ifft
+from ..functions.intensity import compute_intensity
+from ..functions.ionization import compute_ionization
+from ..functions.nonlinear import compute_nonlinear_w_rk4
+from ..functions.radius import compute_radius
+from ..functions.raman import compute_raman, compute_raman_rk4
 from .base import SolverBase
 
 
