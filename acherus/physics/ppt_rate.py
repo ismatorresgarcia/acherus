@@ -1,6 +1,9 @@
 """
 Peremolov, Popov, and Terent'ev (PPT) ionization rate module.
 
+Mishima et al. (2002) molecular corrections for O2 and N2
+molecules are included.
+
 Includes the Talebpour et al. (1999) electron charge shielding
 correction for fitting the effective Coulomb barrier felt by
 electrons tunneling out of the O2 and N2 molecules.
@@ -75,22 +78,23 @@ def compute_ppt_rate(medium, laser):
     """
     w_au = 1 / physical_constants["atomic unit of time"][0]
     f_au = physical_constants["atomic unit of electric field"][0]
-    e_au = physical_constants["Hartree energy in eV"][0]
+    u_hy = physical_constants["Rydberg constant times hc in eV"][0]
     w_len = laser.wavelength
     z_eff = medium.z_effective
     n_0 = medium.refraction_index_linear
     e_gap = medium.ionization_energy
 
-    def compute_rate(f, w_a, n_q, n_c, g, e_h, sum_a, f_a, g_a, z_a, u_a):
+    def compute_rate(f, w_a, n_q, n_c, g, u_h, sum_a, f_a, g_a, z_a, u_a):
         """Final PPT ionization rate."""
-        const = (16 / 3) * (4 * np.sqrt(2) / np.pi)
-        units = w_a * u_a / e_h
-        c_nl = 2 ** (2 * n_c) / (n_c * g_eu(1 + n_c * (2 - z_a**2)) * g_eu(n_q))
-        a_m = g**2 * sum_a / (1 + g**2)
+        mishi = 4 * (16 / 3) * ((2 * g**2 + 3) / (1 + g**2))
+        units = 0.5 * w_a * u_a / u_h
+        const = np.sqrt(6 / np.pi)
+        c_nl = 2 ** (2 * n_c) / (n_c * g_eu(1 + n_c * (2 - z_a)) * g_eu(n_q))
+        a_m = np.sqrt(4 / (3 * np.pi)) * (g**2 / (1 + g**2)) * sum_a
         p_pw = 2 * f_a / (f * np.sqrt(1 + g**2)) ** (2 * n_c - 1.5)
         g_ex = np.exp(-2 * f_a * g_a / (3 * f))
 
-        return const * units * c_nl * a_m * p_pw * g_ex
+        return mishi * const * units * c_nl * a_m * p_pw * g_ex
 
     def compute_sum(alpha_a, beta_a, idx_a, nu_a, tol, max_iter):
         """
@@ -118,11 +122,11 @@ def compute_ppt_rate(medium, laser):
 
     w_0 = 2 * np.pi * c_light / w_len
     nu_0 = e_gap * e_charge / (hbar * w_0)
-    f_0 = f_au * np.sqrt((2 * e_gap / e_au) ** 3)
-    n_corr = 1 / np.sqrt(2 * e_gap / e_au)
-    n_quan = z_eff**2 * n_corr
+    f_0 = f_au * np.sqrt(e_gap / u_hy) ** 3
+    n_corr = 1 / np.sqrt(2 * e_gap / u_hy)
+    n_quan = z_eff * n_corr
 
-    field_str = np.sqrt(np.linspace(1e15, 1e19, 10000)).astype(np.float32)
+    field_str = np.sqrt(np.linspace(1e-1, 1e19, 10000)).astype(np.float32)
 
     i_fact = np.sqrt(0.5 * c_light * eps_0 * n_0)
     gamma = w_0 * np.sqrt(2 * m_e * e_gap * e_charge) / (e_charge * field_str / i_fact)
@@ -140,7 +144,7 @@ def compute_ppt_rate(medium, laser):
         n_quan,
         n_corr,
         gamma,
-        e_au,
+        u_hy,
         ion_sum,
         f_0,
         g_g,

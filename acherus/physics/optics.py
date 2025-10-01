@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy.constants import c as c_light
-from scipy.special import gamma as gamma_euler
+from scipy.special import gamma as g_eu
 
 from .media import MediumParameters
 
@@ -37,7 +37,7 @@ class LaserParameters:
                 self.gauss_opt
                 * self.ini_power
                 * 2 ** (2 / self.gauss_opt)
-                / (2 * np.pi * self.waist**2 * gamma_euler(2 / self.gauss_opt))
+                / (2 * np.pi * self.waist**2 * g_eu(2 / self.gauss_opt))
             )
         else:
             raise ValueError(
