@@ -2,12 +2,11 @@
 
 
 def config_options(
-    material: str = "oxygen800",
+    medium: str = "oxygen800",
     pulse: str = "gaussian",
     gauss_order: int = 2,
     method_density: str = "RK4",
-    method_raman: str = "RK4",
-    method_nonlin: str = "RK4",
+    method_nonlinear: str = "RK4",
     solver: str = "FSS",
     gpu: bool = False,
     ion_model: str = "MPI",
@@ -24,11 +23,10 @@ def config_options(
 
     Parameters              Choice
     ======================  ================================================================
-     material : str          see "materials.py" module for the list
+     medium : str            see "media.py" module for the list
      pulse : str             "gaussian"
      gauss_order : int       any positive number >= 2
      method_density : str    "RK4" | "RK23" | "RK45" | "DOP853" | "Radau" | "BDF" | "LSODA"
-     method_raman : str      "RK4" | "RK23" | "RK45" | "DOP853" | "Radau" | "BDF" | "LSODA"
      method_nonlin : str     "RK4"
      solver : str            "FSS" | "FCN"
      gpu : bool              "True" | "False"
@@ -44,12 +42,11 @@ def config_options(
 
     """
     config_list = {
-        "material": material,
+        "medium": medium,
         "pulse": pulse,
         "gauss_n": gauss_order,
         "method_d": method_density,
-        "method_r": method_raman,
-        "method_nl": method_nonlin,
+        "method_nl": method_nonlinear,
         "solver": solver,
         "ion_model": ion_model,
         "gpu": gpu,

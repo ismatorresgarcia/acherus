@@ -1,5 +1,5 @@
 """
-Material properties module for laser propagation media.
+Media properties module for laser propagation media.
 
 The units used in the module are
 
@@ -26,8 +26,8 @@ from typing import Optional
 
 
 @dataclass
-class Material:
-    """Material parameters available."""
+class Medium:
+    """Medium parameters available."""
 
     refraction_index_linear: float
     refraction_index_nonlinear: float
@@ -45,9 +45,9 @@ class Material:
     has_raman: bool = False
 
 
-# Material instances defined
-MATERIALS = {
-    "oxygen800": Material(
+# Medium instances defined
+MEDIA = {
+    "oxygen800": Medium(
         refraction_index_linear=1.0,
         refraction_index_nonlinear=3.2e-23,
         constant_k1=3.34e-9,
@@ -63,7 +63,7 @@ MATERIALS = {
         raman_partition=0.5,
         has_raman=True,
     ),
-    "nitrogen800": Material(
+    "nitrogen800": Medium(
         refraction_index_linear=1.0,
         refraction_index_nonlinear=3.2e-23,
         constant_k1=3.34e-9,
@@ -79,23 +79,7 @@ MATERIALS = {
         raman_partition=0.5,
         has_raman=True,
     ),
-    "air775_1": Material(
-        refraction_index_linear=1.0,
-        refraction_index_nonlinear=5.57e-23,
-        constant_k1=3.34e-9,
-        constant_k2=2e-28,
-        effective_charge=0.11,
-        constant_mpi=1.34e-111,
-        ionization_energy=11.0,
-        drude_time=3.5e-13,
-        density_neutral=2.7e25,
-        density_initial=1e15,
-        raman_rotational_frequency=16e12,
-        raman_response_time=77e-15,
-        raman_partition=0.5,
-        has_raman=True,
-    ),
-    "water800": Material(
+    "water800": Medium(
         refraction_index_linear=1.334,
         refraction_index_nonlinear=4.1e-20,
         constant_k1=4.45e-9,
@@ -111,7 +95,7 @@ MATERIALS = {
         raman_partition=0.0,
         has_raman=False,
     ),
-    "water400": Material(
+    "water400": Medium(
         refraction_index_linear=1.34,
         refraction_index_nonlinear=4.1e-20,
         constant_k1=4.47e-9,
@@ -127,7 +111,7 @@ MATERIALS = {
         raman_partition=0.0,
         has_raman=False,
     ),
-    "silica800": Material(
+    "silica800": Medium(
         refraction_index_linear=1.453,
         refraction_index_nonlinear=3.2e-20,
         constant_k1=4.85e-9,
@@ -146,17 +130,17 @@ MATERIALS = {
 }
 
 
-class MaterialParameters:
-    """Material parameters checking and extraction."""
+class MediumParameters:
+    """Medium parameters checking and extraction."""
 
-    def __init__(self, material_opt: str = "oxygen800"):
-        if material_opt not in MATERIALS:
+    def __init__(self, medium_opt: str = "oxygen800"):
+        if medium_opt not in MEDIA:
             raise ValueError(
-                f"Not available material option: '{material_opt}'. "
-                f"Available materials are: {', '.join(MATERIALS.keys())}"
+                f"Not available medium option: '{medium_opt}'. "
+                f"Available media are: {', '.join(MEDIA.keys())}"
             )
-        self.material = MATERIALS[material_opt]
+        self.medium = MEDIA[medium_opt]
 
     def __getattr__(self, name):
-        # Extract material properties as direct attributes
-        return getattr(self.material, name)
+        # Extract medium properties as direct attributes
+        return getattr(self.medium, name)

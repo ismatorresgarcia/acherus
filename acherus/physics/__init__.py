@@ -2,15 +2,15 @@
 
 from .equations import EquationParameters
 from .initial_beam import initialize_envelope
-from .materials import Material, MaterialParameters
+from .media import Medium, MediumParameters
 from .optics import LaserParameters
 from .ppt_rate import compute_ppt_rate
 
 __all__ = [
     "EquationParameters",
     "LaserParameters",
-    "Material",
-    "MaterialParameters",
+    "Medium",
+    "MediumParameters",
     "initialize_envelope",
     "compute_ppt_rate",
 ]

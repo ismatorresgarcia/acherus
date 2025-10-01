@@ -8,7 +8,7 @@ from .data.routines import profiler_log
 from .data.store import OutputManager
 from .mesh.grid import GridParameters
 from .physics.equations import EquationParameters
-from .physics.materials import MaterialParameters
+from .physics.media import MediumParameters
 from .physics.optics import LaserParameters
 from .solvers.fcn import SolverFCN
 from .solvers.fss import SolverFSS
@@ -24,38 +24,36 @@ def main():
 
     # Initialize classes
     grid = GridParameters()
-    material = MaterialParameters(material_opt=config["material"])
+    medium = MediumParameters(medium_opt=config["medium"])
     if config["pulse"] == "gaussian":
         laser = LaserParameters(
-            material, pulse_opt=config["pulse"], gauss_opt=config["gauss_n"]
+            medium, pulse_opt=config["pulse"], gauss_opt=config["gauss_n"]
         )
     else:
         raise ValueError(
             f"Invalid pulse type: '{config['pulse']}. "
             f"Choose 'gaussian' or 'to_be_defined'."
         )
-    eqn = EquationParameters(material, laser)
+    eqn = EquationParameters(medium, laser, grid)
 
     # Initialize solver
     if config["solver"] == "FSS":
         solver = SolverFSS(
-            material,
+            medium,
             laser,
             grid,
             eqn,
             method_d_opt=config["method_d"],
-            method_r_opt=config["method_r"],
             method_nl_opt=config["method_nl"],
             ion_model=config["ion_model"],
         )
     elif config["solver"] == "FCN":
         solver = SolverFCN(
-            material,
+            medium,
             laser,
             grid,
             eqn,
             method_d_opt=config["method_d"],
-            method_r_opt=config["method_r"],
             method_nl_opt=config["method_nl"],
             ion_model=config["ion_model"],
         )

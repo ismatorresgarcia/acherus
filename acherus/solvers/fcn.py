@@ -14,7 +14,7 @@ from ..functions.intensity import compute_intensity
 from ..functions.ionization import compute_ionization
 from ..functions.nonlinear import compute_nonlinear_w_rk4
 from ..functions.radius import compute_radius
-from ..functions.raman import compute_raman, compute_raman_rk4
+from ..functions.raman import compute_raman
 from .base import SolverBase
 
 
@@ -23,12 +23,11 @@ class SolverFCN(SolverBase):
 
     def __init__(
         self,
-        material,
+        medium,
         laser,
         grid,
         eqn,
         method_d_opt="RK4",
-        method_r_opt="RK4",
         method_nl_opt="RK4",
         ion_model="MPI",
     ):
@@ -36,7 +35,7 @@ class SolverFCN(SolverBase):
 
         Parameters
         ----------
-        material : object
+        medium : object
             Contains the chosen medium parameters.
         laser : object
             Contains the laser input parameters.
@@ -46,8 +45,6 @@ class SolverFCN(SolverBase):
             Contains the equation parameters.
         method_d_opt : str, default: "RK4"
             Density solver method chosen.
-        method_r_opt : str, default: "RK4"
-            Raman solver method chosen.
         method_nl_opt : str, default: "RK4"
             Nonlinear solver method chosen.
         ion_model : str, default: "MPI"
@@ -56,12 +53,11 @@ class SolverFCN(SolverBase):
         """
         # Initialize base class
         super().__init__(
-            material,
+            medium,
             laser,
             grid,
             eqn,
             method_d_opt,
-            method_r_opt,
             method_nl_opt,
             ion_model,
         )
@@ -226,25 +222,13 @@ class SolverFCN(SolverBase):
                 self.method_d,
             )
         if self.use_raman:
-            if self.method_r == "RK4":
-                compute_raman_rk4(
-                    self.raman_rt[:-1, :],
-                    self.draman_rt[:-1, :],
-                    self.intensity_rt[:-1, :],
-                    self.t_grid,
-                    self.raman_c1,
-                    self.raman_c2,
-                )
-            else:
-                compute_raman(
-                    intensity_f,
-                    self.raman_rt[:-1, :],
-                    self.r_grid[:-1],
-                    self.t_grid,
-                    self.raman_c1,
-                    self.raman_c2,
-                    self.method_r,
-                )
+            compute_raman(
+                self.intensity_rt[:-1, :],
+                self.raman_rt[:-1, :],
+                self.t_grid,
+                self.raman_c1,
+                self.raman_c2,
+            )
         else:
             self.raman_rt.fill(0.0)
         if self.method_nl == "RK4":

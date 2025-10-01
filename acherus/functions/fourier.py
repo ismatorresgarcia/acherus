@@ -37,15 +37,16 @@ import scipy.fft
 
 from ..config.options import config_options
 
-CUPY = config_options["gpu"]
+config = config_options()
+GPU = config["gpu"]
 
 try:
-    if CUPY:
+    if GPU:
         import cupyx.scipy.fft as cufft
 
         scipy.fft.set_global_backend(cufft)
 except ImportError:
-    CUPY = False
+    GPU = False
 
 
 def compute_fft(data, axis=1):
@@ -53,7 +54,7 @@ def compute_fft(data, axis=1):
     Transform data from time domain to frequency domain
     using FFT (cufft if available, scipy.fft otherwise).
     """
-    if CUPY:
+    if GPU:
         return scipy.fft.fft(data, axis=axis)
     return scipy.fft.fft(data, axis=axis, workers=-1)
 
@@ -63,6 +64,6 @@ def compute_ifft(data, axis=1):
     Transform data from to frequency domain time domain
     using FFT (cufft if available, scipy.fft otherwise).
     """
-    if CUPY:
+    if GPU:
         return scipy.fft.ifft(data, axis=axis)
     return scipy.fft.ifft(data, axis=axis, workers=-1)

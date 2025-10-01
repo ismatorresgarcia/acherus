@@ -18,12 +18,11 @@ class SolverBase:
 
     def __init__(
         self,
-        material,
+        medium,
         laser,
         grid,
         eqn,
         method_d_opt="RK4",
-        method_r_opt="RK4",
         method_nl_opt="RK4",
         ion_model="MPI",
     ):
@@ -31,7 +30,7 @@ class SolverBase:
 
         Parameters
         ----------
-        material : object
+        medium : object
             Contains the chosen medium parameters.
         laser : object
             Contains the laser input parameters.
@@ -41,20 +40,17 @@ class SolverBase:
             Contains the equation parameters.
         method_d_opt : str, default: "RK4"
             Density solver method chosen.
-        method_r_opt : str, default: "RK4"
-            Raman solver method chosen.
         method_nl_opt : str, default: "RK4"
             Nonlinear solver method chosen.
         ion_model : str, default: "MPI"
             Ionization model chosen.
 
         """
-        self.material = material
+        self.medium = medium
         self.laser = laser
         self.grid = grid
         self.eqn = eqn
         self.method_d = method_d_opt
-        self.method_r = method_r_opt
         self.method_nl = method_nl_opt
         self.ion_model = ion_model
 
@@ -74,10 +70,10 @@ class SolverBase:
         self.mpi_c = self.eqn.mpi_c
         self.w_0 = self.laser.frequency_0
         self.k_0 = self.laser.wavenumber_0
-        self.k_1 = self.material.constant_k1
-        self.k_2 = self.material.constant_k2
-        self.density_n = self.material.density_neutral
-        self.density_ini = self.material.density_initial
+        self.k_1 = self.medium.constant_k1
+        self.k_2 = self.medium.constant_k2
+        self.density_n = self.medium.density_neutral
+        self.density_ini = self.medium.density_initial
         self.avalanche_c = eqn.ava_c
         self.plasma_c = eqn.plasma_c
         self.mpa_c = eqn.mpa_c
@@ -87,7 +83,7 @@ class SolverBase:
         self.raman_c2 = self.eqn.raman_c2
 
         # Set up flags
-        self.use_raman = material.has_raman
+        self.use_raman = medium.has_raman
 
         # Initialize simulation arrays
         self._init_simulation_arrays()
@@ -127,7 +123,6 @@ class SolverBase:
 
         # Initialize Raman arrays
         self.raman_rt = np.zeros(shape_rt, dtype=np.float64)
-        self.draman_rt = np.zeros_like(self.raman_rt)
 
         # Initialize nonlinearities array
         self.nonlinear_rt = np.zeros_like(self.envelope_rt)
@@ -141,7 +136,7 @@ class SolverBase:
         # Initialize PPT rate arrays
         if self.ion_model == "PPT":
             self.peak_intensity, self.ppt_rate = compute_ppt_rate(
-                self.material, self.laser
+                self.medium, self.laser
             )
 
     def set_initial_conditions(self):

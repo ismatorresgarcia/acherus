@@ -3,13 +3,13 @@ Peremolov, Popov, and Terent'ev (PPT) ionization rate module.
 
 Includes the Talebpour et al. (1999) electron charge shielding
 correction for fitting the effective Coulomb barrier felt by
-electrons tunneling out of the atom.
+electrons tunneling out of the O2 and N2 molecules.
 
 How this works
 --------------
 
 1. The module goal is generating the PPT ionization rate
-for a given material and laser central frequency. This is
+for a given medium and laser central frequency. This is
 done by computing a peak intensity array within a desired
 range of values, and then used to compute their corresponding
 ionization rates.
@@ -69,7 +69,7 @@ from scipy.special import dawsn  # pylint: disable=no-name-in-module
 from scipy.special import gamma as g_eu  # pylint: disable=no-name-in-module
 
 
-def compute_ppt_rate(material, laser):
+def compute_ppt_rate(medium, laser):
     """
     Compute and return PPT ionization rates.
     """
@@ -77,9 +77,9 @@ def compute_ppt_rate(material, laser):
     f_au = physical_constants["atomic unit of electric field"][0]
     e_au = physical_constants["Hartree energy in eV"][0]
     w_len = laser.wavelength
-    z_eff = material.z_effective
-    n_0 = material.refraction_index_linear
-    e_gap = material.ionization_energy
+    z_eff = medium.z_effective
+    n_0 = medium.refraction_index_linear
+    e_gap = medium.ionization_energy
 
     def compute_rate(f, w_a, n_q, n_c, g, e_h, sum_a, f_a, g_a, z_a, u_a):
         """Final PPT ionization rate."""
