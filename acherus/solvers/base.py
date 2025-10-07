@@ -9,8 +9,8 @@ from ..data.routines import (
 )
 from ..functions.fluence import compute_fluence
 from ..functions.radius import compute_radius
-from ..physics.initial_beam import initialize_envelope
-from ..physics.ppt_rate import compute_ppt_rate
+from ..physics.pump import initialize_envelope
+from ..physics.photoioniz import compute_ppt_rate
 
 
 class SolverBase:
@@ -123,6 +123,7 @@ class SolverBase:
 
         # Initialize Raman arrays
         self.raman_rt = np.zeros(shape_rt, dtype=np.float64)
+        self.raman_aux = np.zeros(shape_rt, dtype=np.complex128)
 
         # Initialize nonlinearities array
         self.nonlinear_rt = np.zeros_like(self.envelope_rt)

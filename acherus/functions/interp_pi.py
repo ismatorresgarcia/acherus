@@ -1,12 +1,12 @@
 """
-Ionization rate output module.
+Photo-ionization rate output module.
 
 How this works
 --------------
 
 1. The module first checks what ionization model
 has been requested, either "MPI" for multiphoton
-ionization or "PPT" for the generalised PPT model.
+ionization or "PPT" for the generalized PPT model.
 
 2. If the "MPI" option was selected, it updates
 in-place the ionization rate as a power of the intensity

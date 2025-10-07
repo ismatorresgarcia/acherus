@@ -11,7 +11,7 @@ from ..functions.density import compute_density, compute_density_rk4
 from ..functions.fluence import compute_fluence
 from ..functions.fourier import compute_fft, compute_ifft
 from ..functions.intensity import compute_intensity
-from ..functions.ionization import compute_ionization
+from ..functions.interp_pi import compute_ionization
 from ..functions.nonlinear import compute_nonlinear_w_rk4
 from ..functions.radius import compute_radius
 from ..functions.raman import compute_raman
@@ -225,6 +225,7 @@ class SolverFCN(SolverBase):
             compute_raman(
                 self.intensity_rt[:-1, :],
                 self.raman_rt[:-1, :],
+                self.raman_aux[:-1, :],
                 self.t_grid,
                 self.raman_c1,
                 self.raman_c2,
