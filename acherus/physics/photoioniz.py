@@ -91,7 +91,7 @@ def compute_ppt_rate(medium, laser):
         const = np.sqrt(6 / np.pi)
         c_nl = 2 ** (2 * n_c) / (n_c * g_eu(1 + n_c * (2 - z_a)) * g_eu(n_q))
         a_m = np.sqrt(4 / (3 * np.pi)) * (g**2 / (1 + g**2)) * sum_a
-        p_pw = 2 * f_a / (f * np.sqrt(1 + g**2)) ** (2 * n_c - 1.5)
+        p_pw = (2 * f_a / (f * np.sqrt(1 + g**2))) ** (2 * n_c - 1.5)
         g_ex = np.exp(-2 * f_a * g_a / (3 * f))
 
         return mishi * const * units * c_nl * a_m * p_pw * g_ex
@@ -129,7 +129,7 @@ def compute_ppt_rate(medium, laser):
     field_str = np.sqrt(np.linspace(1e-1, 1e19, 10000)).astype(np.float32)
 
     i_fact = np.sqrt(0.5 * c_light * eps_0 * n_0)
-    gamma = w_0 * np.sqrt(2 * m_e * e_gap * e_charge) / (e_charge * field_str / i_fact)
+    gamma = w_0 * i_fact * np.sqrt(2 * m_e * e_gap / e_charge) / field_str
 
     asinh = np.arcsinh(gamma).astype(np.float32)
     idx = (1 + 0.5 / gamma**2).astype(np.float32)
