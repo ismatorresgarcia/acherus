@@ -9,7 +9,7 @@ from ..functions.density import compute_density, compute_density_rk4
 from ..functions.fluence import compute_fluence
 from ..functions.fourier import compute_fft, compute_ifft
 from ..functions.intensity import compute_intensity
-from ..functions.interp_pi import compute_ionization
+from ..functions.interp_w import compute_ionization
 from ..functions.nonlinear import compute_nonlinear_rk4
 from ..functions.radius import compute_radius
 from ..functions.raman import compute_raman

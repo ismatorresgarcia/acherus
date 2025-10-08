@@ -1,5 +1,5 @@
 """
-Photo-ionization rate output module.
+Photo-ionization rate interpolation module.
 
 How this works
 --------------
@@ -20,9 +20,9 @@ ionization rates computed in the `ppt_rate` module.
 
 4. Then, it interpolates the two datasets to generate an
 interpolating function, which is used to compute
-the ionization rate for the given 2D intensity values at
-each propagation step. The interpolated ionization rates
-for this given 2D intensity array are updated in-place.
+the ionization rate for the given 2D intensity values. 
+The interpolated ionization rates for this given 2D 
+intensity array are updated in-place.
 
 """
 
@@ -69,10 +69,10 @@ def compute_ionization(
                 "given for computing PPT rates."
             )
 
-        rates_f = interp1d(
+        rates_interpolator = interp1d(
             peak_inten,
             ppt_rate,
             kind="linear",
             fill_value="extrapolate",
         )
-        ionz_rate_a[:] = rates_f(inten_a)
+        ionz_rate_a[:] = rates_interpolator(inten_a)

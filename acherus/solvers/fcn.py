@@ -11,10 +11,11 @@ from ..functions.density import compute_density, compute_density_rk4
 from ..functions.fluence import compute_fluence
 from ..functions.fourier import compute_fft, compute_ifft
 from ..functions.intensity import compute_intensity
-from ..functions.interp_pi import compute_ionization
+from ..functions.interp_w import compute_ionization
 from ..functions.nonlinear import compute_nonlinear_w_rk4
 from ..functions.radius import compute_radius
 from ..functions.raman import compute_raman
+from ..physics.sellmeier import sellmeier_air, sellmeier_silica, sellmeier_water
 from .base import SolverBase
 
 
@@ -126,12 +127,55 @@ class SolverFCN(SolverBase):
         matrix_right = diags_array(diags, offsets=[-1, 0, 1], format="dia")
         return matrix_band, matrix_right
 
+    def set_dispersion(self, w_det, w_0):
+        """
+        Compute the dispersion operator using the full dispersion
+        relation with Sellmeier formulas.
+
+        Parameters
+        ----------
+        w_det : (N,) array_like
+            Angular frequency detuning.
+        w_0 : float
+            Beam central frequency.
+
+        Returns
+        -------
+        disp : (N,) ndarray
+            Dispersion function for each frequency.
+
+        """
+        from scipy.constants import c
+
+        from ..config.options import config_options
+
+        config = config_options()
+        medium = config["medium"]
+
+        w = w_det + w_0
+
+        if medium == "oxygen800" or medium == "nitrogen800":
+            n = sellmeier_air(w)
+        elif medium == "water400" or medium == "water800":
+            n = sellmeier_water(w)
+        elif medium == "silica800":
+            n = sellmeier_silica(w)
+        else:
+            raise ValueError(
+                "Not available medium option: '{medium}'. "
+                "Available media are: 'oxygen800', 'nitrogen800', "
+                "'water400', 'water800', and 'silica800'. "
+            )
+        k_w = n * w / c
+
+        return k_w - self.k_0 - self.k_1 * w_det
+
     def set_operators(self):
         """Set FCN operators."""
         w_grid = 2 * np.pi * fftfreq(self.t_nodes, self.t_res)
         self.shock_op = 1 + w_grid / self.w_0
         diff_c = 0.25 * self.z_res / (self.k_0 * self.r_res**2 * self.shock_op)
-        disp_c = 0.25 * self.z_res * self.k_2 * w_grid**2
+        disp_c = 0.5 * self.z_res * self.set_dispersion(w_grid, self.w_0)
 
         self.mats_left = [None] * self.t_nodes
         self.mats_right = [None] * self.t_nodes

@@ -50,7 +50,7 @@ MEDIA = {
     "oxygen800": Medium(
         refraction_index_linear=1.0,
         refraction_index_nonlinear=3.2e-23,
-        constant_k1=3.34e-9,
+        constant_k1=3.3365e-9,
         constant_k2=0.2e-28,
         effective_charge=0.53,
         constant_mpi=2.81e-128,
@@ -66,7 +66,7 @@ MEDIA = {
     "nitrogen800": Medium(
         refraction_index_linear=1.0,
         refraction_index_nonlinear=3.2e-23,
-        constant_k1=3.34e-9,
+        constant_k1=3.3365e-9,
         constant_k2=0.2e-28,
         effective_charge=0.9,
         constant_mpi=6.31e-184,
@@ -82,7 +82,7 @@ MEDIA = {
     "water800": Medium(
         refraction_index_linear=1.334,
         refraction_index_nonlinear=4.1e-20,
-        constant_k1=4.45e-9,
+        constant_k1=4.4670e-9,
         constant_k2=248e-28,
         effective_charge=1.0,
         constant_mpi=1.2e-72,
@@ -98,7 +98,7 @@ MEDIA = {
     "water400": Medium(
         refraction_index_linear=1.34,
         refraction_index_nonlinear=4.1e-20,
-        constant_k1=4.47e-9,
+        constant_k1=4.4698e-9,
         constant_k2=670e-28,
         effective_charge=1.0,
         constant_mpi=5.4e-41,
@@ -114,7 +114,7 @@ MEDIA = {
     "silica800": Medium(
         refraction_index_linear=1.453,
         refraction_index_nonlinear=3.2e-20,
-        constant_k1=4.85e-9,
+        constant_k1=8.908e-9,
         constant_k2=361e-28,
         effective_charge=1.0,
         constant_mpi=1.3e-75,
