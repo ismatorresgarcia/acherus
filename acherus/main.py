@@ -17,7 +17,16 @@ from .solvers.sscn import SolverSSCN
 def main():
     """Main function."""
     # Initialize configuration options
-    config = config_options()
+    config = config_options(
+        medium="oxygen800",
+        pulse="gaussian",
+        gauss_order=2,
+        method_density="RK45",
+        method_nonlinear="AB2",
+        solver="FCN",
+        ion_model="PPT",
+        gpu=False
+    )
 
     # Print package version
     print(f"Running Acherus v{__version__} for Python")

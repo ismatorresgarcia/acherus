@@ -80,7 +80,7 @@ def compute_ppt_rate(medium, laser):
     f_au = physical_constants["atomic unit of electric field"][0]
     u_hy = physical_constants["Rydberg constant times hc in eV"][0]
     w_len = laser.wavelength
-    z_eff = medium.z_effective
+    z_eff = medium.effective_charge
     n_0 = medium.refraction_index_linear
     e_gap = medium.ionization_energy
 
