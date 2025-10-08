@@ -4,6 +4,143 @@ import numpy as np
 
 from .fourier import compute_fft, compute_ifft
 
+def compute_nonlinear_ab2(
+    stp_a,
+    env_a,
+    dens_a,
+    ram_a,
+    ion_a,
+    nlin_a,
+    nlin_p,
+    dens_n_a,
+    pls_c_a,
+    mpa_c_a,
+    kerr_c_a,
+    ram_c_a,
+    dz,
+):
+    """
+    Compute envelope propagation nonlinearities in FSS scheme
+    for current propagation step using AB2.
+
+    Parameters
+    ----------
+    stp_a: integer
+        Current propagation step index.
+    env_a : (M, N) array_like
+        Complex envelope at current propagation step.
+    dens_a : (M, N) array_like
+        Density at current propagation step.
+    ram_a : (M, N) array_like
+        Raman response at current propagation step.
+    ion_a : (M, N) array_like
+        Ionization rate at current propagation step.
+    nlin_a : (M, N) array_like
+        Pre-allocated array for the nonlinear terms.
+    nlin_p : (M, N) array_like
+        Previous step nonlinear terms.
+    dens_n_a : float
+        Neutral density of the medium chosen.
+    pls_c_a : float
+        Plasma coefficient.
+    mpa_c_a : float
+        MPA coefficient.
+    kerr_c_a : float
+        Kerr coefficient.
+    ram_c_a : float
+        Raman coefficient.
+    dz : float
+        Axial step.
+
+    """
+    nlin_1 = _set_nlin(
+        env_a,
+        dens_a,
+        ram_a,
+        ion_a,
+        dens_n_a,
+        pls_c_a,
+        mpa_c_a,
+        kerr_c_a,
+        ram_c_a,
+    )
+    if stp_a == 1:
+        nlin_ab2 = dz * nlin_1
+    else:
+        nlin_ab2 = dz * (1.5 * nlin_1 - 0.5 * nlin_p)
+
+    nlin_a[:] = nlin_ab2
+
+def compute_nonlinear_w_ab2(
+    stp_a,
+    env_a,
+    dens_a,
+    ram_a,
+    ion_a,
+    nlin_a,
+    nlin_p,
+    shock_op_a,
+    dens_n_a,
+    pls_c_a,
+    mpa_c_a,
+    kerr_c_a,
+    ram_c_a,
+    dz,
+):
+    """
+    Compute envelope propagation nonlinearities in FCN scheme
+    for current propagation step using AB2.
+
+    Parameters
+    ----------
+    stp_a: integer
+        Current propagation step.
+    env_a : (M, N) array_like
+        Complex envelope at current propagation step.
+    dens_a : (M, N) array_like
+        Density at current propagation step.
+    ram_a : (M, N) array_like
+        Raman response at current propagation step.
+    ion_a : (M, N) array_like
+        Ionization rate at current propagation step.
+    nlin_a : (M, N) array_like
+        Pre-allocated array for the nonlinear terms.
+    nlin_p : (M, N) array_like
+        Previous step nonlinear terms.
+    shock_op_a : (N,) array_like
+        Self-steepening operator acting on nonlinearities.
+    dens_n_a : float
+        Neutral density of the medium.
+    pls_c_a : float
+        Plasma coefficient.
+    mpa_c_a : float
+        MPA coefficient.
+    kerr_c_a : float
+        Kerr coefficient.
+    ram_c_a : float
+        Raman coefficient.
+    dz : float
+        Axial step
+
+    """
+    nlin_w_1 = _set_nlin_w(
+        env_a,
+        dens_a,
+        ram_a,
+        ion_a,
+        shock_op_a,
+        dens_n_a,
+        pls_c_a,
+        mpa_c_a,
+        kerr_c_a,
+        ram_c_a,
+    )
+    if stp_a == 1:
+        nlin_ab2 = dz * nlin_w_1
+    else:
+        nlin_ab2 = dz * (1.5 * nlin_w_1 - 0.5 * nlin_p)
+
+        nlin_a[:] = nlin_ab2
 
 def compute_nonlinear_rk4(
     env_a,
@@ -48,7 +185,7 @@ def compute_nonlinear_rk4(
         Axial step.
 
     """
-    k1_env = _set_nlin(
+    nlin_1 = _set_nlin(
         env_a,
         dens_a,
         ram_a,
@@ -59,9 +196,9 @@ def compute_nonlinear_rk4(
         kerr_c_a,
         ram_c_a,
     )
-    env_1 = env_a + 0.5 * dz * k1_env
+    env_1 = env_a + 0.5 * dz * nlin_1
 
-    k2_env = _set_nlin(
+    nlin_2 = _set_nlin(
         env_1,
         dens_a,
         ram_a,
@@ -72,9 +209,9 @@ def compute_nonlinear_rk4(
         kerr_c_a,
         ram_c_a,
     )
-    env_2 = env_a + 0.5 * dz * k2_env
+    env_2 = env_a + 0.5 * dz * nlin_2
 
-    k3_env = _set_nlin(
+    nlin_3 = _set_nlin(
         env_2,
         dens_a,
         ram_a,
@@ -85,9 +222,9 @@ def compute_nonlinear_rk4(
         kerr_c_a,
         ram_c_a,
     )
-    env_3 = env_a + dz * k3_env
+    env_3 = env_a + dz * nlin_3
 
-    k4_env = _set_nlin(
+    nlin_4 = _set_nlin(
         env_3,
         dens_a,
         ram_a,
@@ -99,7 +236,7 @@ def compute_nonlinear_rk4(
         ram_c_a,
     )
 
-    nlin_rk4 = dz * (k1_env + 2 * k2_env + 2 * k3_env + k4_env) / 6
+    nlin_rk4 = dz * (nlin_1 + 2 * nlin_2 + 2 * nlin_3 + nlin_4) / 6
 
     nlin_a[:] = nlin_rk4
 
@@ -150,7 +287,7 @@ def compute_nonlinear_w_rk4(
         Axial step
 
     """
-    k1_env = _set_nlin_w(
+    nlin_1 = _set_nlin_w(
         env_a,
         dens_a,
         ram_a,
@@ -162,9 +299,9 @@ def compute_nonlinear_w_rk4(
         kerr_c_a,
         ram_c_a,
     )
-    env_1 = env_a + 0.5 * dz * compute_ifft(k1_env)
+    env_1 = env_a + 0.5 * dz * compute_ifft(nlin_1)
 
-    k2_env = _set_nlin_w(
+    nlin_2 = _set_nlin_w(
         env_1,
         dens_a,
         ram_a,
@@ -176,9 +313,9 @@ def compute_nonlinear_w_rk4(
         kerr_c_a,
         ram_c_a,
     )
-    env_2 = env_a + 0.5 * dz * compute_ifft(k2_env)
+    env_2 = env_a + 0.5 * dz * compute_ifft(nlin_2)
 
-    k3_env = _set_nlin_w(
+    nlin_3 = _set_nlin_w(
         env_2,
         dens_a,
         ram_a,
@@ -190,9 +327,9 @@ def compute_nonlinear_w_rk4(
         kerr_c_a,
         ram_c_a,
     )
-    env_3 = env_a + dz * compute_ifft(k3_env)
+    env_3 = env_a + dz * compute_ifft(nlin_3)
 
-    k4_env = _set_nlin_w(
+    nlin_4 = _set_nlin_w(
         env_3,
         dens_a,
         ram_a,
@@ -205,7 +342,7 @@ def compute_nonlinear_w_rk4(
         ram_c_a,
     )
 
-    nlin_rk4 = dz * (k1_env + 2 * k2_env + 2 * k3_env + k4_env) / 6
+    nlin_rk4 = dz * (nlin_1 + 2 * nlin_2 + 2 * nlin_3 + nlin_4) / 6
 
     nlin_a[:] = nlin_rk4
 

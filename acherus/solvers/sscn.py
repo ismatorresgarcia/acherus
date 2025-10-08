@@ -1,4 +1,4 @@
-"""Fourier Split-Step (FSS) solver module."""
+"""Split-Step Crank-Nicolson (SSCN) solver module."""
 
 import numpy as np
 from scipy.fft import fftfreq
@@ -10,13 +10,13 @@ from ..functions.fluence import compute_fluence
 from ..functions.fourier import compute_fft, compute_ifft
 from ..functions.intensity import compute_intensity
 from ..functions.interp_w import compute_ionization
-from ..functions.nonlinear import compute_nonlinear_rk4
+from ..functions.nonlinear import compute_nonlinear_ab2
 from ..functions.radius import compute_radius
 from ..functions.raman import compute_raman
 from .base import SolverBase
 
 
-class SolverFSS(SolverBase):
+class SolverSSCN(SolverBase):
     """Fourier Split-Step class implementation for cylindrical coordinates."""
 
     def __init__(
@@ -29,7 +29,7 @@ class SolverFSS(SolverBase):
         method_nl_opt="RK4",
         ion_model="MPI",
     ):
-        """Initialize FSS class.
+        """Initialize SSCN class.
 
         Parameters
         ----------
@@ -60,8 +60,9 @@ class SolverFSS(SolverBase):
             ion_model,
         )
 
-        # Initialize FSS-specific arrays
+        # Initialize SSCN-specific arrays
         self.envelope_split_rt = np.zeros_like(self.envelope_rt)
+        self.nonlinear_next_rt = np.zeros_like(self.nonlinear_rt)
 
         # Set initial conditions and operators
         self.set_initial_conditions()
@@ -121,7 +122,7 @@ class SolverFSS(SolverBase):
         return matrix_band, matrix_right
 
     def set_operators(self):
-        """Set FSS operators."""
+        """Set SSCN operators."""
         w_grid = 2 * np.pi * fftfreq(self.t_nodes, self.t_res)
         diff_c = 0.25 * self.z_res / (self.k_0 * self.r_res**2)
         disp_c = 0.25 * self.z_res * self.k_2 * w_grid**2
@@ -150,7 +151,7 @@ class SolverFSS(SolverBase):
         # Solve the tridiagonal system using the banded solver
         self.envelope_next_rt[:] = solve_banded((1, 1), self.mat_left, rhs)
 
-    def solve_step(self):
+    def solve_step(self, step):
         """Perform one propagation step."""
         intensity_f = compute_intensity(
             self.envelope_rt[:-1, :],
@@ -210,20 +211,21 @@ class SolverFSS(SolverBase):
         else:
             self.raman_rt.fill(0.0)
         self.compute_dispersion()
-        if self.method_nl == "RK4":
-            compute_nonlinear_rk4(
-                self.envelope_split_rt[:-1, :],
-                self.density_rt[:-1, :],
-                self.raman_rt[:-1, :],
-                self.ionization_rate[:-1, :],
-                self.nonlinear_rt[:-1, :],
-                self.density_n,
-                self.plasma_c,
-                self.mpa_c,
-                self.kerr_c,
-                self.raman_c,
-                self.z_res,
-            )
+        compute_nonlinear_ab2(
+            step,
+            self.envelope_rt[:-1, :],
+            self.density_rt[:-1, :],
+            self.raman_rt[:-1, :],
+            self.ionization_rate[:-1, :],
+            self.nonlinear_next_rt[:-1, :],
+            self.nonlinear_rt[:-1, :],
+            self.density_n,
+            self.plasma_c,
+            self.mpa_c,
+            self.kerr_c,
+            self.raman_c,
+            self.z_res,
+        )
         self.compute_envelope()
         compute_fluence(self.envelope_next_rt, self.t_grid, self.fluence_r)
         compute_radius(self.fluence_r, self.r_grid, self.radius)

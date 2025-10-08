@@ -2,6 +2,6 @@
 
 from .base import SolverBase
 from .fcn import SolverFCN
-from .fss import SolverFSS
+from .sscn import SolverSSCN
 
-__all__ = ["SolverBase", "SolverFSS", "SolverFCN"]
+__all__ = ["SolverBase", "SolverSSCN", "SolverFCN"]

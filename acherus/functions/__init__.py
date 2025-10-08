@@ -4,8 +4,13 @@ from .density import compute_density, compute_density_rk4
 from .fluence import compute_fluence
 from .fourier import compute_fft, compute_ifft
 from .intensity import compute_intensity
-from .interp_pi import compute_ionization
-from .nonlinear import compute_nonlinear_rk4, compute_nonlinear_w_rk4
+from .interp_w import compute_ionization
+from .nonlinear import (
+    compute_nonlinear_ab2,
+    compute_nonlinear_rk4,
+    compute_nonlinear_w_ab2,
+    compute_nonlinear_w_rk4,
+)
 from .radius import compute_radius
 from .raman import compute_raman
 
@@ -21,4 +26,6 @@ __all__ = [
     "compute_raman",
     "compute_nonlinear_rk4",
     "compute_nonlinear_w_rk4",
+    "compute_nonlinear_ab2",
+    "compute_nonlinear_w_ab2",
 ]

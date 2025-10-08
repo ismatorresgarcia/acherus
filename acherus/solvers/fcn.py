@@ -12,7 +12,7 @@ from ..functions.fluence import compute_fluence
 from ..functions.fourier import compute_fft, compute_ifft
 from ..functions.intensity import compute_intensity
 from ..functions.interp_w import compute_ionization
-from ..functions.nonlinear import compute_nonlinear_w_rk4
+from ..functions.nonlinear import compute_nonlinear_w_ab2
 from ..functions.radius import compute_radius
 from ..functions.raman import compute_raman
 from ..physics.sellmeier import sellmeier_air, sellmeier_silica, sellmeier_water
@@ -66,6 +66,7 @@ class SolverFCN(SolverBase):
         # Initialize FCN-specific arrays
         self.envelope_fourier = np.zeros_like(self.envelope_rt)
         self.envelope_fourier_next = np.zeros_like(self.envelope_rt)
+        self.nonlinear_next_rt = np.zeros_like(self.nonlinear_rt)
 
         # Set initial conditions and operators
         self.set_initial_conditions()
@@ -217,7 +218,7 @@ class SolverFCN(SolverBase):
 
         self.envelope_next_rt[:-1, :] = compute_ifft(self.envelope_fourier_next[:-1, :])
 
-    def solve_step(self):
+    def solve_step(self, step):
         """Perform one propagation step."""
         intensity_f = compute_intensity(
             self.envelope_rt[:-1, :],
@@ -276,21 +277,22 @@ class SolverFCN(SolverBase):
             )
         else:
             self.raman_rt.fill(0.0)
-        if self.method_nl == "RK4":
-            compute_nonlinear_w_rk4(
-                self.envelope_rt[:-1, :],
-                self.density_rt[:-1, :],
-                self.raman_rt[:-1, :],
-                self.ionization_rate[:-1, :],
-                self.nonlinear_rt[:-1, :],
-                self.shock_op,
-                self.density_n,
-                self.plasma_c,
-                self.mpa_c,
-                self.kerr_c,
-                self.raman_c,
-                self.z_res,
-            )
+        compute_nonlinear_w_ab2(
+            step,
+            self.envelope_rt[:-1, :],
+            self.density_rt[:-1, :],
+            self.raman_rt[:-1, :],
+            self.ionization_rate[:-1, :],
+            self.nonlinear_next_rt[:-1, :],
+            self.nonlinear_rt[:-1, :],
+            self.shock_op,
+            self.density_n,
+            self.plasma_c,
+            self.mpa_c,
+            self.kerr_c,
+            self.raman_c,
+            self.z_res,
+        )
         self.compute_envelope()
         compute_fluence(self.envelope_next_rt, self.t_grid, self.fluence_r)
         compute_radius(self.fluence_r, self.r_grid, self.radius)
@@ -298,4 +300,8 @@ class SolverFCN(SolverBase):
         self.envelope_rt[:], self.envelope_next_rt[:] = (
             self.envelope_next_rt,
             self.envelope_rt,
+        )
+        self.nonlinear_rt[:], self.nonlinear_next_rt[:] = (
+            self.nonlinear_next_rt,
+            self.nonlinear_rt,
         )

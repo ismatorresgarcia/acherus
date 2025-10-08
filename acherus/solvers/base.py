@@ -9,8 +9,8 @@ from ..data.routines import (
 )
 from ..functions.fluence import compute_fluence
 from ..functions.radius import compute_radius
-from ..physics.pump import initialize_envelope
 from ..physics.photoioniz import compute_ppt_rate
+from ..physics.pump import initialize_envelope
 
 
 class SolverBase:
@@ -159,18 +159,10 @@ class SolverBase:
             np.arange(self.r_nodes), np.argmax(self.density_rt, axis=1)
         ]
 
-    # Methods that should exist in all solvers
-    def set_operators(self):
-        """Set numerical operators.
-
-        Look for the function in the FCN and FSS modules.
-        """
-        raise NotImplementedError("Modules must include set_operators()")
-
-    def solve_step(self):
+    def solve_step(self, step):
         """Perform one propagation step.
 
-        Look for the function in the FCN and FSS modules.
+        Look for the function in the FCN and SSCN modules.
         """
         raise NotImplementedError("Module must include solve_step()")
 
@@ -183,7 +175,7 @@ class SolverBase:
         for snap_idx in range(1, z_snaps + 1):
             for steps_snap_idx in range(1, z_spsnap + 1):
                 step_idx = (snap_idx - 1) * z_spsnap + steps_snap_idx
-                self.solve_step()
+                self.solve_step(step_idx)
                 cheap_diagnostics(self, step_idx)
                 monitoring_diagnostics(self, step_idx)
             expensive_diagnostics(self, snap_idx)

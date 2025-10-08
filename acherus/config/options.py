@@ -5,11 +5,11 @@ def config_options(
     medium: str = "oxygen800",
     pulse: str = "gaussian",
     gauss_order: int = 2,
-    method_density: str = "RK4",
-    method_nonlinear: str = "RK4",
-    solver: str = "FSS",
+    method_density: str = "RK45",
+    method_nonlinear: str = "AB2",
+    solver: str = "FCN",
+    ion_model: str = "PPT",
     gpu: bool = False,
-    ion_model: str = "MPI",
 ) -> dict:
     """
     Available options for launching a simulation.
@@ -27,10 +27,10 @@ def config_options(
      pulse : str             "gaussian"
      gauss_order : int       any positive number >= 2
      method_density : str    "RK4" | "RK23" | "RK45" | "DOP853" | "Radau" | "BDF" | "LSODA"
-     method_nonlin : str     "RK4"
-     solver : str            "FSS" | "FCN"
-     gpu : bool              "True" | "False"
+     method_nonlin : str     "AB2" | "RK4" 
+     solver : str            "SSCN" | "FCN"
      ion_model : str         "MPI" | "PPT"
+     gpu : bool              "True" | "False"
     ======================  ================================================================
 
     Returns

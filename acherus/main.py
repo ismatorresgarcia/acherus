@@ -11,7 +11,7 @@ from .physics.equations import EquationParameters
 from .physics.media import MediumParameters
 from .physics.optics import LaserParameters
 from .solvers.fcn import SolverFCN
-from .solvers.fss import SolverFSS
+from .solvers.sscn import SolverSSCN
 
 
 def main():
@@ -37,8 +37,8 @@ def main():
     eqn = EquationParameters(medium, laser, grid)
 
     # Initialize solver
-    if config["solver"] == "FSS":
-        solver = SolverFSS(
+    if config["solver"] == "SSCN":
+        solver = SolverSSCN(
             medium,
             laser,
             grid,
@@ -60,7 +60,7 @@ def main():
     else:
         raise ValueError(
             f"Not available solver: '{config["solver"]}'. "
-            f"Available solvers are: 'FSS' or 'FCN'."
+            f"Available solvers are: 'SSCN' or 'FCN'."
         )
     # Add more solvers here as needed
     # ... future solvers to be added in the future!
