@@ -54,7 +54,7 @@ class EquationParameters:
         if self.medium.has_raman:
             raman_damping = 1 / self.medium.raman_response_time
             raman_r0 = (raman_damping**2 + self.w_r**2) / self.w_r
-            self.raman_c1 = np.exp(-raman_damping + 1j * self.w_r) * self.dt
+            self.raman_c1 = np.exp(-(raman_damping + 1j * self.w_r) * self.dt)
             self.raman_c2 = 0.5 * raman_r0 * self.dt
         else:
             self.raman_c1 = 0.0
