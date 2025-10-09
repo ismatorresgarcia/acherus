@@ -3,10 +3,12 @@
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
+from scipy.constants import c
 from scipy.fft import fftfreq
 from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
+from ..config.options import config_options
 from ..functions.density import compute_density, compute_density_rk4
 from ..functions.fluence import compute_fluence
 from ..functions.fourier import compute_fft, compute_ifft
@@ -146,20 +148,16 @@ class SolverFCN(SolverBase):
             Dispersion function for each frequency.
 
         """
-        from scipy.constants import c
-
-        from ..config.options import config_options
-
         config = config_options()
         medium = config["medium"]
 
         w = w_det + w_0
 
-        if medium == "oxygen800" or medium == "nitrogen800":
+        if medium in ["oxygen800", "nitrogen800"]:
             n = sellmeier_air(w)
-        elif medium == "water400" or medium == "water800":
+        elif medium in ["water400", "water800"]:
             n = sellmeier_water(w)
-        elif medium == "silica800":
+        elif medium in ["silica800"]:
             n = sellmeier_silica(w)
         else:
             raise ValueError(
