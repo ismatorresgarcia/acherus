@@ -20,8 +20,8 @@ ionization rates computed in the `ppt_rate` module.
 
 4. Then, it interpolates the two datasets to generate an
 interpolating function, which is used to compute
-the ionization rate for the given 2D intensity values. 
-The interpolated ionization rates for this given 2D 
+the ionization rate for the given 2D intensity values.
+The interpolated ionization rates for this given 2D
 intensity array are updated in-place.
 
 """
@@ -37,6 +37,7 @@ def compute_ionization(
     ion_model="MPI",
     peak_inten=None,
     ppt_rate=None,
+    i_cnt_a=None,
 ):
     """
     Compute the ionization rates from the "MPI" or "PPT" models.
@@ -57,6 +58,8 @@ def compute_ionization(
         Peak intensity values for PPT model.
     ppt_rate : (K,) array_like, optional
         Ionization rates for PPT model.
+    i_cnt_a : float, optional
+        Intensity constant factor
 
     """
     if ion_model == "MPI":
@@ -75,4 +78,4 @@ def compute_ionization(
             kind="linear",
             fill_value="extrapolate",
         )
-        ionz_rate_a[:] = rates_interpolator(inten_a)
+        ionz_rate_a[:] = rates_interpolator(i_cnt_a * inten_a)

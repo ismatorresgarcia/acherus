@@ -136,7 +136,7 @@ class SolverBase:
 
         # Initialize PPT rate arrays
         if self.ion_model == "PPT":
-            self.peak_intensity, self.ppt_rate = compute_ppt_rate(
+            self.peak_intensity, self.ppt_rate, self.i_const = compute_ppt_rate(
                 self.medium, self.laser
             )
 

@@ -168,6 +168,7 @@ class SolverSSCN(SolverBase):
                 self.ion_model,
                 self.peak_intensity,
                 self.ppt_rate,
+                self.i_const
             )
         else:
             compute_ionization(

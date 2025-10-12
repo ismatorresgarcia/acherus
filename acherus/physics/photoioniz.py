@@ -86,7 +86,7 @@ def compute_ppt_rate(medium, laser):
 
     def compute_rate(f, w_a, n_q, n_c, g, u_h, sum_a, f_a, g_a, z_a, u_a):
         """Final PPT ionization rate."""
-        mishi = 4 * (16 / 3) * ((2 * g**2 + 3) / (1 + g**2))
+        mishi = 4 * (16 / 3) * (2 * g**2 + 3) / (1 + g**2)
         units = 0.5 * w_a * u_a / u_h
         const = np.sqrt(6 / np.pi)
         c_nl = 2 ** (2 * n_c) / (n_c * g_eu(1 + n_c * (2 - z_a)) * g_eu(n_q))
@@ -101,22 +101,22 @@ def compute_ppt_rate(medium, laser):
         Compute the PPT series truncated term.
         """
         n = len(alpha_a)
-        nu_thr = (nu_a * idx_a).astype(np.float32)
-        idx_min = np.ceil(nu_thr).astype(np.int16)
+        nu_thr = nu_a * idx_a
+        idx_min = np.ceil(nu_thr)
 
-        ids = (idx_min[:, None] + np.arange(max_iter)[None, :]).astype(np.int16)
-        args = (ids - nu_thr[:, None]).astype(np.float32)
+        ids = idx_min[:, None] + np.arange(max_iter)[None, :]
+        args = ids - nu_thr[:, None]
 
         sum_terms = (
             np.exp(-alpha_a[:, None] * args) * dawsn(np.sqrt(beta_a[:, None] * args))
-        ).astype(np.float32)
+        )
 
-        sum_values = (np.cumsum(sum_terms, axis=1)).astype(np.float32)
+        sum_values = np.cumsum(sum_terms, axis=1)
 
         stop = sum_terms < tol * sum_values
         first_stop = np.argmax(stop, axis=1)
 
-        ion_sums = (sum_values[np.arange(n), first_stop]).astype(np.float32)
+        ion_sums = sum_values[np.arange(n), first_stop]
 
         return ion_sums
 
@@ -126,20 +126,20 @@ def compute_ppt_rate(medium, laser):
     n_corr = 1 / np.sqrt(2 * e_gap / u_hy)
     n_quan = z_eff * n_corr
 
-    field_str = np.sqrt(np.linspace(1e-1, 1e19, 10000)).astype(np.float32)
+    i_cnt = 0.5 * c_light * eps_0 * n_0
+    field_str = np.sqrt(np.linspace(1e-1, 1e19, 10000) / i_cnt)
 
-    i_fact = np.sqrt(0.5 * c_light * eps_0 * n_0)
-    gamma = w_0 * i_fact * np.sqrt(2 * m_e * e_gap / e_charge) / field_str
+    gamma = w_0 * np.sqrt(2 * m_e * e_gap / e_charge) / field_str
 
-    asinh = np.arcsinh(gamma).astype(np.float32)
-    idx = (1 + 0.5 / gamma**2).astype(np.float32)
-    beta = (2 * gamma / np.sqrt(1 + gamma**2)).astype(np.float32)
-    alpha = (2 * asinh - beta).astype(np.float32)
-    g_g = (1.5 * (idx * asinh - 1 / beta) / gamma).astype(np.float32)
+    asinh = np.arcsinh(gamma)
+    idx = 1 + 0.5 / gamma**2
+    beta = 2 * gamma / np.sqrt(1 + gamma**2)
+    alpha = 2 * asinh - beta
+    g_g = 1.5 * (idx * asinh - 1 / beta) / gamma
 
     ion_sum = compute_sum(alpha, beta, idx, nu_0, tol=1e-4, max_iter=250)
     ion_ppt_rate = compute_rate(
-        field_str / i_fact,
+        field_str,
         w_au,
         n_quan,
         n_corr,
@@ -152,4 +152,4 @@ def compute_ppt_rate(medium, laser):
         e_gap,
     )
 
-    return field_str**2, ion_ppt_rate
+    return i_cnt * field_str**2, ion_ppt_rate, i_cnt
