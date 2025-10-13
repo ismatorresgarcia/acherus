@@ -13,20 +13,20 @@ determines initially whether the user wants to use
 GPU-acceleration or not.
 
 2. If the `CuPy` library is imported successfully and
-the `GPU` variable was `True`, this will indicate that
+the `GPU` engine was chosen, this will indicate that
 the `CuPy` backend is available for FFT computations, which
 has been set to use the `cufft` backend. If `CuPy` is not
-available, it sets `GPU` to `False`.
+available, it sets `GPU` to `CPU`.
 
 3. `compute_fft` and `compute_ifft` functions are the user's
 API functions which perform the required FFT or IFFT. By default,
 they use the second dimension (axis=1) for the transform, but
 the axis can be specified as an argument if needed.
 
-4. In the end, if `GPU` is `True` this means that the
+4. In the end, if the engine is `GPU` this means that the
 `CuPy` library is available, and the user wants to use
 GPU-acceleration, so the FFT/IFFT is computed using the
-`cufft` routines. Otherwise, `GPU` is `False`, and the
+`cufft` routines. Otherwise, `CPU` is used, and the
 FFT/IFFT is computed using SciPy's `fft` and `ifft`
 functions with the `workers=-1` argument, which allows
 parallelization across all available CPU cores.
@@ -35,18 +35,17 @@ parallelization across all available CPU cores.
 
 import scipy.fft
 
-from ..config.options import config_options
+from ..config import ConfigOptions
 
-config = config_options()
-GPU = config["gpu"]
+engine = ConfigOptions.compute_engine
 
 try:
-    if GPU:
+    if engine == "GPU":
         import cupyx.scipy.fft as cufft
 
         scipy.fft.set_global_backend(cufft)
 except ImportError:
-    GPU = False
+    engine = "CPU"
 
 
 def compute_fft(data, axis=1):
@@ -54,7 +53,7 @@ def compute_fft(data, axis=1):
     Transform data from time domain to frequency domain
     using FFT (cufft if available, scipy.fft otherwise).
     """
-    if GPU:
+    if engine == "GPU":
         return scipy.fft.fft(data, axis=axis)
     return scipy.fft.fft(data, axis=axis, workers=-1)
 
@@ -64,6 +63,6 @@ def compute_ifft(data, axis=1):
     Transform data from to frequency domain time domain
     using FFT (cufft if available, scipy.fft otherwise).
     """
-    if GPU:
+    if engine == "GPU":
         return scipy.fft.ifft(data, axis=axis)
     return scipy.fft.ifft(data, axis=axis, workers=-1)

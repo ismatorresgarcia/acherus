@@ -3,7 +3,7 @@
 from .equations import EquationParameters
 from .media import Medium, MediumParameters
 from .optics import LaserParameters
-from .photoioniz import compute_ppt_rate
+from .photoionization import compute_ppt_rate
 from .pump import initialize_envelope
 from .sellmeier import sellmeier_air, sellmeier_water, sellmeier_silica
 

@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from ..config import ConfigOptions
 from ..data.routines import (
     cheap_diagnostics,
     expensive_diagnostics,
@@ -9,7 +10,11 @@ from ..data.routines import (
 )
 from ..functions.fluence import compute_fluence
 from ..functions.radius import compute_radius
-from ..physics.photoioniz import compute_ppt_rate
+from ..mesh.grid import GridParameters
+from ..physics.equations import EquationParameters
+from ..physics.media import MediumParameters
+from ..physics.optics import LaserParameters
+from ..physics.photoionization import compute_ppt_rate
 from ..physics.pump import initialize_envelope
 
 
@@ -18,18 +23,18 @@ class SolverBase:
 
     def __init__(
         self,
-        medium,
-        laser,
-        grid,
-        eqn,
-        method_d_opt="RK4",
-        method_nl_opt="RK4",
-        ion_model="MPI",
+        config: ConfigOptions,
+        medium: MediumParameters,
+        laser: LaserParameters,
+        grid: GridParameters,
+        eqn: EquationParameters,
     ):
         """Initialize solver with common parameters.
 
         Parameters
         ----------
+        config: object
+            Contains the simulation options.
         medium : object
             Contains the chosen medium parameters.
         laser : object
@@ -38,21 +43,16 @@ class SolverBase:
             Contains the grid input parameters.
         eqn : object
             Contains the equation parameters.
-        method_d_opt : str, default: "RK4"
-            Density solver method chosen.
-        method_nl_opt : str, default: "RK4"
-            Nonlinear solver method chosen.
-        ion_model : str, default: "MPI"
-            Ionization model chosen.
 
         """
         self.medium = medium
         self.laser = laser
         self.grid = grid
         self.eqn = eqn
-        self.method_d = method_d_opt
-        self.method_nl = method_nl_opt
-        self.ion_model = ion_model
+        self.medium_n = config.medium_name
+        self.method_d = config.density_method
+        self.method_nl = config.nonlinear_method
+        self.ion_model = config.ionization_model
 
         # Initialize frequent arguments
         self.r_nodes = grid.r_nodes

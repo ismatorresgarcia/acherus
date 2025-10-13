@@ -8,7 +8,7 @@ from numba import njit, prange
 def compute_raman(int_a, ram_a, ram_x_a, t_a, ram_c1_a, ram_c2_a):
     """
     Compute molecular Raman scattering delayed response for all time steps
-    using trapezoidal integration.
+    using the Exponential Time Differencing (ETD) method.
 
     Parameters
     ----------

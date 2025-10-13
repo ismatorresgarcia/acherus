@@ -21,7 +21,7 @@ class LaserParameters:
     energy: float = 6.7e-3
     chirp: float = 0
     focal_length: float = 0
-    pulse_opt: str = "gaussian"
+    pulse_opt: str = "Gaussian"
     gauss_opt: int = 2
 
     def __post_init__(self):
@@ -32,7 +32,7 @@ class LaserParameters:
         )
         self.frequency_0 = 2 * np.pi * c_light / self.wavelength
         self.ini_power = self.energy / (self.duration * np.sqrt(0.5 * np.pi))
-        if self.pulse_opt == "gaussian":
+        if self.pulse_opt == "Gaussian":
             self.ini_intensity = (
                 self.gauss_opt
                 * self.ini_power
@@ -42,5 +42,5 @@ class LaserParameters:
         else:
             raise ValueError(
                 f"Invalid pulse type: {self.pulse_opt}. "
-                f"Choose 'gaussian' or 'to_be_defined'."
+                f"Choose 'Gaussian' or 'to_be_defined'."
             )

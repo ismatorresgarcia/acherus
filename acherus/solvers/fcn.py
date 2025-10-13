@@ -8,7 +8,7 @@ from scipy.fft import fftfreq
 from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
-from ..config.options import config_options
+from ..config import ConfigOptions
 from ..functions.density import compute_density, compute_density_rk4
 from ..functions.fluence import compute_fluence
 from ..functions.fourier import compute_fft, compute_ifft
@@ -17,6 +17,10 @@ from ..functions.interp_w import compute_ionization
 from ..functions.nonlinear import compute_nonlinear_w_ab2
 from ..functions.radius import compute_radius
 from ..functions.raman import compute_raman
+from ..mesh.grid import GridParameters
+from ..physics.equations import EquationParameters
+from ..physics.media import MediumParameters
+from ..physics.optics import LaserParameters
 from ..physics.sellmeier import sellmeier_air, sellmeier_silica, sellmeier_water
 from .base import SolverBase
 
@@ -26,18 +30,18 @@ class SolverFCN(SolverBase):
 
     def __init__(
         self,
-        medium,
-        laser,
-        grid,
-        eqn,
-        method_d_opt="RK4",
-        method_nl_opt="RK4",
-        ion_model="MPI",
+        config: ConfigOptions,
+        medium: MediumParameters,
+        laser: LaserParameters,
+        grid: GridParameters,
+        eqn: EquationParameters,
     ):
         """Initialize FCN solver.
 
         Parameters
         ----------
+        config: object
+            Contains the simulation options.
         medium : object
             Contains the chosen medium parameters.
         laser : object
@@ -46,23 +50,15 @@ class SolverFCN(SolverBase):
             Contains the grid input parameters.
         eqn : object
             Contains the equation parameters.
-        method_d_opt : str, default: "RK4"
-            Density solver method chosen.
-        method_nl_opt : str, default: "RK4"
-            Nonlinear solver method chosen.
-        ion_model : str, default: "MPI"
-            Ionization model chosen.
-
         """
+
         # Initialize base class
         super().__init__(
+            config,
             medium,
             laser,
             grid,
             eqn,
-            method_d_opt,
-            method_nl_opt,
-            ion_model,
         )
 
         # Initialize FCN-specific arrays
@@ -148,22 +144,21 @@ class SolverFCN(SolverBase):
             Dispersion function for each frequency.
 
         """
-        config = config_options()
-        medium = config["medium"]
+        medium_name = self.medium_n
 
         w = w_det + w_0
 
-        if medium in ["oxygen800", "nitrogen800"]:
+        if medium_name in ["Oxygen_800", "Nitrogen_800"]:
             n = sellmeier_air(w)
-        elif medium in ["water400", "water800"]:
+        elif medium_name in ["Water_400", "Water_800"]:
             n = sellmeier_water(w)
-        elif medium in ["silica800"]:
+        elif medium_name in ["Silica_800"]:
             n = sellmeier_silica(w)
         else:
             raise ValueError(
-                "Not available medium option: '{medium}'. "
-                "Available media are: 'oxygen800', 'nitrogen800', "
-                "'water400', 'water800', and 'silica800'. "
+                f"Not available medium option: '{medium_name}'. "
+                "Available media are: 'Oxygen_800', 'Nitrogen_800', "
+                "'Water_400', 'Water_800', and 'Silica_800'. "
             )
         k_w = n * w / c
 

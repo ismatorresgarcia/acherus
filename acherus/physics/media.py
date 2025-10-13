@@ -47,7 +47,7 @@ class Medium:
 
 # Medium instances defined
 MEDIA = {
-    "oxygen800": Medium(
+    "Oxygen_800": Medium(
         refraction_index_linear=1.0,
         refraction_index_nonlinear=3.2e-23,
         constant_k1=3.3365e-9,
@@ -63,7 +63,7 @@ MEDIA = {
         raman_partition=0.5,
         has_raman=True,
     ),
-    "nitrogen800": Medium(
+    "Nitrogen_800": Medium(
         refraction_index_linear=1.0,
         refraction_index_nonlinear=3.2e-23,
         constant_k1=3.3365e-9,
@@ -79,7 +79,7 @@ MEDIA = {
         raman_partition=0.5,
         has_raman=True,
     ),
-    "water800": Medium(
+    "Water_800": Medium(
         refraction_index_linear=1.334,
         refraction_index_nonlinear=4.1e-20,
         constant_k1=4.4670e-9,
@@ -95,7 +95,7 @@ MEDIA = {
         raman_partition=0.0,
         has_raman=False,
     ),
-    "water400": Medium(
+    "Water_400": Medium(
         refraction_index_linear=1.34,
         refraction_index_nonlinear=4.1e-20,
         constant_k1=4.4698e-9,
@@ -111,7 +111,7 @@ MEDIA = {
         raman_partition=0.0,
         has_raman=False,
     ),
-    "silica800": Medium(
+    "Silica_800": Medium(
         refraction_index_linear=1.453,
         refraction_index_nonlinear=3.2e-20,
         constant_k1=8.908e-9,
@@ -133,7 +133,7 @@ MEDIA = {
 class MediumParameters:
     """Medium parameters checking and extraction."""
 
-    def __init__(self, medium_opt: str = "oxygen800"):
+    def __init__(self, medium_opt: str = "Oxygen_800"):
         if medium_opt not in MEDIA:
             raise ValueError(
                 f"Not available medium option: '{medium_opt}'. "

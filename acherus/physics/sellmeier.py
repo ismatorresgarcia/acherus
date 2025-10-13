@@ -23,7 +23,7 @@ the wavelength in units of microns. Thus, conversion from meters to microns
 is needed.
 
 Mielenz's 'x' variable is the vacuum wavelength in units of microns.
-Hence, the same unit conversion is computed. The same goes for Malitson's 
+Hence, the same unit conversion is computed. The same goes for Malitson's
 formula.
 
 """
