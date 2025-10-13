@@ -23,15 +23,15 @@ class ConfigOptions:
      nonlinear_method : str     "AB2" | "RK4"
      solver_scheme : str        "SSCN" | "FCN"
      ionization_model : str     "MPI" | "PPT"
-     compute_engine : str       "CPU" | "GPU"
+     computing_engine : str     "CPU" | "GPU"
     =========================  ================================================================
 
     """
-    medium_name: str = "Oxygen_800"
-    pulse_shape: str = "Gaussian"
+    medium_name: str = "oxygen_800"
+    pulse_shape: str = "gaussian"
     gauss_order: int = 2
     density_method: str = "RK45"
     nonlinear_method: str = "AB2"
     solver_scheme: str = "FCN"
     ionization_model: str = "PPT"
-    compute_engine: str = "CPU"
+    computing_engine: str = "CPU"

@@ -148,17 +148,17 @@ class SolverFCN(SolverBase):
 
         w = w_det + w_0
 
-        if medium_name in ["Oxygen_800", "Nitrogen_800"]:
+        if medium_name in ["oxygen_800", "nitrogen_800"]:
             n = sellmeier_air(w)
-        elif medium_name in ["Water_400", "Water_800"]:
+        elif medium_name in ["water_400", "water_800"]:
             n = sellmeier_water(w)
-        elif medium_name in ["Silica_800"]:
+        elif medium_name in ["silica_800"]:
             n = sellmeier_silica(w)
         else:
             raise ValueError(
                 f"Not available medium option: '{medium_name}'. "
-                "Available media are: 'Oxygen_800', 'Nitrogen_800', "
-                "'Water_400', 'Water_800', and 'Silica_800'. "
+                "Available media are: 'oxygen_800', 'nitrogen_800', "
+                "'water_400', 'water_800', and 'silica_800'. "
             )
         k_w = n * w / c
 

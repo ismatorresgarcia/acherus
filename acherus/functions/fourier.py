@@ -37,7 +37,7 @@ import scipy.fft
 
 from ..config import ConfigOptions
 
-engine = ConfigOptions.compute_engine
+engine = ConfigOptions.computing_engine
 
 try:
     if engine == "GPU":

@@ -21,8 +21,8 @@ def main():
 
     # Initialize classes
     config = ConfigOptions(
-        medium_name="Oxygen_800",
-        pulse_shape="Gaussian",
+        medium_name="oxygen_800",
+        pulse_shape="gaussian",
         gauss_order=2,
         density_method="RK45",
         nonlinear_method="AB2",
@@ -33,14 +33,14 @@ def main():
 
     grid = GridParameters()
     medium = MediumParameters(medium_opt=config.medium_name)
-    if config.pulse_shape == "Gaussian":
+    if config.pulse_shape == "gaussian":
         laser = LaserParameters(
             medium, pulse_opt=config.pulse_shape, gauss_opt=config.gauss_order
         )
     else:
         raise ValueError(
             f"Invalid pulse type: '{config.pulse_shape}. "
-            f"Choose 'Gaussian' or 'to_be_defined'."
+            f"Choose 'gaussian' or 'to_be_defined'."
         )
     eqn = EquationParameters(medium, laser, grid)
 
