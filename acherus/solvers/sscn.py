@@ -7,17 +7,17 @@ from scipy.sparse import diags_array
 
 from ..config import ConfigOptions
 from ..functions.density import compute_density, compute_density_rk4
+from ..functions.fft_backend import fft, ifft
 from ..functions.fluence import compute_fluence
-from ..functions.fourier import compute_fft, compute_ifft
 from ..functions.intensity import compute_intensity
 from ..functions.interp_w import compute_ionization
 from ..functions.nonlinear import compute_nonlinear_ab2
 from ..functions.radius import compute_radius
 from ..functions.raman import compute_raman
-from ..mesh.grid import GridParameters
-from ..physics.equations import EquationParameters
+from ..mesh.grid import Grid
+from ..physics.equation import Equation
+from ..physics.laser import Laser
 from ..physics.media import MediumParameters
-from ..physics.optics import LaserParameters
 from .base import SolverBase
 
 
@@ -28,9 +28,9 @@ class SolverSSCN(SolverBase):
         self,
         config: ConfigOptions,
         medium: MediumParameters,
-        laser: LaserParameters,
-        grid: GridParameters,
-        eqn: EquationParameters,
+        laser: Laser,
+        grid: Grid,
+        eqn: Equation,
     ):
         """Initialize SSCN solver.
 
@@ -130,8 +130,8 @@ class SolverSSCN(SolverBase):
         """
         Compute one step of the FFT propagation scheme for dispersion.
         """
-        self.envelope_split_rt[:-1, :] = compute_fft(
-            self.disp_exp * compute_ifft(self.envelope_rt[:-1, :]),
+        self.envelope_split_rt[:-1, :] = fft(
+            self.disp_exp * ifft(self.envelope_rt[:-1, :]),
         )
 
     def compute_envelope(self):

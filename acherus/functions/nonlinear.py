@@ -2,7 +2,8 @@
 
 import numpy as np
 
-from .fourier import compute_fft, compute_ifft
+from .fft_backend import fft, ifft
+
 
 def compute_nonlinear_ab2(
     stp_a,
@@ -299,7 +300,7 @@ def compute_nonlinear_w_rk4(
         kerr_c_a,
         ram_c_a,
     )
-    env_1 = env_a + 0.5 * dz * compute_ifft(nlin_1)
+    env_1 = env_a + 0.5 * dz * ifft(nlin_1)
 
     nlin_2 = _set_nlin_w(
         env_1,
@@ -313,7 +314,7 @@ def compute_nonlinear_w_rk4(
         kerr_c_a,
         ram_c_a,
     )
-    env_2 = env_a + 0.5 * dz * compute_ifft(nlin_2)
+    env_2 = env_a + 0.5 * dz * ifft(nlin_2)
 
     nlin_3 = _set_nlin_w(
         env_2,
@@ -327,7 +328,7 @@ def compute_nonlinear_w_rk4(
         kerr_c_a,
         ram_c_a,
     )
-    env_3 = env_a + dz * compute_ifft(nlin_3)
+    env_3 = env_a + dz * ifft(nlin_3)
 
     nlin_4 = _set_nlin_w(
         env_3,
@@ -449,10 +450,10 @@ def _set_nlin_w(
     intensity = np.abs(env_a) ** 2
 
     # Compute nonlinear terms in the frequency domain
-    nlin_p = pls_c_a * compute_fft(dens_a * env_a)
-    nlin_m = mpa_c_a * compute_fft(ion_a * (dens_n_a - dens_a) * env_a / intensity)
-    nlin_k = kerr_c_a * compute_fft(env_a * intensity)
-    nlin_r = ram_c_a * compute_fft(env_a * ram_a)
+    nlin_p = pls_c_a * fft(dens_a * env_a)
+    nlin_m = mpa_c_a * fft(ion_a * (dens_n_a - dens_a) * env_a / intensity)
+    nlin_k = kerr_c_a * fft(env_a * intensity)
+    nlin_r = ram_c_a * fft(env_a * ram_a)
     nlin = nlin_p / shock_op_a + nlin_m + shock_op_a * (nlin_k + nlin_r)
 
     return nlin

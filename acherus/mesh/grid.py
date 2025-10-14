@@ -1,12 +1,9 @@
-"""Grid parameters for the cylindrical domain."""
-
-from dataclasses import dataclass
+"""Grid for the cylindrical domain."""
 
 import numpy as np
 
 
-@dataclass
-class GridParameters:
+class Grid:
     """
     Fixed mesh for cylindrical propagation.
 
@@ -14,29 +11,20 @@ class GridParameters:
     i.e., meters and seconds for the fixed mesh.
     """
 
-    # Radial grid initialization
-    r_min: float = 0
-    r_max: float = 10e-3
-    r_steps: int = 10000
+    def __init__(self, space_par, axis_par, time_par):
+        # Initialize parameters
+        self.r_nodes = space_par.nodes
+        self.r_min = space_par.space_min
+        self.r_max = space_par.space_max
+        self.z_nodes = axis_par.nodes
+        self.z_min = axis_par.axis_min
+        self.z_max = axis_par.axis_max
+        self.z_snapshots = axis_par.snapshots
+        self.t_nodes = time_par.nodes
+        self.t_min = time_par.time_min
+        self.t_max = time_par.time_max
+        self.z_steps_per_snapshot = (self.z_nodes - 1) // self.z_snapshots
 
-    # Axial grid initialization
-    z_min: float = 0
-    z_max: float = 4
-    z_steps: int = 4000
-    z_snapshots: int = 5
-
-    # Temporal grid initialization
-    t_min: float = -250e-15
-    t_max: float = 250e-15
-    t_nodes: int = 8192
-
-    def __post_init__(self):
-        """Post-initialization after defining basic grid parameters."""
-        assert self.r_max > self.r_min, "r_max must be greater than r_min!"
-        assert self.z_max > self.z_min, "z_max must be greater than z_min!"
-        self.r_nodes = self.r_steps + 1
-        self.z_nodes = self.z_steps + 1
-        self.z_steps_per_snapshot = self.z_steps // self.z_snapshots
         self._init_grid_resolution()
         self._init_grid_arrays()
 

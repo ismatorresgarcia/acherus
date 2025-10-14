@@ -1,5 +1,5 @@
 """
-Nonlinear envelope equation and density evolution parameters.
+Equation coefficients.
 """
 
 import numpy as np
@@ -9,9 +9,9 @@ from scipy.constants import epsilon_0 as eps_0
 from scipy.constants import hbar, m_e
 
 
-class EquationParameters:
+class Equation:
     """Pulse propagation and electron density evolution
-    parameters for the final numerical scheme."""
+    coefficients of the numerical scheme."""
 
     def __init__(self, medium, laser, grid):
         # Initialize class attributes
@@ -46,11 +46,9 @@ class EquationParameters:
 
     def _init_coefficients(self):
         """Initialize equations coefficients."""
-        # Density equation coefficients
         self.mpi_c = self.medium.constant_mpi
         self.ava_c = self.sigma_0 / (self.e_gap * q_e)
 
-        # Raman equation coefficients
         if self.medium.has_raman:
             raman_damping = 1 / self.medium.raman_response_time
             raman_r0 = (raman_damping**2 + self.w_r**2) / self.w_r

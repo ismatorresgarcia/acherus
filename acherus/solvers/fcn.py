@@ -3,38 +3,38 @@
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
-from scipy.constants import c
+from scipy.constants import c as c_light
 from scipy.fft import fftfreq
 from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
 from ..config import ConfigOptions
 from ..functions.density import compute_density, compute_density_rk4
+from ..functions.fft_backend import fft, ifft
 from ..functions.fluence import compute_fluence
-from ..functions.fourier import compute_fft, compute_ifft
 from ..functions.intensity import compute_intensity
 from ..functions.interp_w import compute_ionization
 from ..functions.nonlinear import compute_nonlinear_w_ab2
 from ..functions.radius import compute_radius
 from ..functions.raman import compute_raman
-from ..mesh.grid import GridParameters
-from ..physics.equations import EquationParameters
+from ..mesh.grid import Grid
+from ..physics.equation import Equation
+from ..physics.laser import Laser
 from ..physics.media import MediumParameters
-from ..physics.optics import LaserParameters
 from ..physics.sellmeier import sellmeier_air, sellmeier_silica, sellmeier_water
 from .base import SolverBase
 
 
 class SolverFCN(SolverBase):
-    """Fourier Crank-Nicolson class implementation."""
+    """Fourier-Crank-Nicolson class implementation."""
 
     def __init__(
         self,
         config: ConfigOptions,
         medium: MediumParameters,
-        laser: LaserParameters,
-        grid: GridParameters,
-        eqn: EquationParameters,
+        laser: Laser,
+        grid: Grid,
+        eqn: Equation,
     ):
         """Initialize FCN solver.
 
@@ -160,7 +160,7 @@ class SolverFCN(SolverBase):
                 "Available media are: 'oxygen_800', 'nitrogen_800', "
                 "'water_400', 'water_800', and 'silica_800'. "
             )
-        k_w = n * w / c
+        k_w = n * w / c_light
 
         return k_w - self.k_0 - self.k_1 * w_det
 
@@ -190,7 +190,7 @@ class SolverFCN(SolverBase):
         Compute one step of the generalized Fourier-Crank-Nicolson
         scheme for envelope propagation.
         """
-        self.envelope_fourier[:-1, :] = compute_fft(self.envelope_rt[:-1, :])
+        self.envelope_fourier[:-1, :] = fft(self.envelope_rt[:-1, :])
 
         def slice_wrapper(ww):
             """Wrapper for parallel computation of each slice."""
@@ -209,7 +209,7 @@ class SolverFCN(SolverBase):
         for ww, result in enumerate(results):
             self.envelope_fourier_next[:, ww] = result
 
-        self.envelope_next_rt[:-1, :] = compute_ifft(self.envelope_fourier_next[:-1, :])
+        self.envelope_next_rt[:-1, :] = ifft(self.envelope_fourier_next[:-1, :])
 
     def solve_step(self, step):
         """Perform one propagation step."""

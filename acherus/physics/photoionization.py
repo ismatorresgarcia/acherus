@@ -69,7 +69,7 @@ from scipy.constants import e as e_charge
 from scipy.constants import epsilon_0 as eps_0
 from scipy.constants import hbar, m_e, physical_constants
 from scipy.special import dawsn  # pylint: disable=no-name-in-module
-from scipy.special import gamma as g_eu  # pylint: disable=no-name-in-module
+from scipy.special import gamma as g_euler  # pylint: disable=no-name-in-module
 
 
 def compute_ppt_rate(medium, laser):
@@ -89,7 +89,7 @@ def compute_ppt_rate(medium, laser):
         mishi = 4 * (16 / 3) * (2 * g**2 + 3) / (1 + g**2)
         units = 0.5 * w_a * u_a / u_h
         const = np.sqrt(6 / np.pi)
-        c_nl = 2 ** (2 * n_c) / (n_c * g_eu(1 + n_c * (2 - z_a)) * g_eu(n_q))
+        c_nl = 2 ** (2 * n_c) / (n_c * g_euler(1 + n_c * (2 - z_a)) * g_euler(n_q))
         a_m = np.sqrt(4 / (3 * np.pi)) * (g**2 / (1 + g**2)) * sum_a
         p_pw = (2 * f_a / (f * np.sqrt(1 + g**2))) ** (2 * n_c - 1.5)
         g_ex = np.exp(-2 * f_a * g_a / (3 * f))

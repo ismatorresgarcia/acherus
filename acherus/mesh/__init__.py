@@ -1,5 +1,5 @@
 """Domain subpackage initialization file for importing utilities."""
 
-from .grid import GridParameters
+from .grid import Grid
 
-__all__ = ["GridParameters"]
+__all__ = ["Grid"]

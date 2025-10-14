@@ -10,12 +10,11 @@ from ..data.routines import (
 )
 from ..functions.fluence import compute_fluence
 from ..functions.radius import compute_radius
-from ..mesh.grid import GridParameters
-from ..physics.equations import EquationParameters
+from ..mesh.grid import Grid
+from ..physics.equation import Equation
 from ..physics.media import MediumParameters
-from ..physics.optics import LaserParameters
+from ..physics.laser import Laser
 from ..physics.photoionization import compute_ppt_rate
-from ..physics.pump import initialize_envelope
 
 
 class SolverBase:
@@ -25,9 +24,9 @@ class SolverBase:
         self,
         config: ConfigOptions,
         medium: MediumParameters,
-        laser: LaserParameters,
-        grid: GridParameters,
-        eqn: EquationParameters,
+        laser: Laser,
+        grid: Grid,
+        eqn: Equation,
     ):
         """Initialize solver with common parameters.
 
@@ -142,7 +141,7 @@ class SolverBase:
 
     def set_initial_conditions(self):
         """Set initial conditions."""
-        self.envelope_rt[:] = initialize_envelope(self.grid, self.laser)
+        self.envelope_rt[:] = self.laser._init_envelope()
         self.density_rt[:, 0] = self.density_ini
         self.fluence_rz[:, 0] = compute_fluence(self.envelope_rt, t_g_a=self.t_grid)
         self.radius_z[0] = compute_radius(self.fluence_rz[:, 0], r_g_a=self.r_grid)

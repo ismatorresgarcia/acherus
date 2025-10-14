@@ -1,8 +1,9 @@
 """Methods subpackage initialization file for importing functions."""
 
 from .density import compute_density, compute_density_rk4
+from .fft_backend import fft, ifft
+from .fft_manager import FFTManager
 from .fluence import compute_fluence
-from .fourier import compute_fft, compute_ifft
 from .intensity import compute_intensity
 from .interp_w import compute_ionization
 from .nonlinear import (
@@ -15,8 +16,9 @@ from .radius import compute_radius
 from .raman import compute_raman
 
 __all__ = [
-    "compute_fft",
-    "compute_ifft",
+    "FFTManager",
+    "fft",
+    "ifft",
     "compute_fluence",
     "compute_radius",
     "compute_ionization",

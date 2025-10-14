@@ -128,16 +128,18 @@ def monitoring_diagnostics(solver, step):
             meta.create_dataset("last_step", data=0, dtype=np.int16)
 
     # Update data
-    if step % MONITORING_STEPS == 0 or step == solver.grid.z_steps:
+    if step % MONITORING_STEPS == 0 or step == solver.grid.z_nodes - 1:
         with File(monitoring_path, "r+") as f:
+            step_idx = step + 1
             last_step = f["metadata/last_step"][()]
+            last_step_idx = last_step + 1
 
             if step > last_step:
-                f["envelope/peak_rz"][:, last_step + 1 : step + 1] = (
-                    solver.envelope_tp_rz[:, last_step + 1 : step + 1]
+                f["envelope/peak_rz"][:, last_step_idx : step_idx] = (
+                    solver.envelope_tp_rz[:, last_step_idx : step_idx]
                 )
-                f["envelope/peak_rz"][:, last_step + 1 : step + 1] = (
-                    solver.envelope_tp_rz[:, last_step + 1 : step + 1]
+                f["envelope/peak_rz"][:, last_step_idx : step_idx] = (
+                    solver.envelope_tp_rz[:, last_step_idx : step_idx]
                 )
                 f["metadata/last_step"][()] = step
 
