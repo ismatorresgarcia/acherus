@@ -4,6 +4,7 @@ import numpy as np
 from numba import njit, prange
 from scipy.integrate import solve_ivp
 from scipy.interpolate import RegularGridInterpolator
+from scipy.sparse import diags_array
 
 
 @njit(parallel=True)
@@ -116,26 +117,28 @@ def compute_density(
         Method for computing density evolution.
 
     """
-    ion_trp = RegularGridInterpolator(
+    ion_f_a = RegularGridInterpolator(
         (r_a, t_a), ion_a, method="linear", bounds_error=False, fill_value=None
     )
 
     k = len(r_a)
+    dt = t_a[1] - t_a[0]
     sol = solve_ivp(
         _set_density,
         (t_a[0], t_a[-1]),
         np.full(k, dens_0_a),
-        t_eval=t_a,
         method=method_a,
-        args=(ion_trp, dens_n_a, int_a, ava_c_a, r_a),
-        vectorized=True,
-        rtol=1e-12,
+        t_eval=t_a,
+        args=(ion_f_a, dens_n_a, int_a, ava_c_a, r_a),
+        first_step=dt,
+        rtol=1e-4,
         atol=1e-6,
+        jac=_set_jacobian
     )
     dens_a[:] = sol.y.reshape((k, len(t_a)))
 
 
-def _set_density(t, y, a, b, c, d, r):
+def _set_density(t, dens, ion_f, dens_n, intens_f, ava_c, r):
     """
     Compute the electron density evolution terms using ODE solver.
 
@@ -143,27 +146,57 @@ def _set_density(t, y, a, b, c, d, r):
     ----------
     t : float
         Time value.
-    y : (M,) array_like
+    dens : (M,) array_like
         Density at t.
-    a : function
+    ion_f : function
         Interpolated function for ionization rate.
-    b : float
+    dens_n : float
         Neutral density of the medium chosen.
-    c : function
+    intens_f : function
         Interpolated function for intensity.
-    d : float
+    ava_c : float
         Avalanche ionization coefficient.
     r : (M,) array_like
         Radial coordinates grid.
 
     """
-    k = len(r)
-    m = y.shape[1]
-    dens_s_a = y.reshape(k, m)
-    ion_s_a = a((r, t)).reshape(k, 1)
-    int_s_a = c((r, t)).reshape(k, 1)
+    ion_s = ion_f((r, t))
+    int_s = intens_f((r, t))
 
-    rate_ofi = ion_s_a * (b - dens_s_a)
-    rate_ava = d * dens_s_a * int_s_a
+    ofi_rate = ion_s * (dens_n - dens)
+    ava_rate = ava_c * dens * int_s
 
-    return rate_ofi + rate_ava
+    return ofi_rate + ava_rate
+
+
+def _set_jacobian(t, dens, ion_f, dens_n, intens_f, ava_c, r):
+    """
+    Compute the electron density evolution Jacobian matrix for
+    Radau and BDF implicit methods. Better in comparison with
+    the vectorized approach, which relies on finite-difference
+    approximations.
+
+    Parameters
+    ----------
+    t : float
+        Time value.
+    dens : (M,) array_like
+        Density at t.
+    ion_f : function
+        Interpolated function for ionization rate.
+    dens_n : float
+        Neutral density of the medium chosen.
+    intens_f : function
+        Interpolated function for intensity.
+    ava_c : float
+        Avalanche ionization coefficient.
+    r : (M,) array_like
+        Radial coordinates grid.
+
+    """
+    ion_s = ion_f((r, t))
+    int_s = intens_f((r, t))
+
+    diag = -ion_s * dens + ava_c * int_s
+
+    return diags_array(diag, offsets=0)

@@ -45,7 +45,7 @@ class FFTManager:
         self._fft_plan_cache = {}
 
     def set_fft_backend(self, backend: str):
-        """FFT backend configuration"""
+        """FFT backends configuration"""
         backend_opt = backend
         if backend_opt == "GPU":
             try:
@@ -62,6 +62,7 @@ class FFTManager:
             self._setup_fft_cpu()
 
     def _setup_fft_cpu(self):
+        """FFT CPU configuration"""
         try:
             import pyfftw.interfaces.scipy_fft as fftw_backend
 
