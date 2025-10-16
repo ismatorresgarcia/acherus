@@ -5,7 +5,6 @@ from scipy.fft import fftfreq
 from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
-from ..config import ConfigOptions
 from ..functions.density import compute_density, compute_density_rk4
 from ..functions.fft_backend import fft, ifft
 from ..functions.fluence import compute_fluence
@@ -14,10 +13,6 @@ from ..functions.interp_w import compute_ionization
 from ..functions.nonlinear import compute_nonlinear_ab2
 from ..functions.radius import compute_radius
 from ..functions.raman import compute_raman
-from ..mesh.grid import Grid
-from ..physics.equation import Equation
-from ..physics.laser import Laser
-from ..physics.media import MediumParameters
 from .base import SolverBase
 
 
@@ -26,11 +21,11 @@ class SolverSSCN(SolverBase):
 
     def __init__(
         self,
-        config: ConfigOptions,
-        medium: MediumParameters,
-        laser: Laser,
-        grid: Grid,
-        eqn: Equation,
+        config: object,
+        medium: object,
+        laser: object,
+        grid: object,
+        eqn: object,
     ):
         """Initialize SSCN solver.
 
@@ -175,7 +170,7 @@ class SolverSSCN(SolverBase):
                 self.mpi_c,
                 self.ion_model,
             )
-        if self.method_d == "RK4":
+        if self.dens_meth == "RK4":
             compute_density_rk4(
                 self.intensity_rt[:-1, :],
                 self.density_rt[:-1, :],
@@ -195,7 +190,10 @@ class SolverSSCN(SolverBase):
                 self.density_n,
                 self.density_ini,
                 self.avalanche_c,
-                self.method_d,
+                self.dens_meth,
+                self.dens_meth_ini_step,
+                self.dens_meth_atol,
+                self.dens_meth_rtol,
             )
         if self.use_raman:
             compute_raman(

@@ -8,10 +8,10 @@ from scipy.special import gamma as g_euler
 class Laser:
     """Laser pulse."""
 
-    def __init__(self, medium, grid, pulse_typ, pulse_par):
+    def __init__(self, medium, grid, pulse_name, pulse_par):
         # Initialize class attributes
         self.medium = medium
-        self.shape = pulse_typ
+        self.pulse_name = pulse_name
 
         # Initialize parameters
         self.wavelength = pulse_par.wavelength
@@ -35,7 +35,7 @@ class Laser:
         )
         self.frequency_0 = 2 * np.pi * c_light / self.wavelength
         self.initial_power = self.energy / (self.duration * np.sqrt(0.5 * np.pi))
-        if self.shape == "gaussian":
+        if self.pulse_name == "gaussian":
             self.ini_intensity = (
                 self.gauss_order
                 * self.initial_power

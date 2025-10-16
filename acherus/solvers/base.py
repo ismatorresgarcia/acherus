@@ -2,7 +2,6 @@
 
 import numpy as np
 
-from ..config import ConfigOptions
 from ..data.routines import (
     cheap_diagnostics,
     expensive_diagnostics,
@@ -10,10 +9,6 @@ from ..data.routines import (
 )
 from ..functions.fluence import compute_fluence
 from ..functions.radius import compute_radius
-from ..mesh.grid import Grid
-from ..physics.equation import Equation
-from ..physics.media import MediumParameters
-from ..physics.laser import Laser
 from ..physics.photoionization import compute_ppt_rate
 
 
@@ -22,11 +17,11 @@ class SolverBase:
 
     def __init__(
         self,
-        config: ConfigOptions,
-        medium: MediumParameters,
-        laser: Laser,
-        grid: Grid,
-        eqn: Equation,
+        config: object,
+        medium: object,
+        laser: object,
+        grid: object,
+        eqn: object,
     ):
         """Initialize solver with common parameters.
 
@@ -49,8 +44,11 @@ class SolverBase:
         self.grid = grid
         self.eqn = eqn
         self.medium_n = config.medium_name
-        self.method_d = config.density_method
-        self.method_nl = config.nonlinear_method
+        self.dens_meth = config.density_method
+        self.dens_meth_ini_step = config.density_method_par.ini_step
+        self.dens_meth_rtol = config.density_method_par.rtol
+        self.dens_meth_atol = config.density_method_par.atol
+        self.nlin_meth = config.nonlinear_method
         self.ion_model = config.ionization_model
 
         # Initialize frequent arguments

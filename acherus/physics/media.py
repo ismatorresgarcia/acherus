@@ -105,7 +105,7 @@ MEDIA = {
         ionization_energy=6.5,
         drude_time=1e-15,
         density_neutral=6.7e28,
-        density_initial=1e21,
+        density_initial=1e9,
         raman_rotational_frequency=0.0,
         raman_response_time=0.0,
         raman_partition=0.0,
@@ -119,9 +119,9 @@ MEDIA = {
         effective_charge=1.0,
         constant_mpi=1.3e-75,
         ionization_energy=7.6,
-        drude_time=3.2e-15,
+        drude_time=6.9e-15,
         density_neutral=2.1e28,
-        density_initial=1e21,
+        density_initial=1e9,
         raman_rotational_frequency=0.0,
         raman_response_time=0.0,
         raman_partition=0.0,
@@ -133,13 +133,13 @@ MEDIA = {
 class MediumParameters:
     """Medium parameters checking and extraction."""
 
-    def __init__(self, medium_opt: str = "oxygen_800"):
-        if medium_opt not in MEDIA:
+    def __init__(self, medium_name: str = "oxygen_800"):
+        if medium_name not in MEDIA:
             raise ValueError(
-                f"Not available medium option: '{medium_opt}'. "
+                f"Not available medium option: '{medium_name}'. "
                 f"Available media are: {', '.join(MEDIA.keys())}"
             )
-        self.medium = MEDIA[medium_opt]
+        self.medium = MEDIA[medium_name]
 
     def __getattr__(self, name):
         # Extract medium properties as direct attributes

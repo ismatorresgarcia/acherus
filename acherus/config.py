@@ -1,9 +1,7 @@
 """Acherus configuration file module."""
 
 from dataclasses import dataclass
-from typing import Dict, Type
-
-# Union will be used for adding more pulse_shapes in the future
+from typing import Dict, Optional, Type
 
 
 @dataclass
@@ -35,14 +33,52 @@ class GaussianPulseConfig:
     focal_length: float
     gauss_order: int
 
-GRID_CONFIG_CLASSES = {
+@dataclass
+class RK23DensityConfig:
+    ini_step: Optional[float] = None
+    rtol: float = 1e-3
+    atol: float = 1e-6
+
+@dataclass
+class RK45DensityConfig:
+    ini_step: Optional[float] = None
+    rtol: float = 1e-3
+    atol: float = 1e-6
+
+@dataclass
+class DOP853DensityConfig:
+    ini_step: Optional[float] = None
+    rtol: float = 1e-3
+    atol: float = 1e-6
+
+@dataclass
+class RadauDensityConfig:
+    ini_step: Optional[float] = None
+    rtol: float = 1e-3
+    atol: float = 1e-6
+
+@dataclass
+class BDFDensityConfig:
+    ini_step: Optional[float] = None
+    rtol: float = 1e-3
+    atol: float = 1e-6
+
+GRID_CONFIG_CLASSES: Dict[str, Type] = {
     "space": SpaceGridConfig,
     "axis": AxisGridConfig,
     "time": TimeGridConfig
 }
 
-PULSE_SHAPE_CLASSES: Dict[str, Type] = {
+PULSE_CONFIG_CLASSES: Dict[str, Type] = {
     "gaussian": GaussianPulseConfig,
+}
+
+DENSITY_CONFIG_CLASSES: Dict[str, Type] = {
+    "RK23": RK23DensityConfig,
+    "RK45": RK45DensityConfig,
+    "DOP853": DOP853DensityConfig,
+    "Radau": RadauDensityConfig,
+    "BDF": BDFDensityConfig,
 }
 
 @dataclass
@@ -56,29 +92,31 @@ class ConfigOptions:
     The default options are provided here, but all
     the available options are
 
-    Parameters                 Choice
-    =========================  ================================================================
-     medium_name : str          see "media" module for the list
-     space_grid: Dict           see "classes" above for the list
-     axis_grid: Dict            see "classes" above for the list
-     time_grid: Dict            see "classes" above for the list
-     pulse_shape : str          "gaussian"
-     pulse_config : Dict        see "classes" above for the list
-     density_method : str       "RK4" | "RK23" | "RK45" | "DOP853" | "Radau" | "BDF" | "LSODA"
-     nonlinear_method : str     "AB2" | "RK4"
-     solver_scheme : str        "SSCN" | "FCN"
-     ionization_model : str     "MPI" | "PPT"
-     computing_backend : str     "CPU" | "GPU"
-    =========================  ================================================================
+    Parameters                   Choice
+    =========================    ================================================================
+     medium_name : str            see "media" module for the list
+     space_par: Dict              see "classes" above for the list
+     axis_par: Dict               see "classes" above for the list
+     time_par: Dict               see "classes" above for the list
+     pulse_name : str             "gaussian"
+     pulse_par : Dict             see "classes" above for the list
+     density_method : str         "RK4" | "RK23" | "RK45" | "DOP853" | "Radau" | "BDF" | "LSODA"
+     density_method_par : Dict    see "classes" above for the list
+     nonlinear_method : str       "AB2" | "RK4"
+     solver_scheme : str          "SSCN" | "FCN"
+     ionization_model : str       "MPI" | "PPT"
+     computing_backend : str      "CPU" | "GPU"
+    =========================    ================================================================
 
     """
     medium_name: str
-    space_grid: object
-    axis_grid: object
-    time_grid: object
-    pulse_shape: str
-    pulse_config: object # this is where the Union[shape1, shape2, ...] would be
+    space_par: object
+    axis_par: object
+    time_par: object
+    pulse_name: str
+    pulse_par: object
     density_method: str
+    density_method_par: object
     nonlinear_method: str
     solver_scheme: str
     ionization_model: str
@@ -88,9 +126,8 @@ class ConfigOptions:
     def build(
         medium_name: str,
         grid_parameters: Dict[str, Dict],
-        pulse_shape: str,
-        pulse_parameters: Dict, # this is where the Union[shape1, shape2, ...] would be
-        density_method: str,
+        pulse_parameters: Dict[str, Dict],
+        density_solver: Dict[str, Dict],
         nonlinear_method: str,
         solver_scheme: str,
         ionization_model: str,
@@ -98,26 +135,39 @@ class ConfigOptions:
     ) -> "ConfigOptions":
 
         grid_config = {}
-        for grid_name, params in grid_parameters.items():
+        for grid_name, grid_params in grid_parameters.items():
             if grid_name not in GRID_CONFIG_CLASSES:
                 raise ValueError(f"Unknown grid type: {grid_name}")
             grid_class = GRID_CONFIG_CLASSES[grid_name]
-            grid_config[grid_name] = grid_class(**params)
+            grid_config[grid_name] = grid_class(**grid_params)
 
-        if pulse_shape not in PULSE_SHAPE_CLASSES:
-            raise ValueError(f"Invalid pulse type: {pulse_shape}.")
+        pulse_name = next(iter(pulse_parameters))
+        pulse_params = pulse_parameters[pulse_name]
 
-        pulse_class = PULSE_SHAPE_CLASSES[pulse_shape]
-        pulse_config = pulse_class(**pulse_parameters)
+        if pulse_name not in PULSE_CONFIG_CLASSES:
+            raise ValueError(f"Invalid pulse type: {pulse_name}.")
+
+        pulse_class = PULSE_CONFIG_CLASSES[pulse_name]
+        pulse_config = pulse_class(**pulse_params)
+
+        density_name = next(iter(density_solver))
+        density_params = density_solver[density_name]
+
+        if density_name not in DENSITY_CONFIG_CLASSES:
+            raise ValueError(f"Invalid density solver: {density_name}.")
+
+        density_class = DENSITY_CONFIG_CLASSES[density_name]
+        density_config = density_class(**density_params)
 
         return ConfigOptions(
             medium_name=medium_name,
-            space_grid=grid_config["space"],
-            time_grid=grid_config["time"],
-            axis_grid=grid_config["axis"],
-            pulse_shape=pulse_shape,
-            pulse_config=pulse_config,
-            density_method=density_method,
+            space_par=grid_config["space"],
+            time_par=grid_config["time"],
+            axis_par=grid_config["axis"],
+            pulse_name=pulse_name,
+            pulse_par=pulse_config,
+            density_method=density_name,
+            density_method_par=density_config,
             nonlinear_method=nonlinear_method,
             solver_scheme=solver_scheme,
             ionization_model=ionization_model,

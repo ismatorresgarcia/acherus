@@ -90,7 +90,7 @@ def _set_density_rk4(dens_s_a, int_s_a, ion_s_a, dens_n_a, ava_c_a):
 
 
 def compute_density(
-    int_a, dens_a, ion_a, r_a, t_a, dens_n_a, dens_0_a, ava_c_a, method_a
+    int_a, dens_a, ion_a, r_a, t_a, dens_n_a, dens_0_a, ava_c_a, method_a, first_step_a, rtol_a, atol_a
 ):
     """
     Compute electron density evolution for all time steps using ODE solver.
@@ -115,6 +115,12 @@ def compute_density(
         Avalanche ionization coefficient.
     method_a : str
         Method for computing density evolution.
+    first_step_a : float
+        Initial step size for the ODE solver.
+    rtol_a : float
+        Relative tolerance for the ODE solver.
+    atol_a : float
+        Absolute tolerance for the ODE solver.
 
     """
     ion_f_a = RegularGridInterpolator(
@@ -122,7 +128,6 @@ def compute_density(
     )
 
     k = len(r_a)
-    dt = t_a[1] - t_a[0]
     sol = solve_ivp(
         _set_density,
         (t_a[0], t_a[-1]),
@@ -130,9 +135,9 @@ def compute_density(
         method=method_a,
         t_eval=t_a,
         args=(ion_f_a, dens_n_a, int_a, ava_c_a, r_a),
-        first_step=dt,
-        rtol=1e-4,
-        atol=1e-6,
+        first_step=first_step_a,
+        rtol=rtol_a,
+        atol=atol_a,
         jac=_set_jacobian
     )
     dens_a[:] = sol.y.reshape((k, len(t_a)))
@@ -197,6 +202,6 @@ def _set_jacobian(t, dens, ion_f, dens_n, intens_f, ava_c, r):
     ion_s = ion_f((r, t))
     int_s = intens_f((r, t))
 
-    diag = -ion_s * dens + ava_c * int_s
+    diag = -ion_s + ava_c * int_s
 
     return diags_array(diag, offsets=0)
