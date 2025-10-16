@@ -9,7 +9,7 @@ from ..data.routines import (
 )
 from ..functions.fluence import compute_fluence
 from ..functions.radius import compute_radius
-from ..physics.photoionization import compute_ppt_rate
+from ..physics.keldysh import compute_ppt_rate
 
 
 class SolverBase:
