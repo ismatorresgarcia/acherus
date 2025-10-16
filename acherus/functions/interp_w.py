@@ -37,7 +37,7 @@ def compute_ionization(
     ion_model="MPI",
     peak_inten=None,
     ppt_rate=None,
-    i_cnt_a=None,
+    i_factor_a=None,
 ):
     """
     Compute the ionization rates from the "MPI" or "PPT" models.
@@ -58,7 +58,7 @@ def compute_ionization(
         Peak intensity values for PPT model.
     ppt_rate : (K,) array_like, optional
         Ionization rates for PPT model.
-    i_cnt_a : float, optional
+    i_factor_a : float, optional
         Intensity constant factor
 
     """
@@ -78,4 +78,4 @@ def compute_ionization(
             kind="linear",
             fill_value="extrapolate",
         )
-        ionz_rate_a[:] = rates_interpolator(i_cnt_a * inten_a)
+        ionz_rate_a[:] = rates_interpolator(i_factor_a * inten_a)

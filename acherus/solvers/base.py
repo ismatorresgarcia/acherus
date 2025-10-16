@@ -17,11 +17,11 @@ class SolverBase:
 
     def __init__(
         self,
-        config: object,
-        medium: object,
-        laser: object,
-        grid: object,
-        eqn: object,
+        config,
+        medium,
+        laser,
+        grid,
+        eqn
     ):
         """Initialize solver with common parameters.
 
@@ -133,13 +133,13 @@ class SolverBase:
 
         # Initialize PPT rate arrays
         if self.ion_model == "PPT":
-            self.peak_intensity, self.ppt_rate, self.i_const = compute_ppt_rate(
+            self.peak_intensity, self.ppt_rate, self.i_factor = compute_ppt_rate(
                 self.medium, self.laser
             )
 
     def set_initial_conditions(self):
         """Set initial conditions."""
-        self.envelope_rt[:] = self.laser._init_envelope()
+        self.envelope_rt[:] = self.laser.init_envelope()
         self.density_rt[:, 0] = self.density_ini
         self.fluence_rz[:, 0] = compute_fluence(self.envelope_rt, t_g_a=self.t_grid)
         self.radius_z[0] = compute_radius(self.fluence_rz[:, 0], r_g_a=self.r_grid)

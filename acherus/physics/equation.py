@@ -21,14 +21,12 @@ class Equation:
 
         # Initialize parameters
         self.alpha = self.medium.raman_partition
-        self.e_gap = self.medium.ionization_energy
-        self.k_0 = self.laser.wavenumber_0
+        self.u_i = self.medium.ionization_energy
         self.n_0 = self.medium.refraction_index_linear
         self.n_2 = self.medium.refraction_index_nonlinear
         self.w_r = self.medium.raman_rotational_frequency
         self.w_0 = self.laser.frequency_0
         self.tau = self.medium.drude_time
-        self.z_eff = self.medium.effective_charge
         self.dt = self.grid.t_res
 
         # Initialize functions
@@ -39,7 +37,7 @@ class Equation:
     def _init_densities(self):
         """Initialize density parameters."""
         rho_c = eps_0 * m_e * (self.w_0 / q_e) ** 2
-        self.n_k = np.ceil(self.e_gap * q_e / (hbar * self.w_0))
+        self.n_k = np.ceil(self.u_i * q_e / (hbar * self.w_0))
         self.sigma_0 = (self.w_0**2 * self.tau) / (
             (self.n_0 * c_light * rho_c) * (1 + (self.w_0 * self.tau) ** 2)
         )
@@ -47,7 +45,8 @@ class Equation:
     def _init_coefficients(self):
         """Initialize equations coefficients."""
         self.mpi_c = self.medium.constant_mpi
-        self.ava_c = self.sigma_0 / (self.e_gap * q_e)
+        self.ava_c = self.sigma_0 / (self.u_i * q_e)
+        self.k_vac = self.w_0 / c_light
 
         if self.medium.has_raman:
             raman_damping = 1 / self.medium.raman_response_time
@@ -64,8 +63,8 @@ class Equation:
         self.mpa_c = -0.5 * self.n_k * hbar * self.w_0
 
         if self.medium.has_raman:
-            self.kerr_c = 1j * self.w_0 * (1 - self.alpha) * self.n_2 / c_light
-            self.raman_c = 1j * self.w_0 * self.alpha * self.n_2 / c_light
+            self.kerr_c = 1j * self.k_vac * (1 - self.alpha) * self.n_2
+            self.raman_c = 1j * self.k_vac * self.alpha * self.n_2
         else:
-            self.kerr_c = 1j * self.w_0 * self.n_2 / c_light
+            self.kerr_c = 1j * self.k_vac * self.n_2
             self.raman_c = 0.0

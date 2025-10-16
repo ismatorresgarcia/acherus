@@ -26,24 +26,24 @@ class Laser:
 
         # Initialize functions
         self._init_parameters()
-        self._init_envelope()
+        self.init_envelope()
 
     def _init_parameters(self):
         """Initialize derived laser optical properties"""
+        self.frequency_0 = 2 * np.pi * c_light / self.wavelength
         self.wavenumber_0 = (
             2 * np.pi * self.medium.refraction_index_linear / self.wavelength
         )
-        self.frequency_0 = 2 * np.pi * c_light / self.wavelength
         self.initial_power = self.energy / (self.duration * np.sqrt(0.5 * np.pi))
         if self.pulse_name == "gaussian":
-            self.ini_intensity = (
+            self.initial_intensity = (
                 self.gauss_order
                 * self.initial_power
                 * 2 ** (2 / self.gauss_order)
                 / (2 * np.pi * self.waist**2 * g_euler(2 / self.gauss_order))
             )
 
-    def _init_envelope(self):
+    def init_envelope(self):
         """
         Compute the initial condition for an envelope at z = 0.
 
@@ -62,4 +62,4 @@ class Laser:
         if self.chirp != 0:
             exp_t2 -= 1j * self.chirp * (t_grid_2d / self.duration) ** 2
 
-        return np.sqrt(self.ini_intensity) * np.exp(exp_r2 + exp_t2)
+        return np.sqrt(self.initial_intensity) * np.exp(exp_r2 + exp_t2)

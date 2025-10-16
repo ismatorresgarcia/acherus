@@ -21,11 +21,11 @@ class SolverSSCN(SolverBase):
 
     def __init__(
         self,
-        config: object,
-        medium: object,
-        laser: object,
-        grid: object,
-        eqn: object,
+        config,
+        medium,
+        laser,
+        grid,
+        eqn
     ):
         """Initialize SSCN solver.
 
@@ -160,7 +160,7 @@ class SolverSSCN(SolverBase):
                 self.ion_model,
                 self.peak_intensity,
                 self.ppt_rate,
-                self.i_const
+                self.i_factor
             )
         else:
             compute_ionization(
