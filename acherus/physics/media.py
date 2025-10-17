@@ -46,9 +46,9 @@ class Medium:
 # Medium instances defined
 MEDIA = {
     "oxygen_800": Medium(
-        refraction_index_linear=1.0,
+        refraction_index_linear=1.00042,
         refraction_index_nonlinear=3.2e-23,
-        constant_k1=3.3365e-9,
+        constant_k1=3.3372e-9,
         constant_k2=0.2e-28,
         constant_mpi=2.81e-128,
         ionization_energy=12.063,
