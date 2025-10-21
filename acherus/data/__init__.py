@@ -1,6 +1,6 @@
 """Diagnostics subpackage initialization file for importing utilities."""
 
-from .routines import (
+from .diagnostics import (
     cheap_diagnostics,
     expensive_diagnostics,
     monitoring_diagnostics,

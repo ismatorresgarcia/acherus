@@ -1,7 +1,6 @@
 """Split-Step Crank-Nicolson (SSCN) solver module."""
 
 import numpy as np
-from scipy.fft import fftfreq
 from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
@@ -115,11 +114,15 @@ class SolverSSCN(SolverBase):
 
     def set_operators(self):
         """Set SSCN operators."""
-        w_grid = 2 * np.pi * fftfreq(self.t_nodes, self.t_res)
-        diff_c = 0.25 * self.z_res / (self.k_0 * self.r_res**2)
-        disp_c = 0.25 * self.z_res * self.k_2 * w_grid**2
-        self.disp_exp = np.exp(2j * disp_c)
-        self.mat_left, self.mat_right = self.compute_matrices(self.r_nodes, diff_c)
+        diff_op = 0.25 * self.z_res / (self.k_0 * self.r_res**2)
+        disp_op = 0.25 * self.z_res * self.k_2 * self.w_grid**2
+        self.plasma_op = self.z_res * self.plasma_c
+        self.mpa_op = self.z_res * self.mpa_c
+        self.kerr_op = self.z_res * self.kerr_c
+        self.raman_op = self.z_res * self.raman_c
+
+        self.disp_exp = np.exp(2j * disp_op)
+        self.mat_left, self.mat_right = self.compute_matrices(self.r_nodes, diff_op)
 
     def compute_dispersion(self):
         """
@@ -201,8 +204,8 @@ class SolverSSCN(SolverBase):
                 self.raman_rt[:-1, :],
                 self.raman_aux[:-1, :],
                 self.t_grid,
-                self.raman_c1,
-                self.raman_c2,
+                self.raman_ode1,
+                self.raman_ode2,
             )
         else:
             self.raman_rt.fill(0.0)
@@ -216,11 +219,10 @@ class SolverSSCN(SolverBase):
             self.nonlinear_next_rt[:-1, :],
             self.nonlinear_rt[:-1, :],
             self.density_n,
-            self.plasma_c,
-            self.mpa_c,
-            self.kerr_c,
-            self.raman_c,
-            self.z_res,
+            self.plasma_op,
+            self.mpa_op,
+            self.kerr_op,
+            self.raman_op,
         )
         self.compute_envelope()
         compute_fluence(self.envelope_next_rt, self.t_grid, self.fluence_r)

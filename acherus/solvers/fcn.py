@@ -4,7 +4,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 from scipy.constants import c as c_light
-from scipy.fft import fftfreq
 from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
@@ -160,18 +159,21 @@ class SolverFCN(SolverBase):
         return k_w - self.k_0 - self.k_1 * w_det
 
     def set_operators(self):
-        """Set FCN operators."""
-        w_grid = 2 * np.pi * fftfreq(self.t_nodes, self.t_res)
-        self.shock_op = 1 + w_grid / self.w_0
-        diff_c = 0.25 * self.z_res / (self.k_0 * self.r_res**2 * self.shock_op)
-        disp_c = 0.5 * self.z_res * self.set_dispersion(w_grid, self.w_0)
+        """Set Fourier-Crank-Nicolson operators."""
+        self.steep_op = 1 + self.w_grid / self.w_0
+        diff_op = 0.25 * self.z_res / (self.k_0 * self.r_res**2 * self.steep_op)
+        disp_op = 0.5 * self.z_res * self.set_dispersion(self.w_grid, self.w_0)
+        self.plasma_op = self.z_res * self.plasma_c / self.steep_op
+        self.mpa_op = self.z_res * self.mpa_c
+        self.kerr_op = self.z_res * self.kerr_c * self.steep_op
+        self.raman_op = self.z_res * self.raman_c * self.steep_op
 
         self.mats_left = [None] * self.t_nodes
         self.mats_right = [None] * self.t_nodes
 
         def matrix_wrapper(ww):
             """Wrapper for parallel computation and storage of matrices."""
-            return self.compute_matrices(self.r_nodes, diff_c[ww], disp_c[ww])
+            return self.compute_matrices(self.r_nodes, diff_op[ww], disp_op[ww])
 
         with ThreadPoolExecutor() as executor:
             results = list(executor.map(matrix_wrapper, range(self.t_nodes)))
@@ -264,8 +266,8 @@ class SolverFCN(SolverBase):
                 self.raman_rt[:-1, :],
                 self.raman_aux[:-1, :],
                 self.t_grid,
-                self.raman_c1,
-                self.raman_c2,
+                self.raman_ode1,
+                self.raman_ode2,
             )
         else:
             self.raman_rt.fill(0.0)
@@ -277,13 +279,11 @@ class SolverFCN(SolverBase):
             self.ionization_rate[:-1, :],
             self.nonlinear_next_rt[:-1, :],
             self.nonlinear_rt[:-1, :],
-            self.shock_op,
             self.density_n,
-            self.plasma_c,
-            self.mpa_c,
-            self.kerr_c,
-            self.raman_c,
-            self.z_res,
+            self.plasma_op,
+            self.mpa_op,
+            self.kerr_op,
+            self.raman_op,
         )
         self.compute_envelope()
         compute_fluence(self.envelope_next_rt, self.t_grid, self.fluence_r)

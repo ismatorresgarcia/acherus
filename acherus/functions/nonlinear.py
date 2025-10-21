@@ -18,7 +18,6 @@ def compute_nonlinear_ab2(
     mpa_c_a,
     kerr_c_a,
     ram_c_a,
-    dz,
 ):
     """
     Compute envelope propagation nonlinearities in FSS scheme
@@ -50,8 +49,6 @@ def compute_nonlinear_ab2(
         Kerr coefficient.
     ram_c_a : float
         Raman coefficient.
-    dz : float
-        Axial step.
 
     """
     nlin_1 = _set_nlin(
@@ -66,9 +63,9 @@ def compute_nonlinear_ab2(
         ram_c_a,
     )
     if stp_a == 1:
-        nlin_ab2 = dz * nlin_1
+        nlin_ab2 = nlin_1
     else:
-        nlin_ab2 = dz * (1.5 * nlin_1 - 0.5 * nlin_p)
+        nlin_ab2 = 1.5 * nlin_1 - 0.5 * nlin_p
 
     nlin_a[:] = nlin_ab2
 
@@ -80,13 +77,11 @@ def compute_nonlinear_w_ab2(
     ion_a,
     nlin_a,
     nlin_p,
-    shock_op_a,
     dens_n_a,
     pls_c_a,
     mpa_c_a,
     kerr_c_a,
     ram_c_a,
-    dz,
 ):
     """
     Compute envelope propagation nonlinearities in FCN scheme
@@ -108,8 +103,6 @@ def compute_nonlinear_w_ab2(
         Pre-allocated array for the nonlinear terms.
     nlin_p : (M, N) array_like
         Previous step nonlinear terms.
-    shock_op_a : (N,) array_like
-        Self-steepening operator acting on nonlinearities.
     dens_n_a : float
         Neutral density of the medium.
     pls_c_a : float
@@ -120,8 +113,6 @@ def compute_nonlinear_w_ab2(
         Kerr coefficient.
     ram_c_a : float
         Raman coefficient.
-    dz : float
-        Axial step
 
     """
     nlin_w_1 = _set_nlin_w(
@@ -129,7 +120,6 @@ def compute_nonlinear_w_ab2(
         dens_a,
         ram_a,
         ion_a,
-        shock_op_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -137,11 +127,11 @@ def compute_nonlinear_w_ab2(
         ram_c_a,
     )
     if stp_a == 1:
-        nlin_ab2 = dz * nlin_w_1
+        nlin_ab2 = nlin_w_1
     else:
-        nlin_ab2 = dz * (1.5 * nlin_w_1 - 0.5 * nlin_p)
+        nlin_ab2 = 1.5 * nlin_w_1 - 0.5 * nlin_p
 
-        nlin_a[:] = nlin_ab2
+    nlin_a[:] = nlin_ab2
 
 def compute_nonlinear_rk4(
     env_a,
@@ -237,7 +227,7 @@ def compute_nonlinear_rk4(
         ram_c_a,
     )
 
-    nlin_rk4 = dz * (nlin_1 + 2 * nlin_2 + 2 * nlin_3 + nlin_4) / 6
+    nlin_rk4 = (nlin_1 + 2 * nlin_2 + 2 * nlin_3 + nlin_4) / 6
 
     nlin_a[:] = nlin_rk4
 
@@ -248,7 +238,6 @@ def compute_nonlinear_w_rk4(
     ram_a,
     ion_a,
     nlin_a,
-    shock_op_a,
     dens_n_a,
     pls_c_a,
     mpa_c_a,
@@ -272,8 +261,6 @@ def compute_nonlinear_w_rk4(
         Ionization rate at current propagation step.
     nlin_a : (M, N) array_like
         Pre-allocated array for the nonlinear terms.
-    shock_op_a : (N,) array_like
-        Self-steepening operator acting on nonlinearities.
     dens_n_a : float
         Neutral density of the medium.
     pls_c_a : float
@@ -293,7 +280,6 @@ def compute_nonlinear_w_rk4(
         dens_a,
         ram_a,
         ion_a,
-        shock_op_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -307,7 +293,6 @@ def compute_nonlinear_w_rk4(
         dens_a,
         ram_a,
         ion_a,
-        shock_op_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -321,7 +306,6 @@ def compute_nonlinear_w_rk4(
         dens_a,
         ram_a,
         ion_a,
-        shock_op_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -335,7 +319,6 @@ def compute_nonlinear_w_rk4(
         dens_a,
         ram_a,
         ion_a,
-        shock_op_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -343,7 +326,7 @@ def compute_nonlinear_w_rk4(
         ram_c_a,
     )
 
-    nlin_rk4 = dz * (nlin_1 + 2 * nlin_2 + 2 * nlin_3 + nlin_4) / 6
+    nlin_rk4 = (nlin_1 + 2 * nlin_2 + 2 * nlin_3 + nlin_4) / 6
 
     nlin_a[:] = nlin_rk4
 
@@ -407,7 +390,6 @@ def _set_nlin_w(
     dens_a,
     ram_a,
     ion_a,
-    shock_op_a,
     dens_n_a,
     pls_c_a,
     mpa_c_a,
@@ -427,8 +409,6 @@ def _set_nlin_w(
         Raman response at current propagation step.
     ion_a : (M, N) array_like
         Ionization rate at current propagation step.
-    shock_op_a : (N,)
-        Self-steepening operator acting on nonlinearities.
     dens_n_a : float
         Neutral density of the medium.
     pls_c_a : float
@@ -454,6 +434,6 @@ def _set_nlin_w(
     nlin_m = mpa_c_a * fft(ion_a * (dens_n_a - dens_a) * env_a / intensity)
     nlin_k = kerr_c_a * fft(env_a * intensity)
     nlin_r = ram_c_a * fft(env_a * ram_a)
-    nlin = nlin_p / shock_op_a + nlin_m + shock_op_a * (nlin_k + nlin_r)
+    nlin = nlin_p + nlin_m + nlin_k + nlin_r
 
     return nlin

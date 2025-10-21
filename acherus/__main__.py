@@ -4,7 +4,7 @@ import cProfile
 
 from ._version import __version__
 from .config import ConfigOptions
-from .data.routines import profiler_log
+from .data.diagnostics import profiler_log
 from .data.store import OutputManager
 from .functions.fft_backend import fft_manager
 from .mesh.grid import Grid

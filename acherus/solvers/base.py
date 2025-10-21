@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from ..data.routines import (
+from ..data.diagnostics import (
     cheap_diagnostics,
     expensive_diagnostics,
     monitoring_diagnostics,
@@ -63,6 +63,7 @@ class SolverBase:
         self.r_grid = grid.r_grid
         self.z_grid = grid.z_grid
         self.t_grid = grid.t_grid
+        self.w_grid = grid.w_grid
         self.number_photons = self.eqn.n_k
         self.mpi_c = self.eqn.mpi_c
         self.w_0 = self.laser.frequency_0
@@ -76,17 +77,17 @@ class SolverBase:
         self.mpa_c = eqn.mpa_c
         self.kerr_c = eqn.kerr_c
         self.raman_c = eqn.raman_c
-        self.raman_c1 = self.eqn.raman_c1
-        self.raman_c2 = self.eqn.raman_c2
+        self.raman_ode1 = eqn.raman_ode1
+        self.raman_ode2 = eqn.raman_ode2
 
         # Set up flags
         self.use_raman = medium.has_raman
 
         # Initialize simulation arrays
-        self._init_simulation_arrays()
+        self.init_simulation_arrays()
 
     # Set up (pre-allocate) arrays
-    def _init_simulation_arrays(self):
+    def init_simulation_arrays(self):
         """Initialize arrays for simulation."""
         shape_r = (self.r_nodes,)
         shape_rt = (self.r_nodes, self.t_nodes)

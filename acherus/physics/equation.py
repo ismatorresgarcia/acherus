@@ -30,11 +30,11 @@ class Equation:
         self.dt = self.grid.t_res
 
         # Initialize functions
-        self._init_densities()
-        self._init_coefficients()
-        self._init_operators()
+        self.init_densities()
+        self.init_coefficients()
+        self.init_operators()
 
-    def _init_densities(self):
+    def init_densities(self):
         """Initialize density parameters."""
         rho_c = eps_0 * m_e * (self.w_0 / q_e) ** 2
         self.n_k = np.ceil(self.u_i * q_e / (hbar * self.w_0))
@@ -42,29 +42,29 @@ class Equation:
             (self.n_0 * c_light * rho_c) * (1 + (self.w_0 * self.tau) ** 2)
         )
 
-    def _init_coefficients(self):
+    def init_coefficients(self):
         """Initialize equations coefficients."""
         self.mpi_c = self.medium.constant_mpi
         self.ava_c = self.sigma_0 / (self.u_i * q_e)
-        self.k_vac = self.w_0 / c_light
 
         if self.medium.has_raman:
             raman_damping = 1 / self.medium.raman_response_time
             raman_r0 = (raman_damping**2 + self.w_r**2) / self.w_r
-            self.raman_c1 = np.exp((-raman_damping + 1j * self.w_r) * self.dt)
-            self.raman_c2 = 0.5 * raman_r0 * self.dt
+            self.raman_ode1 = np.exp((-raman_damping + 1j * self.w_r) * self.dt)
+            self.raman_ode2 = 0.5 * raman_r0 * self.dt
         else:
-            self.raman_c1 = 0.0
-            self.raman_c2 = 0.0
+            self.raman_ode1 = 0.0
+            self.raman_ode2 = 0.0
 
-    def _init_operators(self):
+    def init_operators(self):
         """Initialize equation operators."""
+        k_vacuum = self.w_0 / c_light
         self.plasma_c = -0.5 * self.sigma_0 * (1 + 1j * self.w_0 * self.tau)
         self.mpa_c = -0.5 * self.n_k * hbar * self.w_0
 
         if self.medium.has_raman:
-            self.kerr_c = 1j * self.k_vac * (1 - self.alpha) * self.n_2
-            self.raman_c = 1j * self.k_vac * self.alpha * self.n_2
+            self.kerr_c = 1j * k_vacuum * (1 - self.alpha) * self.n_2
+            self.raman_c = 1j * k_vacuum * self.alpha * self.n_2
         else:
-            self.kerr_c = 1j * self.k_vac * self.n_2
+            self.kerr_c = 1j * k_vacuum * self.n_2
             self.raman_c = 0.0

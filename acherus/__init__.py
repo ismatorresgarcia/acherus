@@ -4,7 +4,7 @@ Root initialization file for importing Acherus package and modules.
 
 from ._version import __version__
 from .config import ConfigOptions
-from .data.routines import profiler_log
+from .data.diagnostics import profiler_log
 from .data.store import OutputManager
 from .functions.interp_w import compute_ionization
 from .mesh.grid import Grid

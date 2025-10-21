@@ -1,6 +1,7 @@
 """Grid for the cylindrical domain."""
 
 import numpy as np
+from scipy.fft import fftfreq
 
 
 class Grid:
@@ -25,16 +26,16 @@ class Grid:
         self.t_max = time_par.time_max
         self.z_steps_per_snapshot = (self.z_nodes - 1) // self.z_snapshots
 
-        self._init_grid_resolution()
-        self._init_grid_arrays()
+        self.init_grid_resolution()
+        self.init_grid_arrays()
 
-    def _init_grid_resolution(self):
+    def init_grid_resolution(self):
         """Set grid resolution."""
         self.r_res = (self.r_max - self.r_min) / (self.r_nodes - 1)
         self.z_res = (self.z_max - self.z_min) / (self.z_nodes - 1)
         self.t_res = (self.t_max - self.t_min) / (self.t_nodes - 1)
 
-    def _init_grid_arrays(self):
+    def init_grid_arrays(self):
         """Set 1D grid arrays."""
         self.r_grid = np.linspace(
             self.r_min, self.r_max, self.r_nodes, dtype=np.float64
@@ -45,3 +46,4 @@ class Grid:
         self.t_grid = np.linspace(
             self.t_min, self.t_max, self.t_nodes, dtype=np.float64
         )
+        self.w_grid = 2 * np.pi * fftfreq(self.t_nodes, self.t_res)

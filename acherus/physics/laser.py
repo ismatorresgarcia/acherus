@@ -25,10 +25,10 @@ class Laser:
         self.t_grid = grid.t_grid
 
         # Initialize functions
-        self._init_parameters()
+        self.init_parameters()
         self.init_envelope()
 
-    def _init_parameters(self):
+    def init_parameters(self):
         """Initialize derived laser optical properties"""
         self.frequency_0 = 2 * np.pi * c_light / self.wavelength
         self.wavenumber_0 = (
