@@ -221,11 +221,11 @@ class SimulationBox:
         self.r_limit = radial_limit
         self.z_range = axial_range
         self.t_range = time_range
-        self._init_boundaries()
-        self._init_grid_nodes()
-        self._init_sliced_arrays()
+        self.init_boundaries()
+        self.init_grid_nodes()
+        self.init_sliced_arrays()
 
-    def _init_boundaries(self):
+    def init_boundaries(self):
         """Set up the plotting box boundary."""
         self.r_min_ori = self.data["ini_radi_coor"]
         self.r_max_ori = self.data["fin_radi_coor"]
@@ -261,7 +261,7 @@ class SimulationBox:
         self.b_z = (z_min, z_max)
         self.b_t = (t_min, t_max)
 
-    def _init_grid_nodes(self):
+    def init_grid_nodes(self):
         """Set up the plotting box boundary nodes."""
         self.nr = self.data["e_dist"].shape[0]
         self.nz = self.data["e_axis"].shape[0]
@@ -270,7 +270,7 @@ class SimulationBox:
         if self.r_sym:
             dr_ori = self.r_max_ori - self.r_min_ori
             self.nr_sym = 2 * self.nr - 1
-            self.nr_0 = -self.b_r[0] * (self.nr - 1) / dr_ori
+            self.nr_0 = int(-self.b_r[0] * (self.nr - 1) / dr_ori)
         else:
             self.nr_0 = 0
 
@@ -297,9 +297,9 @@ class SimulationBox:
         }.items():
             n_min = (min_b - min_o) * (n_nodes - 1) / (max_o - min_o)
             n_max = (max_b - min_o) * (n_nodes - 1) / (max_o - min_o)
-            self.nodes[dim] = (int(n_min), int(n_max) + 1)
+            self.nodes[dim] = (int(n_min), int(n_max + 1))
 
-    def _init_sliced_arrays(self):
+    def init_sliced_arrays(self):
         """Set up computational arrays"""
         self.sliced_data = {}
         self.sliced_coor = {  # Get elements from n_min to n_max
@@ -415,50 +415,50 @@ class SimulationBoxUnits:
         self.units = units
         self.box = box
         self.config = config
-        self._scaled_1d_grid = {}
-        self._scaled_2d_grid = {}
+        self.scaled_1d_grid = {}
+        self.scaled_2d_grid = {}
 
     def create_unit_scaled_1d_grid(self, grid_type):
         """Get a scaled array, creating it if necessary."""
-        if grid_type not in self._scaled_1d_grid:
+        if grid_type not in self.scaled_1d_grid:
             if grid_type.startswith("r"):
-                self._scaled_1d_grid[grid_type] = (
+                self.scaled_1d_grid[grid_type] = (
                     self.units.fr * self.box.sliced_grids[grid_type]
                 )
             elif grid_type.startswith("z"):
-                self._scaled_1d_grid[grid_type] = (
+                self.scaled_1d_grid[grid_type] = (
                     self.units.fz * self.box.sliced_grids[grid_type]
                 )
             elif grid_type.startswith("t"):
-                self._scaled_1d_grid[grid_type] = (
+                self.scaled_1d_grid[grid_type] = (
                     self.units.ft * self.box.sliced_grids[grid_type]
                 )
 
-        return self._scaled_1d_grid[grid_type]
+        return self.scaled_1d_grid[grid_type]
 
     def create_unit_scaled_2d_grid(self, grid_type):
         """Set up meshgrids only when needed."""
-        if grid_type not in self._scaled_2d_grid:
+        if grid_type not in self.scaled_2d_grid:
             if grid_type == "zt":
-                self._scaled_2d_grid[grid_type] = np.meshgrid(
+                self.scaled_2d_grid[grid_type] = np.meshgrid(
                     self.create_unit_scaled_1d_grid("z"),
                     self.create_unit_scaled_1d_grid("t"),
                     indexing="ij",
                 )
             elif grid_type == "rt":
-                self._scaled_2d_grid[grid_type] = np.meshgrid(
+                self.scaled_2d_grid[grid_type] = np.meshgrid(
                     self.create_unit_scaled_1d_grid("r"),
                     self.create_unit_scaled_1d_grid("t"),
                     indexing="ij",
                 )
             elif grid_type == "rz":
-                self._scaled_2d_grid[grid_type] = np.meshgrid(
+                self.scaled_2d_grid[grid_type] = np.meshgrid(
                     self.create_unit_scaled_1d_grid("r"),
                     self.create_unit_scaled_1d_grid("z"),
                     indexing="ij",
                 )
 
-        return self._scaled_2d_grid[grid_type]
+        return self.scaled_2d_grid[grid_type]
 
 
 class BasePlot:
@@ -955,6 +955,7 @@ def parse_cli_options():
     )
     parser.add_argument(
         "--radial-limit",
+        type=float,
         default=None,
         help="Maximum value for radial grid (in meters).",
     )
