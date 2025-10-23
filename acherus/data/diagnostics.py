@@ -14,7 +14,7 @@ monitoring_path = path / "acherus_monitoring.h5"
 profiler_path = path / "acherus_log.txt"
 
 
-def validate_step(solver, exit_on_error=True):
+def validate_step(solver, exit_on_error=True, save_on_error=True):
     """
     Validate numerical results from solver state.
 
@@ -24,6 +24,8 @@ def validate_step(solver, exit_on_error=True):
         Solver object with data.
     exit_on_error : bool, default: True
         Whether to exit program on validation failure.
+    save_on_error : bool, default: True
+        Whether to save solver state on validation failure.
 
     Returns
     -------
@@ -31,22 +33,15 @@ def validate_step(solver, exit_on_error=True):
         True if valid, False if invalid (when exit_on_error is False).
 
     """
-    # Check envelope for non-finite values
-    if np.any(~np.isfinite(solver.envelope_rt)):
+    if np.any(~np.isfinite(solver.envelope_rt)) or np.any(~np.isfinite(solver.density_rt)):
         if exit_on_error:
-            print("ERROR: Non-finite values detected in envelope")
+            print("ERROR: Non-finite values detected in envelope or density")
+            if save_on_error and hasattr(solver, "output_manager"):
+                print("Saving propagation state before exiting...")
+                solver.output_manager.save_results(solver, solver.grid)
             sys.exit(1)
         else:
-            print("WARNING: Non-finite values detected in envelope")
-            return False
-
-    # Check density for non-finite values
-    if np.any(~np.isfinite(solver.density_rt)):
-        if exit_on_error:
-            print("ERROR: Non-finite values detected in density")
-            sys.exit(1)
-        else:
-            print("WARNING: Non-finite values detected in density")
+            print("WARNING: Non-finite values detected in envelope or density")
             return False
 
     return True
@@ -64,7 +59,6 @@ def cheap_diagnostics(solver, step):
         Current propagation step.
 
     """
-    # Validate current solver state
     validate_step(solver)
 
     envelope_rt = solver.envelope_rt

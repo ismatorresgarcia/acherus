@@ -82,11 +82,14 @@ def main():
             f"Not available solver: '{config.solver_scheme}'. "
             f"Available solvers are: 'SSCN' or 'FCN'."
         )
-    # Add more solvers here as needed
     # ... future solvers to be added in the future!
 
     # Initialize FFT algorithm
     fft_manager.set_fft_backend(config.computing_backend)
+
+    # Initialize propagation results manager
+    output_manager = OutputManager()
+    solver.set_output_manager(output_manager)
 
     # Initialize profiler
     profiler = cProfile.Profile()
@@ -98,8 +101,7 @@ def main():
     # Stop profiler
     profiler.disable()
 
-    # Initialize and run data saving class
-    output_manager = OutputManager()
+    # Save final propagation results
     output_manager.save_results(solver, grid)
 
     # Generate profiler report

@@ -86,6 +86,17 @@ class SolverBase:
         # Initialize simulation arrays
         self.init_simulation_arrays()
 
+    def set_output_manager(self, output_manager):
+        """Set output manager for saving propagation results.
+
+        Parameters
+        ----------
+        output_manager : object
+            Contains the manager input methods.
+
+        """
+        self.output_manager = output_manager
+
     # Set up (pre-allocate) arrays
     def init_simulation_arrays(self):
         """Initialize arrays for simulation."""
