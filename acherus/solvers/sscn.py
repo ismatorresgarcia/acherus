@@ -24,7 +24,8 @@ class SolverSSCN(SolverBase):
         medium,
         laser,
         grid,
-        eqn
+        eqn,
+        output
     ):
         """Initialize SSCN solver.
 
@@ -40,6 +41,8 @@ class SolverSSCN(SolverBase):
             Contains the grid input parameters.
         eqn : object
             Contains the equation parameters.
+        output : object
+            Contains the output manager methods for saving propagation results.
         """
 
         # Initialize base class
@@ -49,6 +52,7 @@ class SolverSSCN(SolverBase):
             laser,
             grid,
             eqn,
+            output
         )
 
         # Initialize SSCN-specific arrays

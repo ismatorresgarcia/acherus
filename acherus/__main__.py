@@ -60,6 +60,7 @@ def main():
         medium, grid, pulse_name=config.pulse_name, pulse_par=config.pulse_par
     )
     eqn = Equation(medium, laser, grid)
+    output = OutputManager()
 
     if config.solver_scheme == "SSCN":
         solver = SolverSSCN(
@@ -68,6 +69,7 @@ def main():
             laser,
             grid,
             eqn,
+            output
         )
     elif config.solver_scheme == "FCN":
         solver = SolverFCN(
@@ -76,6 +78,7 @@ def main():
             laser,
             grid,
             eqn,
+            output
         )
     else:
         raise ValueError(
@@ -86,10 +89,6 @@ def main():
 
     # Initialize FFT algorithm
     fft_manager.set_fft_backend(config.computing_backend)
-
-    # Initialize propagation results manager
-    output_manager = OutputManager()
-    solver.set_output_manager(output_manager)
 
     # Initialize profiler
     profiler = cProfile.Profile()
@@ -102,7 +101,7 @@ def main():
     profiler.disable()
 
     # Save final propagation results
-    output_manager.save_results(solver, grid)
+    output.save_results(solver, grid)
 
     # Generate profiler report
     profiler_log(profiler)

@@ -28,7 +28,8 @@ class SolverFCN(SolverBase):
         medium,
         laser,
         grid,
-        eqn
+        eqn,
+        output
     ):
         """Initialize FCN solver.
 
@@ -44,6 +45,8 @@ class SolverFCN(SolverBase):
             Contains the grid input parameters.
         eqn : object
             Contains the equation parameters.
+        output : object
+            Contains the output manager methods for saving propagation results.
         """
 
         # Initialize base class
@@ -53,6 +56,7 @@ class SolverFCN(SolverBase):
             laser,
             grid,
             eqn,
+            output
         )
 
         # Initialize FCN-specific arrays

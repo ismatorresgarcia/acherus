@@ -21,7 +21,8 @@ class SolverBase:
         medium,
         laser,
         grid,
-        eqn
+        eqn,
+        output
     ):
         """Initialize solver with common parameters.
 
@@ -37,12 +38,15 @@ class SolverBase:
             Contains the grid input parameters.
         eqn : object
             Contains the equation parameters.
+        output : object
+            Contains the output manager methods.
 
         """
         self.medium = medium
         self.laser = laser
         self.grid = grid
         self.eqn = eqn
+        self.output = output
         self.medium_n = config.medium_name
         self.dens_meth = config.density_method
         self.dens_meth_ini_step = config.density_method_par.ini_step
@@ -85,17 +89,6 @@ class SolverBase:
 
         # Initialize simulation arrays
         self.init_simulation_arrays()
-
-    def set_output_manager(self, output_manager):
-        """Set output manager for saving propagation results.
-
-        Parameters
-        ----------
-        output_manager : object
-            Contains the manager input methods.
-
-        """
-        self.output_manager = output_manager
 
     # Set up (pre-allocate) arrays
     def init_simulation_arrays(self):

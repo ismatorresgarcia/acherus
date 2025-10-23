@@ -29,16 +29,17 @@ def validate_step(solver, exit_on_error=True, save_on_error=True):
 
     Returns
     -------
-    out : bool
+    binary : bool
         True if valid, False if invalid (when exit_on_error is False).
 
     """
-    if np.any(~np.isfinite(solver.envelope_rt)) or np.any(~np.isfinite(solver.density_rt)):
+    checklist = [solver.envelope_rt, solver.density_rt]
+    if any(np.any(~np.isfinite(x)) for x in checklist):
         if exit_on_error:
             print("ERROR: Non-finite values detected in envelope or density")
-            if save_on_error and hasattr(solver, "output_manager"):
+            if save_on_error and hasattr(solver, "output"):
                 print("Saving propagation state before exiting...")
-                solver.output_manager.save_results(solver, solver.grid)
+                solver.output.save_results(solver, solver.grid)
             sys.exit(1)
         else:
             print("WARNING: Non-finite values detected in envelope or density")
