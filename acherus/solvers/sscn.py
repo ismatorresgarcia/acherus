@@ -56,7 +56,6 @@ class SolverSSCN(SolverBase):
         )
 
         # Initialize SSCN-specific arrays
-        self.envelope_split_rt = np.zeros_like(self.envelope_rt)
         self.nonlinear_next_rt = np.zeros_like(self.nonlinear_rt)
 
         # Set initial conditions and operators
@@ -132,7 +131,7 @@ class SolverSSCN(SolverBase):
         """
         Compute one step of the FFT propagation scheme for dispersion.
         """
-        self.envelope_split_rt[:-1, :] = fft(
+        self.envelope_rt[:-1, :] = fft(
             self.disp_exp * ifft(self.envelope_rt[:-1, :]),
         )
 
@@ -142,21 +141,19 @@ class SolverSSCN(SolverBase):
         for envelope propagation.
         """
         # Compute matrix-vector product using "DIA" sparse format
-        rhs_linear = self.mat_right @ self.envelope_split_rt
+        rhs_linear = self.mat_right @ self.envelope_rt
 
         # Compute the left-hand side of the equation
         rhs = rhs_linear + self.nonlinear_rt
 
         # Solve the tridiagonal system using the banded solver
-        self.envelope_next_rt[:] = solve_banded((1, 1), self.mat_left, rhs)
+        self.envelope_rt[:] = solve_banded((1, 1), self.mat_left, rhs)
 
     def solve_step(self, step):
         """Perform one propagation step."""
         intensity_f = compute_intensity(
             self.envelope_rt[:-1, :],
             self.intensity_rt[:-1, :],
-            self.r_grid[:-1],
-            self.t_grid,
         )
         if self.ion_model == "PPT":
             compute_ionization(
@@ -167,7 +164,7 @@ class SolverSSCN(SolverBase):
                 self.ion_model,
                 self.peak_intensity,
                 self.ppt_rate,
-                self.i_factor
+                self.i_factor,
             )
         else:
             compute_ionization(
@@ -189,10 +186,10 @@ class SolverSSCN(SolverBase):
             )
         else:
             compute_density(
-                intensity_f,
+                self.intensity_rt[:-1, :],
                 self.density_rt[:-1, :],
                 self.ionization_rate[:-1, :],
-                self.r_grid[:-1],
+                self.temporary_r[:-1],
                 self.t_grid,
                 self.density_n,
                 self.density_ini,
@@ -222,6 +219,7 @@ class SolverSSCN(SolverBase):
             self.ionization_rate[:-1, :],
             self.nonlinear_next_rt[:-1, :],
             self.nonlinear_rt[:-1, :],
+            self.temporary_rt[:-1, :],
             self.density_n,
             self.plasma_op,
             self.mpa_op,
@@ -229,10 +227,7 @@ class SolverSSCN(SolverBase):
             self.raman_op,
         )
         self.compute_envelope()
-        compute_fluence(self.envelope_next_rt, self.t_grid, self.fluence_r)
+        compute_fluence(self.envelope_rt, self.t_grid, self.fluence_r)
         compute_radius(self.fluence_r, self.r_grid, self.radius)
 
-        self.envelope_rt[:], self.envelope_next_rt[:] = (
-            self.envelope_next_rt,
-            self.envelope_rt,
-        )
+        self.nonlinear_rt[:] = self.nonlinear_next_rt

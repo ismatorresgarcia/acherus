@@ -20,8 +20,12 @@ available, it sets `GPU` to `CPU`.
 
 3. `compute_fft` and `compute_ifft` functions are the user's
 API functions which perform the required FFT or IFFT. By default,
-they use the second dimension (axis=1) for the transform, but
-the axis can be specified as an argument if needed.
+they use the last dimension (axis=-1) for the transform, but
+the axis can be specified as an argument if needed. We allow the
+input array `x` memory to be used with the `overwrite_x=True`
+argument, since the values will be overwritten or are not needed
+in the next steps, except for the `compute_ifft` because the
+pulse spectrum is important..
 
 4. In the end, if the backend is `GPU` this means that the
 `CuPy` library is available, and the user wants to use
@@ -52,8 +56,8 @@ class FFTManager:
                 import cupyx.scipy.fft as cufft
 
                 scipy.fft.set_global_backend(cufft)
-                self.compute_fft = lambda data, axis=1: scipy.fft.fft(data, axis=axis)
-                self.compute_ifft = lambda data, axis=1: scipy.fft.ifft(data, axis=axis)
+                self.compute_fft = lambda data, axis=-1: scipy.fft.fft(data, axis=axis)
+                self.compute_ifft = lambda data, axis=-1: scipy.fft.ifft(data, axis=axis)
                 print("Using GPU FFT with CuPy")
             except ImportError:
                 print("CuPy not available. Falling back to CPU with pyFFTW")
@@ -69,23 +73,23 @@ class FFTManager:
             scipy.fft.set_global_backend(fftw_backend)
             print("Using pyFFTW with SciPy backend")
 
-            self.compute_fft = lambda data, axis=1: scipy.fft.fft(
-                data, axis=axis, workers=-1
+            self.compute_fft = lambda data, axis=-1: scipy.fft.fft(
+                data, axis=axis, workers=-1, overwrite_x=True
             )
-            self.compute_ifft = lambda data, axis=1: scipy.fft.ifft(
-                data, axis=axis, workers=-1
+            self.compute_ifft = lambda data, axis=-1: scipy.fft.ifft(
+                data, axis=axis, workers=-1, overwrite_x=False
             )
 
         except ImportError:
             print("pyFFTW not available. Falling back to SciPy")
-            self.compute_fft = lambda data, axis=1: scipy.fft.fft(
-                data, axis=axis, workers=-1
+            self.compute_fft = lambda data, axis=-1: scipy.fft.fft(
+                data, axis=axis, workers=-1, overwrite_x=True
             )
-            self.compute_ifft = lambda data, axis=1: scipy.fft.ifft(
-                data, axis=axis, workers=-1
+            self.compute_ifft = lambda data, axis=-1: scipy.fft.ifft(
+                data, axis=axis, workers=-1, overwrite_x=False
             )
 
-    def fft(self, data, axis=1):
+    def fft(self, data, axis=-1):
         """
         Transform data from time domain to frequency domain
         using FFT (cufft if available, scipy.fft otherwise).
@@ -94,7 +98,7 @@ class FFTManager:
             raise RuntimeError("FFT backend not set up yet.")
         return self.compute_fft(data, axis=axis)
 
-    def ifft(self, data, axis=1):
+    def ifft(self, data, axis=-1):
         """
         Transform data from frequency domain to time domain
         using FFT (cufft if available, scipy.fft otherwise).

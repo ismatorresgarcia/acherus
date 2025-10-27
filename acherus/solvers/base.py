@@ -105,7 +105,6 @@ class SolverBase:
 
         # Initialize envelope-related arrays
         self.envelope_rt = np.zeros(shape_rt, dtype=np.complex128)
-        self.envelope_next_rt = np.zeros_like(self.envelope_rt)
         self.envelope_snapshot_rzt = np.zeros(shape_rzt, dtype=np.complex128)
         self.envelope_r0_zt = np.zeros(shape_zt, dtype=np.complex128)
         self.envelope_tp_rz = np.zeros(shape_rz, dtype=np.complex128)
@@ -129,18 +128,17 @@ class SolverBase:
 
         # Initialize nonlinearities array
         self.nonlinear_rt = np.zeros_like(self.envelope_rt)
+        self.temporary_rt = np.zeros_like(self.envelope_rt)
+        self.temporary_r = np.zeros_like(self.fluence_r)
 
-        # Initialize ionization arrays
+        # Initialize ionization rate variables
         self.ionization_rate = np.zeros_like(self.density_rt)
+        if self.ion_model == "PPT":
+            self.inten_ion = compute_ppt_rate(self.medium, self.laser)
 
         # Initialize tracking variable
         self.snapshot_z_index = np.zeros(self.z_snapshots + 1, dtype=np.int16)
 
-        # Initialize PPT rate arrays
-        if self.ion_model == "PPT":
-            self.peak_intensity, self.ppt_rate, self.i_factor = compute_ppt_rate(
-                self.medium, self.laser
-            )
 
     def set_initial_conditions(self):
         """Set initial conditions."""
@@ -168,7 +166,6 @@ class SolverBase:
         """
         raise NotImplementedError("Module must include solve_step()")
 
-    # Propagation method
     def propagate(self):
         """Propagate beam through all steps."""
         z_spsnap = self.z_steps_per_snapshot
