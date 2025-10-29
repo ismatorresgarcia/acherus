@@ -128,8 +128,6 @@ class SolverBase:
 
         # Initialize nonlinearities array
         self.nonlinear_rt = np.zeros_like(self.envelope_rt)
-        self.temporary_rt = np.zeros_like(self.envelope_rt)
-        self.temporary_r = np.zeros_like(self.fluence_r)
 
         # Initialize ionization rate variables
         self.ionization_rate = np.zeros_like(self.density_rt)

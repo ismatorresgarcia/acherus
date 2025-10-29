@@ -86,7 +86,7 @@ def _set_density_rk4(dens_s_a, int_s_a, ion_s_a, dens_n_a, ava_c_a):
 
 
 def compute_density(
-    inten_a, dens_a, ion_a, tmp_a, t_a, dens_n_a, dens_0_a, ava_c_a, method_a, first_step_a, rtol_a, atol_a
+    inten_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a, method_a, first_step_a, rtol_a, atol_a
 ):
     """
     Compute electron density evolution for all time steps using ODE solver.
@@ -99,8 +99,6 @@ def compute_density(
         Density at current propagation step.
     ion_a : (M, N) array_like
         Ionization rate at current propagation step.
-    tmp_a : (M,) array_like
-        Temporary array for intermediate results.
     t_a : (N,) array_like
         Time coordinates grid.
     dens_n_a : float
@@ -122,14 +120,14 @@ def compute_density(
     ion_to_t = PchipInterpolator(t_a, ion_a, axis=1, extrapolate=True)
     inten_to_t = PchipInterpolator(t_a, inten_a, axis=1, extrapolate=True)
 
-    k = len(tmp_a)
+    k = inten_a.shape[0]
     sol = solve_ivp(
         _set_density,
         (t_a[0], t_a[-1]),
         np.full(k, dens_0_a),
         method=method_a,
         t_eval=t_a,
-        args=(tmp_a, ion_to_t, inten_to_t, dens_n_a, ava_c_a),
+        args=(ion_to_t, inten_to_t, dens_n_a, ava_c_a),
         first_step=first_step_a,
         rtol=rtol_a,
         atol=atol_a,
@@ -138,7 +136,7 @@ def compute_density(
     dens_a[:] = sol.y
 
 
-def _set_density(t, dens, tmp, ion_f, inten_f, dens_n, ava_c):
+def _set_density(t, dens, ion_f, inten_f, dens_n, ava_c):
     """
     Compute the electron density evolution terms using ODE solver.
 
@@ -148,8 +146,6 @@ def _set_density(t, dens, tmp, ion_f, inten_f, dens_n, ava_c):
         Time value.
     dens : (M,) array_like
         Density at t.
-    tmp : (M,) array_like
-        Temporary array for intermediate results.
     ion_f : function
         Interpolated function for ionization rate.
     inten_f : function
@@ -163,14 +159,13 @@ def _set_density(t, dens, tmp, ion_f, inten_f, dens_n, ava_c):
     ion_s = ion_f(t)
     inten_s = inten_f(t)
 
-    np.subtract(dens_n, dens, out=tmp)
-    tmp *= ion_s
-    tmp += ava_c * dens * inten_s
+    ion_term = ion_s * (dens_n - dens)
+    ava_term = ava_c * dens * inten_s
 
-    return tmp
+    return ion_term + ava_term
 
 
-def _set_jacobian(t, dens, tmp, ion_f, inten_f, dens_n, ava_c):
+def _set_jacobian(t, dens, ion_f, inten_f, dens_n, ava_c):
     """
     Compute the electron density evolution Jacobian matrix for
     Radau and BDF implicit methods. Better in comparison with
@@ -183,8 +178,6 @@ def _set_jacobian(t, dens, tmp, ion_f, inten_f, dens_n, ava_c):
         Time value.
     dens : (M,) array_like
         Density at t.
-    tmp : (M,) array_like
-        Temporary array for intermediate results.
     ion_f : function
         Interpolated function for ionization rate.
     inten_f : function
@@ -198,7 +191,6 @@ def _set_jacobian(t, dens, tmp, ion_f, inten_f, dens_n, ava_c):
     ion_s = ion_f(t)
     inten_s = inten_f(t)
 
-    np.multiply(ava_c, inten_s, out=tmp)
-    tmp -= ion_s
+    jacobian = -ion_s + ava_c * inten_s
 
-    return diags_array(tmp, offsets=0)
+    return diags_array(jacobian, offsets=0)

@@ -196,7 +196,7 @@ class SolverFCN(SolverBase):
             """Wrapper for parallel computation of each slice."""
             rhs_linear = self.mats_right[ww] @ self.envelope_fourier[:, ww]
             rhs = rhs_linear + self.nonlinear_rt[:, ww]
-            return solve_banded((1, 1), self.mats_left[ww], rhs)
+            return solve_banded((1, 1), self.mats_left[ww], rhs, overwrite_b=True, check_finite=False)
 
         with ThreadPoolExecutor() as executor:
             results = list(executor.map(slice_wrapper, range(self.t_nodes)))
@@ -219,9 +219,7 @@ class SolverFCN(SolverBase):
                 self.number_photons,
                 self.mpi_c,
                 self.ion_model,
-                self.peak_intensity,
-                self.ppt_rate,
-                self.i_factor
+                self.inten_ion
             )
         else:
             compute_ionization(
@@ -230,6 +228,7 @@ class SolverFCN(SolverBase):
                 self.number_photons,
                 self.mpi_c,
                 self.ion_model,
+                self.inten_ion
             )
         if self.dens_meth == "RK4":
             compute_density_rk4(
@@ -246,7 +245,6 @@ class SolverFCN(SolverBase):
                 self.intensity_rt[:-1, :],
                 self.density_rt[:-1, :],
                 self.ionization_rate[:-1, :],
-                self.temporary_r[:-1],
                 self.t_grid,
                 self.density_n,
                 self.density_ini,
@@ -275,7 +273,6 @@ class SolverFCN(SolverBase):
             self.ionization_rate[:-1, :],
             self.nonlinear_next_rt[:-1, :],
             self.nonlinear_rt[:-1, :],
-            self.temporary_rt[:-1, :],
             self.density_n,
             self.plasma_op,
             self.mpa_op,

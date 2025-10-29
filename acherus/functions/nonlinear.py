@@ -13,7 +13,6 @@ def compute_nonlinear_ab2(
     ion_a,
     nlin_a,
     nlin_p,
-    tmp_a,
     dens_n_a,
     pls_c_a,
     mpa_c_a,
@@ -40,8 +39,6 @@ def compute_nonlinear_ab2(
         Pre-allocated array for the nonlinear terms.
     nlin_p : (M, N) array_like
         Previous step nonlinear terms.
-    tmp_a : (M, N) array_like
-        Pre-allocated array for intermediate results.
     dens_n_a : float
         Neutral density of the medium.
     pls_c_a : float
@@ -54,13 +51,11 @@ def compute_nonlinear_ab2(
         Raman coefficient.
 
     """
-    nlin_1 = _set_nlin(
+    nlin = _set_nlin(
         env_a,
         dens_a,
         ram_a,
         ion_a,
-        nlin_a,
-        tmp_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -68,12 +63,9 @@ def compute_nonlinear_ab2(
         ram_c_a,
     )
     if stp_a == 1:
-        nlin_a[:] = nlin_1
+        nlin_a[:] = nlin
     else:
-        nlin_a[:] = nlin_1
-        nlin_a *= 3
-        nlin_a -= nlin_p
-        nlin_a *= 0.5
+        nlin_a[:] = 1.5 * nlin - 0.5 * nlin_p
 
 def compute_nonlinear_w_ab2(
     stp_a,
@@ -83,7 +75,6 @@ def compute_nonlinear_w_ab2(
     ion_a,
     nlin_a,
     nlin_p,
-    tmp_a,
     dens_n_a,
     pls_c_a,
     mpa_c_a,
@@ -110,8 +101,6 @@ def compute_nonlinear_w_ab2(
         Pre-allocated array for the nonlinear terms.
     nlin_p : (M, N) array_like
         Previous step nonlinear terms.
-    tmp_a : (M, N) array_like
-        Pre-allocated array for intermediate results.
     dens_n_a : float
         Neutral density of the medium.
     pls_c_a : float
@@ -124,13 +113,11 @@ def compute_nonlinear_w_ab2(
         Raman coefficient.
 
     """
-    nlin_1 = _set_nlin_w(
+    nlin = _set_nlin_w(
         env_a,
         dens_a,
         ram_a,
         ion_a,
-        nlin_a,
-        tmp_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -138,12 +125,9 @@ def compute_nonlinear_w_ab2(
         ram_c_a,
     )
     if stp_a == 1:
-        nlin_a[:] = nlin_1
+        nlin_a[:] = nlin
     else:
-        nlin_a[:] = nlin_1
-        nlin_a *= 3
-        nlin_a -= nlin_p
-        nlin_a *= 0.5
+        nlin_a[:] = 1.5 * nlin - 0.5 * nlin_p
 
 def compute_nonlinear_rk4(
     env_a,
@@ -151,7 +135,6 @@ def compute_nonlinear_rk4(
     ram_a,
     ion_a,
     nlin_a,
-    tmp_a,
     dens_n_a,
     pls_c_a,
     mpa_c_a,
@@ -175,8 +158,6 @@ def compute_nonlinear_rk4(
         Ionization rate at current propagation step.
     nlin_a : (M, N) array_like
         Pre-allocated array for the nonlinear terms.
-    tmp_a : (M, N) array_like
-        Pre-allocated array for intermediate results.
     dens_n_a : float
         Neutral density of the medium chosen.
     pls_c_a : float
@@ -196,8 +177,6 @@ def compute_nonlinear_rk4(
         dens_a,
         ram_a,
         ion_a,
-        nlin_a,
-        tmp_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -211,8 +190,6 @@ def compute_nonlinear_rk4(
         dens_a,
         ram_a,
         ion_a,
-        nlin_a,
-        tmp_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -226,8 +203,6 @@ def compute_nonlinear_rk4(
         dens_a,
         ram_a,
         ion_a,
-        nlin_a,
-        tmp_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -241,8 +216,6 @@ def compute_nonlinear_rk4(
         dens_a,
         ram_a,
         ion_a,
-        nlin_a,
-        tmp_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -250,12 +223,7 @@ def compute_nonlinear_rk4(
         ram_c_a,
     )
 
-    np.add(nlin_1, nlin_4, out=nlin_a)
-    nlin_a += nlin_2
-    nlin_a += nlin_2
-    nlin_a += nlin_3
-    nlin_a += nlin_3
-    nlin_a *= (1/6)
+    nlin_a[:] = (nlin_1 + 2 * nlin_2 + 2 * nlin_3 + nlin_4) / 6
 
 
 def compute_nonlinear_w_rk4(
@@ -264,7 +232,6 @@ def compute_nonlinear_w_rk4(
     ram_a,
     ion_a,
     nlin_a,
-    tmp_a,
     dens_n_a,
     pls_c_a,
     mpa_c_a,
@@ -288,8 +255,6 @@ def compute_nonlinear_w_rk4(
         Ionization rate at current propagation step.
     nlin_a : (M, N) array_like
         Pre-allocated array for the nonlinear terms.
-    tmp_a : (M, N) array_like
-        Pre-allocated array for intermediate results.
     dens_n_a : float
         Neutral density of the medium.
     pls_c_a : float
@@ -309,8 +274,6 @@ def compute_nonlinear_w_rk4(
         dens_a,
         ram_a,
         ion_a,
-        nlin_a,
-        tmp_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -324,8 +287,6 @@ def compute_nonlinear_w_rk4(
         dens_a,
         ram_a,
         ion_a,
-        nlin_a,
-        tmp_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -339,8 +300,6 @@ def compute_nonlinear_w_rk4(
         dens_a,
         ram_a,
         ion_a,
-        nlin_a,
-        tmp_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -354,8 +313,6 @@ def compute_nonlinear_w_rk4(
         dens_a,
         ram_a,
         ion_a,
-        nlin_a,
-        tmp_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
@@ -363,10 +320,7 @@ def compute_nonlinear_w_rk4(
         ram_c_a,
     )
 
-    np.add(nlin_1, nlin_4, out=nlin_a)
-    nlin_a += 2 * nlin_2
-    nlin_a += 2 * nlin_3
-    nlin_a *= (1/6)
+    nlin_a[:] = (nlin_1 + 2 * nlin_2 + 2 * nlin_3 + nlin_4) / 6
 
 
 def _set_nlin(
@@ -374,8 +328,6 @@ def _set_nlin(
     dens_a,
     ram_a,
     ion_a,
-    nlin_a,
-    tmp_a,
     dens_n_a,
     pls_c_a,
     mpa_c_a,
@@ -397,8 +349,6 @@ def _set_nlin(
         Ionization rate at current propagation step.
     nlin_a : (M, N) array_like
         Pre-allocated array for the nonlinear terms.
-    tmp_a : (M, N) array_like
-        Pre-allocated array for intermediate results.
     dens_n_a : float
         Neutral density of the medium.
     pls_c_a : float
@@ -417,28 +367,14 @@ def _set_nlin(
         of radial nodes and N the number of time nodes.
 
     """
-    nlin_a.fill(0.0)
-
     inten = np.abs(env_a) ** 2
 
-    np.multiply(pls_c_a, dens_a, out=tmp_a)
-    nlin_a += tmp_a
+    nlin = pls_c_a * dens_a
+    nlin += mpa_c_a * ion_a * (dens_n_a - dens_a) / inten
+    nlin += kerr_c_a * inten
+    nlin += ram_c_a * ram_a
 
-    np.subtract(dens_n_a, dens_a, out=tmp_a)
-    np.multiply(ion_a, tmp_a, out=tmp_a)
-    np.divide(tmp_a, inten, out=tmp_a)
-    tmp_a *= mpa_c_a
-    nlin_a += tmp_a
-
-    np.multiply(kerr_c_a, inten, out=tmp_a)
-    nlin_a += tmp_a
-
-    np.multiply(ram_c_a, ram_a, out=tmp_a)
-    nlin_a += tmp_a
-
-    np.multiply(nlin_a, env_a, out=nlin_a)
-
-    return nlin_a
+    return nlin * env_a
 
 
 def _set_nlin_w(
@@ -446,8 +382,6 @@ def _set_nlin_w(
     dens_a,
     ram_a,
     ion_a,
-    nlin_a,
-    tmp_a,
     dens_n_a,
     pls_c_a,
     mpa_c_a,
@@ -467,10 +401,6 @@ def _set_nlin_w(
         Raman response at current propagation step.
     ion_a : (M, N) array_like
         Ionization rate at current propagation step.
-    nlin_a : (M, N) array_like
-        Pre-allocated array for the nonlinear terms.
-    tmp_a : (M, N) array_like
-        Pre-allocated array for intermediate results.
     dens_n_a : float
         Neutral density of the medium.
     pls_c_a : float
@@ -489,31 +419,11 @@ def _set_nlin_w(
         of radial nodes and N the number of time nodes.
 
     """
-    nlin_a.fill(0.0)
-
     inten = np.abs(env_a) ** 2
 
-    np.multiply(dens_a, env_a, out=tmp_a)
-    tmp_a[:] = fft(tmp_a)
-    tmp_a *= pls_c_a
-    nlin_a += tmp_a
+    nlin = pls_c_a * fft(dens_a * env_a)
+    nlin += mpa_c_a * fft(ion_a * (dens_n_a - dens_a) * env_a / inten)
+    nlin += kerr_c_a * fft(inten * env_a)
+    nlin += ram_c_a * fft(ram_a * env_a)
 
-    np.subtract(dens_n_a, dens_a, out=tmp_a)
-    np.multiply(ion_a, tmp_a, out=tmp_a)
-    np.multiply(env_a, tmp_a, out=tmp_a)
-    np.divide(tmp_a, inten, out=tmp_a)
-    tmp_a[:] = fft(tmp_a)
-    tmp_a *= mpa_c_a
-    nlin_a += tmp_a
-
-    np.multiply(inten, env_a, out=tmp_a)
-    tmp_a[:] = fft(tmp_a)
-    tmp_a *= kerr_c_a
-    nlin_a += tmp_a
-
-    np.multiply(ram_a, env_a, out=tmp_a)
-    tmp_a[:] = fft(tmp_a)
-    tmp_a *= ram_c_a
-    nlin_a += tmp_a
-
-    return nlin_a
+    return nlin
