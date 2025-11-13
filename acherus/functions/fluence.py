@@ -1,4 +1,4 @@
-"""Fluence distribution module for cylindrical NEE simulations."""
+"""Helper module for computing fluence distribution."""
 
 import numpy as np
 from scipy.integrate import simpson

@@ -1,12 +1,11 @@
-"""Intensity module."""
+"""Helper module for computing intensity."""
 
 import numpy as np
 
 
 def compute_intensity(env_a, inten_a):
     """
-    Compute the intensity interpolated object
-    for the current step.
+    Compute the intensity array for the current step.
 
     Parameters
     ----------
