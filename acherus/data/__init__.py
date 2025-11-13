@@ -4,7 +4,6 @@ from .diagnostics import (
     cheap_diagnostics,
     expensive_diagnostics,
     monitoring_diagnostics,
-    profiler_log,
     validate_step,
 )
 from .store import OutputManager
@@ -15,5 +14,4 @@ __all__ = [
     "cheap_diagnostics",
     "expensive_diagnostics",
     "monitoring_diagnostics",
-    "profiler_log",
 ]

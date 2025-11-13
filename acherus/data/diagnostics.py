@@ -1,8 +1,6 @@
 """Diagnosing tools module."""
 
-import pstats
 import sys
-from pstats import SortKey
 
 import numpy as np
 from h5py import File
@@ -156,72 +154,3 @@ def expensive_diagnostics(solver, step):
     solver.snapshot_z_index[step] = (
         solver.snapshot_z_index[step - 1] + solver.grid.z_steps_per_snapshot
     )
-
-
-def profiler_log(profiler, top_n=20):
-    """
-    Profiler analysis for the func execution and save a detailed report.
-
-    Parameters
-    ----------
-    profiler : object
-        cProfile.Profile object after disable() is called.
-    top_n : integer, default: 20
-        Top N time-consuming functions to display.
-
-    Returns
-    -------
-    stats : object
-        pstats.Stats object with profiling report.
-
-    """
-    # Generate the report
-    with open(profiler_path, "w", encoding="utf-8") as f:
-        # Header
-        f.write("=" * 80 + "\n")
-        f.write("PERFORMANCE PROFILE REPORT\n")
-        f.write("=" * 80 + "\n\n")
-
-        # General statistics
-        f.write("SUMMARY\n")
-        f.write("-" * 80 + "\n")
-        stats = pstats.Stats(profiler, stream=f)
-        stats.strip_dirs().sort_stats().print_stats(0)
-
-        # Most time-consuming functions
-        f.write("\n\nTOP TIME-CONSUMING FUNCTIONS\n")
-        f.write("-" * 80 + "\n")
-        stats = pstats.Stats(profiler, stream=f)
-        stats.strip_dirs().sort_stats(SortKey.TIME).print_stats(top_n)
-
-        # Cumulative time statistics
-        f.write("\n\nTOP TIME-ACCUMULATED FUNCTIONS\n")
-        f.write("-" * 80 + "\n")
-        stats = pstats.Stats(profiler, stream=f)
-        stats.strip_dirs().sort_stats(SortKey.CUMULATIVE).print_stats(top_n)
-
-        # Most frequent calls
-        f.write("\n\nMOST FREQUENT CALLED FUNCTIONS\n")
-        f.write("-" * 80 + "\n")
-        stats = pstats.Stats(profiler, stream=f)
-        stats.strip_dirs().sort_stats(SortKey.CALLS).print_stats(top_n)
-
-        # Solvers analysis
-        main_routines = [
-            "compute_density",
-            "compute_raman",
-            "compute_dispersion",
-            "compute_envelope",
-            "compute_nlin_rk4",
-            "compute_nlin_rk4_w",
-            "solve_step",
-        ]
-
-        for func_chr in main_routines:
-            f.write(f"\n--- Analysis of {func_chr} ---\n")
-            stats = pstats.Stats(profiler, stream=f)
-            stats.strip_dirs()
-            stats.print_callers(func_chr)
-            stats.print_callees(func_chr)
-
-        return pstats.Stats(profiler)
