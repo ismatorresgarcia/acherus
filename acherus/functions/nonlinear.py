@@ -1,8 +1,8 @@
-"""Envelope evolution module."""
+"""Helper module for computing nonlinear terms during propagation."""
 
 import numpy as np
 
-from .fft_backend import fft, ifft
+from .fft_backend import compute_fft
 
 
 def compute_nonlinear_ab2(
@@ -18,6 +18,8 @@ def compute_nonlinear_ab2(
     mpa_c_a,
     kerr_c_a,
     ram_c_a,
+    inten_a,
+    tmp_buf_t=None,
 ):
     """
     Compute envelope propagation nonlinearities in FSS scheme
@@ -49,290 +51,42 @@ def compute_nonlinear_ab2(
         Kerr coefficient.
     ram_c_a : float
         Raman coefficient.
+    inten_a : (M, N) array_like
+        Intensity at current propagation step.
+    tmp_buf_t : (M, N) array_like, optional
+        Temporary buffer in time domain.
 
     """
-    nlin = _set_nlin(
+    _set_nlin(
         env_a,
         dens_a,
         ram_a,
         ion_a,
+        nlin_a,
         dens_n_a,
         pls_c_a,
         mpa_c_a,
         kerr_c_a,
         ram_c_a,
+        inten_a,
+        tmp_buf_t,
     )
-    if stp_a == 1:
-        nlin_a[:] = nlin
-    else:
-        nlin_a[:] = 1.5 * nlin - 0.5 * nlin_p
-
-def compute_nonlinear_w_ab2(
-    stp_a,
-    env_a,
-    dens_a,
-    ram_a,
-    ion_a,
-    nlin_a,
-    nlin_p,
-    dens_n_a,
-    pls_c_a,
-    mpa_c_a,
-    kerr_c_a,
-    ram_c_a,
-):
-    """
-    Compute envelope propagation nonlinearities in FCN scheme
-    for current propagation step using AB2.
-
-    Parameters
-    ----------
-    stp_a: integer
-        Current propagation step index.
-    env_a : (M, N) array_like
-        Complex envelope at current propagation step.
-    dens_a : (M, N) array_like
-        Density at current propagation step.
-    ram_a : (M, N) array_like
-        Raman response at current propagation step.
-    ion_a : (M, N) array_like
-        Ionization rate at current propagation step.
-    nlin_a : (M, N) array_like
-        Pre-allocated array for the nonlinear terms.
-    nlin_p : (M, N) array_like
-        Previous step nonlinear terms.
-    dens_n_a : float
-        Neutral density of the medium.
-    pls_c_a : float
-        Plasma coefficient.
-    mpa_c_a : float
-        MPA coefficient.
-    kerr_c_a : float
-        Kerr coefficient.
-    ram_c_a : float
-        Raman coefficient.
-
-    """
-    nlin = _set_nlin_w(
-        env_a,
-        dens_a,
-        ram_a,
-        ion_a,
-        dens_n_a,
-        pls_c_a,
-        mpa_c_a,
-        kerr_c_a,
-        ram_c_a,
-    )
-    if stp_a == 1:
-        nlin_a[:] = nlin
-    else:
-        nlin_a[:] = 1.5 * nlin - 0.5 * nlin_p
-
-def compute_nonlinear_rk4(
-    env_a,
-    dens_a,
-    ram_a,
-    ion_a,
-    nlin_a,
-    dens_n_a,
-    pls_c_a,
-    mpa_c_a,
-    kerr_c_a,
-    ram_c_a,
-    dz,
-):
-    """
-    Compute envelope propagation nonlinearities in FSS scheme
-    for current propagation step using RK4.
-
-    Parameters
-    ----------
-    env_a : (M, N) array_like
-        Complex envelope at current propagation step.
-    dens_a : (M, N) array_like
-        Density at current propagation step.
-    ram_a : (M, N) array_like
-        Raman response at current propagation step.
-    ion_a : (M, N) array_like
-        Ionization rate at current propagation step.
-    nlin_a : (M, N) array_like
-        Pre-allocated array for the nonlinear terms.
-    dens_n_a : float
-        Neutral density of the medium chosen.
-    pls_c_a : float
-        Plasma coefficient.
-    mpa_c_a : float
-        MPA coefficient.
-    kerr_c_a : float
-        Kerr coefficient.
-    ram_c_a : float
-        Raman coefficient.
-    dz : float
-        Axial step.
-
-    """
-    nlin_1 = _set_nlin(
-        env_a,
-        dens_a,
-        ram_a,
-        ion_a,
-        dens_n_a,
-        pls_c_a,
-        mpa_c_a,
-        kerr_c_a,
-        ram_c_a,
-    )
-    env_1 = env_a + 0.5 * dz * nlin_1
-
-    nlin_2 = _set_nlin(
-        env_1,
-        dens_a,
-        ram_a,
-        ion_a,
-        dens_n_a,
-        pls_c_a,
-        mpa_c_a,
-        kerr_c_a,
-        ram_c_a,
-    )
-    env_2 = env_a + 0.5 * dz * nlin_2
-
-    nlin_3 = _set_nlin(
-        env_2,
-        dens_a,
-        ram_a,
-        ion_a,
-        dens_n_a,
-        pls_c_a,
-        mpa_c_a,
-        kerr_c_a,
-        ram_c_a,
-    )
-    env_3 = env_a + dz * nlin_3
-
-    nlin_4 = _set_nlin(
-        env_3,
-        dens_a,
-        ram_a,
-        ion_a,
-        dens_n_a,
-        pls_c_a,
-        mpa_c_a,
-        kerr_c_a,
-        ram_c_a,
-    )
-
-    nlin_a[:] = (nlin_1 + 2 * nlin_2 + 2 * nlin_3 + nlin_4) / 6
-
-
-def compute_nonlinear_w_rk4(
-    env_a,
-    dens_a,
-    ram_a,
-    ion_a,
-    nlin_a,
-    dens_n_a,
-    pls_c_a,
-    mpa_c_a,
-    kerr_c_a,
-    ram_c_a,
-    dz,
-):
-    """
-    Compute envelope propagation nonlinearities in FCN scheme
-    for current propagation step using RK4.
-
-    Parameters
-    ----------
-    env_a : (M, N) array_like
-        Complex envelope at current propagation step.
-    dens_a : (M, N) array_like
-        Density at current propagation step.
-    ram_a : (M, N) array_like
-        Raman response at current propagation step.
-    ion_a : (M, N) array_like
-        Ionization rate at current propagation step.
-    nlin_a : (M, N) array_like
-        Pre-allocated array for the nonlinear terms.
-    dens_n_a : float
-        Neutral density of the medium.
-    pls_c_a : float
-        Plasma coefficient.
-    mpa_c_a : float
-        MPA coefficient.
-    kerr_c_a : float
-        Kerr coefficient.
-    ram_c_a : float
-        Raman coefficient.
-    dz : float
-        Axial step
-
-    """
-    nlin_1 = _set_nlin_w(
-        env_a,
-        dens_a,
-        ram_a,
-        ion_a,
-        dens_n_a,
-        pls_c_a,
-        mpa_c_a,
-        kerr_c_a,
-        ram_c_a,
-    )
-    env_1 = env_a + 0.5 * dz * ifft(nlin_1)
-
-    nlin_2 = _set_nlin_w(
-        env_1,
-        dens_a,
-        ram_a,
-        ion_a,
-        dens_n_a,
-        pls_c_a,
-        mpa_c_a,
-        kerr_c_a,
-        ram_c_a,
-    )
-    env_2 = env_a + 0.5 * dz * ifft(nlin_2)
-
-    nlin_3 = _set_nlin_w(
-        env_2,
-        dens_a,
-        ram_a,
-        ion_a,
-        dens_n_a,
-        pls_c_a,
-        mpa_c_a,
-        kerr_c_a,
-        ram_c_a,
-    )
-    env_3 = env_a + dz * ifft(nlin_3)
-
-    nlin_4 = _set_nlin_w(
-        env_3,
-        dens_a,
-        ram_a,
-        ion_a,
-        dens_n_a,
-        pls_c_a,
-        mpa_c_a,
-        kerr_c_a,
-        ram_c_a,
-    )
-
-    nlin_a[:] = (nlin_1 + 2 * nlin_2 + 2 * nlin_3 + nlin_4) / 6
-
+    if stp_a != 1:
+        nlin_a[:] = 1.5 * nlin_a - 0.5 * nlin_p
 
 def _set_nlin(
     env_a,
     dens_a,
     ram_a,
     ion_a,
+    nlin_a,
     dens_n_a,
     pls_c_a,
     mpa_c_a,
     kerr_c_a,
     ram_c_a,
+    inten_a,
+    tmp_buf_t=None,
 ):
     """
     Compute envelope propagation nonlinear terms in SSCN scheme.
@@ -359,34 +113,120 @@ def _set_nlin(
         Kerr coefficient.
     ram_c_a : float
         Raman coefficient.
-
-    Returns
-    -------
-    nlin : (M, N) ndarray
-        Complex envelope nonlinearities. M is the number
-        of radial nodes and N the number of time nodes.
+    inten_a : (M, N) array_like
+        Intensity at current propagation step.
+    tmp_buf_t : (M, N) array_like, optional
+        Temporary buffer in time domain.
 
     """
-    inten = np.abs(env_a) ** 2
+    if tmp_buf_t is None:
+        tmp_buf_t = np.empty_like(env_a)
 
-    nlin = pls_c_a * dens_a
-    nlin += mpa_c_a * ion_a * (dens_n_a - dens_a) / inten
-    nlin += kerr_c_a * inten
-    nlin += ram_c_a * ram_a
+    np.multiply(dens_a, env_a, out=nlin_a)
+    np.multiply(pls_c_a, nlin_a, out=nlin_a)
 
-    return nlin * env_a
+    np.subtract(dens_n_a, dens_a, out=tmp_buf_t)
+    np.multiply(tmp_buf_t, ion_a, out=tmp_buf_t)
+    np.divide(tmp_buf_t, inten_a + 1.0e-30, out=tmp_buf_t)
+    np.multiply(tmp_buf_t, env_a, out=tmp_buf_t)
+    np.multiply(mpa_c_a, tmp_buf_t, out=tmp_buf_t)
+    np.add(nlin_a, tmp_buf_t, out=nlin_a)
 
+    np.multiply(inten_a, env_a, out=tmp_buf_t)
+    np.multiply(kerr_c_a, tmp_buf_t, out=tmp_buf_t)
+    np.add(nlin_a, tmp_buf_t, out=nlin_a)
+
+    np.multiply(ram_a, env_a, out=tmp_buf_t)
+    np.multiply(ram_c_a, tmp_buf_t, out=tmp_buf_t)
+    np.add(nlin_a, tmp_buf_t, out=nlin_a)
+
+def compute_nonlinear_w_ab2(
+    stp_a,
+    env_a,
+    dens_a,
+    ram_a,
+    ion_a,
+    nlin_a,
+    nlin_p,
+    dens_n_a,
+    pls_c_a,
+    mpa_c_a,
+    kerr_c_a,
+    ram_c_a,
+    inten_a,
+    tmp_buf_t=None,
+    tmp_buf_w=None,
+):
+    """
+    Compute envelope propagation nonlinearities in FCN scheme
+    for current propagation step using AB2.
+
+    Parameters
+    ----------
+    stp_a: integer
+        Current propagation step index.
+    env_a : (M, N) array_like
+        Complex envelope at current propagation step.
+    dens_a : (M, N) array_like
+        Density at current propagation step.
+    ram_a : (M, N) array_like
+        Raman response at current propagation step.
+    ion_a : (M, N) array_like
+        Ionization rate at current propagation step.
+    nlin_a : (M, N) array_like
+        Pre-allocated array for the nonlinear terms.
+    nlin_p : (M, N) array_like
+        Previous step nonlinear terms.
+    dens_n_a : float
+        Neutral density of the medium.
+    pls_c_a : float
+        Plasma coefficient.
+    mpa_c_a : float
+        MPA coefficient.
+    kerr_c_a : float
+        Kerr coefficient.
+    ram_c_a : float
+        Raman coefficient.
+    inten_a : (M, N) array_like
+        Intensity at current propagation step.
+    tmp_buf_t : (M, N) array_like, optional
+        Temporary buffer in time domain.
+    tmp_buf_w : (M, N) array_like, optional
+        Temporary buffer in frequency domain.
+
+    """
+    _set_nlin_w(
+        env_a,
+        dens_a,
+        ram_a,
+        ion_a,
+        nlin_a,
+        dens_n_a,
+        pls_c_a,
+        mpa_c_a,
+        kerr_c_a,
+        ram_c_a,
+        inten_a,
+        tmp_buf_t,
+        tmp_buf_w,
+    )
+    if stp_a != 1:
+        nlin_a[:] = 1.5 * nlin_a - 0.5 * nlin_p
 
 def _set_nlin_w(
     env_a,
     dens_a,
     ram_a,
     ion_a,
+    nlin_a,
     dens_n_a,
     pls_c_a,
     mpa_c_a,
     kerr_c_a,
     ram_c_a,
+    inten_a,
+    tmp_buf_t=None,
+    tmp_buf_w=None,
 ):
     """
     Compute envelope propagation nonlinear terms in FCN scheme.
@@ -401,6 +241,8 @@ def _set_nlin_w(
         Raman response at current propagation step.
     ion_a : (M, N) array_like
         Ionization rate at current propagation step.
+    nlin_a : (M, N) array_like
+        Pre-allocated array for the nonlinear terms.
     dens_n_a : float
         Neutral density of the medium.
     pls_c_a : float
@@ -411,19 +253,37 @@ def _set_nlin_w(
         Kerr coefficient.
     ram_c_a : float
         Raman coefficient.
-
-    Returns
-    -------
-    nlin : (M, N) ndarray
-        Complex envelope nonlinearities. M is the number
-        of radial nodes and N the number of time nodes.
+    inten_a : (M, N) array_like
+        Intensity at current propagation step.
+    tmp_buf_t : (M, N) array_like, optional
+        Temporary buffer in time domain.
+    tmp_buf_w : (M, N) array_like, optional
+        Temporary buffer in frequency domain.
 
     """
-    inten = np.abs(env_a) ** 2
+    if tmp_buf_t is None:
+        tmp_buf_t = np.empty_like(env_a)
+    if tmp_buf_w is None:
+        tmp_buf_w = np.empty_like(env_a)
 
-    nlin = pls_c_a * fft(dens_a * env_a)
-    nlin += mpa_c_a * fft(ion_a * (dens_n_a - dens_a) * env_a / inten)
-    nlin += kerr_c_a * fft(inten * env_a)
-    nlin += ram_c_a * fft(ram_a * env_a)
+    np.multiply(dens_a, env_a, out=tmp_buf_t)
+    tmp_buf_w[:] = compute_fft(tmp_buf_t)
+    np.multiply(pls_c_a, tmp_buf_w, out=nlin_a)
 
-    return nlin
+    np.subtract(dens_n_a, dens_a, out=tmp_buf_t)
+    np.multiply(tmp_buf_t, ion_a, out=tmp_buf_t)
+    np.multiply(tmp_buf_t, env_a, out=tmp_buf_t)
+    np.divide(tmp_buf_t, inten_a + 1.0e-30, out=tmp_buf_t)
+    tmp_buf_w[:] = compute_fft(tmp_buf_t)
+    np.multiply(mpa_c_a, tmp_buf_w, out=tmp_buf_w)
+    np.add(nlin_a, tmp_buf_w, out=nlin_a)
+
+    np.multiply(inten_a, env_a, out=tmp_buf_t)
+    tmp_buf_w[:] = compute_fft(tmp_buf_t)
+    np.multiply(kerr_c_a, tmp_buf_w, out=tmp_buf_w)
+    np.add(nlin_a, tmp_buf_w, out=nlin_a)
+
+    np.multiply(ram_a, env_a, out=tmp_buf_t)
+    tmp_buf_w[:] = compute_fft(tmp_buf_t)
+    np.multiply(ram_c_a, tmp_buf_w, out=tmp_buf_w)
+    np.add(nlin_a, tmp_buf_w, out=nlin_a)

@@ -1,20 +1,40 @@
-"""Density evolution module."""
+"""Helper module for electron density evolution ODE solution."""
 
 import numpy as np
 from numba import njit, prange
 from scipy.integrate import solve_ivp
-from scipy.interpolate import PchipInterpolator
-from scipy.sparse import diags_array
 
+
+class _LinearInterpolation:
+    """Lightweight linear interpolation class for density ODE."""
+    __slots__ = ("t", "y", "_out_y", "inv_dt", "last_idx")
+    def __init__(self, t_axis, values):
+        self.t = np.ascontiguousarray(t_axis)
+        self.y = np.ascontiguousarray(values)
+        self._out_y = np.empty(self.y.shape[0], dtype=self.y.dtype)
+        self.inv_dt = 1.0 / np.diff(self.t)
+        self.last_idx = len(t_axis) - 2
+
+    def __call__(self, t_call):
+        tc = float(t_call)
+        idx = np.searchsorted(self.t, tc, side="right") - 1
+        idx = 0 if idx < 0 else (self.last_idx if idx > self.last_idx else idx)
+        frac = (tc - self.t[idx]) * self.inv_dt[idx]
+
+        out = self._out_y
+        out[:] = self.y[:, idx]
+        out *= 1.0 - frac
+        out += frac * self.y[:, idx + 1]
+        return out
 
 @njit(parallel=True)
-def compute_density_rk4(int_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a):
+def compute_density_rk4(inten_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a):
     """
     Compute electron density evolution for all time steps using RK4.
 
     Parameters
     ----------
-    int_a : (M, N) array_like
+    inten_a : (M, N) array_like
         Intensity at current propagation step.
     dens_a : (M, N) array_like
         Density at current propagation step.
@@ -30,66 +50,53 @@ def compute_density_rk4(int_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a):
         Avalanche ionization coefficient.
 
     """
-    n_t_a = len(t_a)
-    dt = t_a[1] - t_a[0]
+    n_r, n_t = dens_a.shape
+    dt = np.diff(t_a)
     dens_a[:, 0] = dens_0_a
 
-    int_trp = 0.5 * (int_a[:, :-1] + int_a[:, 1:])
-    ion_trp = 0.5 * (ion_a[:, :-1] + ion_a[:, 1:])
+    for nn in prange(n_r):
+        inten_nn = inten_a[nn]
+        ion_nn = ion_a[nn]
+        dens_nn = dens_a[nn]
 
-    for ll in prange(n_t_a - 1):  # pylint: disable=not-an-iterable
-        dens_s = dens_a[:, ll]
+        dens_p = dens_0_a
 
-        k1_dens = _set_density_rk4(dens_s, int_a[:, ll], ion_a[:, ll], dens_n_a, ava_c_a)
-        dens_1 = dens_s + 0.5 * dt * k1_dens
+        for ll in range(n_t - 1):
+            dt_ll = dt[ll]
 
-        k2_dens = _set_density_rk4(dens_1, int_trp[:, ll], ion_trp[:, ll], dens_n_a, ava_c_a)
-        dens_2 = dens_s + 0.5 * dt * k2_dens
+            inten_0 = inten_nn[ll]
+            inten_1 = inten_nn[ll + 1]
+            ion_0 = ion_nn[ll]
+            ion_1 = ion_nn[ll + 1]
 
-        k3_dens = _set_density_rk4(dens_2, int_trp[:, ll], ion_trp[:, ll], dens_n_a, ava_c_a)
-        dens_3 = dens_s + dt * k3_dens
+            inten_mid = 0.5 * (inten_0 + inten_1)
+            ion_mid = 0.5 * (ion_0 + ion_1)
 
-        k4_dens = _set_density_rk4(dens_3, int_a[:, ll + 1], ion_a[:, ll + 1], dens_n_a, ava_c_a)
+            k1 = _rhs_rk4(dens_p, inten_0, ion_0, dens_n_a, ava_c_a)
+            dens_1 = dens_p + 0.5 * dt_ll * k1
 
-        dens_a[:, ll + 1] = dens_s + dt * (k1_dens + 2 * k2_dens + 2 * k3_dens + k4_dens) / 6
+            k2 = _rhs_rk4(dens_1, inten_mid, ion_mid, dens_n_a, ava_c_a)
+            dens_2 = dens_p + 0.5 * dt_ll * k2
 
+            k3 = _rhs_rk4(dens_2, inten_mid, ion_mid, dens_n_a, ava_c_a)
+            dens_3 = dens_p + dt_ll * k3
 
-@njit
-def _set_density_rk4(dens_s_a, int_s_a, ion_s_a, dens_n_a, ava_c_a):
-    """
-    Compute the electron density evolution terms using RK4.
+            k4 = _rhs_rk4(dens_3, inten_1, ion_1, dens_n_a, ava_c_a)
 
-    Parameters
-    ----------
-    dens_s_a : (M,) array_like
-        Density at current time slice.
-    int_s_a : (M,) array_like
-        Intensity at current time slice.
-    ion_s_a : array_like
-        Ionization rate at current time slice.
-    dens_n_a : float
-        Neutral density of the medium chosen.
-    ava_c_a : float
-        Avalanche ionization coefficient.
+            dens_p += dt_ll * (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0
+            dens_nn[ll + 1] = dens_p
 
-    Returns
-    -------
-    rhs : (M,) float ndarray.
-        Electron density evolution RHS at current time slice.
-        M is the number of radial nodes.
-
-    """
-    rate_ofi = ion_s_a * (dens_n_a - dens_s_a)
-    rate_ava = ava_c_a * dens_s_a * int_s_a
-
-    return rate_ofi + rate_ava
+@njit(inline="always")
+def _rhs_rk4(dens_s_a, int_s_a, ion_s_a, dens_n_a, ava_c_a):
+    """RHS of the electron density evolution ODE for RK4."""
+    return ion_s_a * (dens_n_a - dens_s_a) + ava_c_a * dens_s_a * int_s_a
 
 
 def compute_density(
-    inten_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a, method_a, first_step_a, rtol_a, atol_a
+    inten_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a, method_a, first_step_a, rtol_a, atol_a, rhs_buf=None, tmp_buf=None
 ):
     """
-    Compute electron density evolution for all time steps using ODE solver.
+    Compute electron density evolution ODE for all time steps with SciPy's 'solve_ivp'.
 
     Parameters
     ----------
@@ -103,7 +110,7 @@ def compute_density(
         Time coordinates grid.
     dens_n_a : float
         Neutral atom density of the chosen medium.
-    dens_0_a : float
+    dens_0_a : (M,) array_like
         Initial electron density of the chosen medium.
     ava_c_a : float
         Avalanche ionization coefficient.
@@ -115,82 +122,41 @@ def compute_density(
         Relative tolerance for the ODE solver.
     atol_a : float
         Absolute tolerance for the ODE solver.
+    rhs_buf : (M,) array_like, optional
+        Buffer array for RHS computations.
+    tmp_buf : (M,) array_like, optional
+        Temporary buffer array for RHS computations.
 
     """
-    ion_to_t = PchipInterpolator(t_a, ion_a, axis=1, extrapolate=True)
-    inten_to_t = PchipInterpolator(t_a, inten_a, axis=1, extrapolate=True)
+    ion_to_t = _LinearInterpolation(t_a, ion_a)
+    inten_to_t = _LinearInterpolation(t_a, inten_a)
 
     k = inten_a.shape[0]
+    if rhs_buf is None:
+        rhs_buf = np.empty(k, dtype=inten_a.dtype)
+    if tmp_buf is None:
+        tmp_buf = np.empty(k, dtype=inten_a.dtype)
+
+    def _set_density(t, dens):
+        """RHS of the electron density evolution ODE for SciPy."""
+        ion_s = ion_to_t(t)
+        inten_s = inten_to_t(t)
+
+        np.subtract(dens_n_a, dens, out=tmp_buf)
+        np.multiply(ion_s, tmp_buf, out=rhs_buf)
+        np.multiply(dens, inten_s, out=tmp_buf)
+        np.multiply(ava_c_a, tmp_buf, out=tmp_buf)
+        np.add(rhs_buf, tmp_buf, out=rhs_buf)
+        return rhs_buf
+
     sol = solve_ivp(
         _set_density,
         (t_a[0], t_a[-1]),
-        np.full(k, dens_0_a),
+        dens_0_a,
         method=method_a,
         t_eval=t_a,
-        args=(ion_to_t, inten_to_t, dens_n_a, ava_c_a),
         first_step=first_step_a,
         rtol=rtol_a,
         atol=atol_a,
-        jac=_set_jacobian
     )
     dens_a[:] = sol.y
-
-
-def _set_density(t, dens, ion_f, inten_f, dens_n, ava_c):
-    """
-    Compute the electron density evolution terms using ODE solver.
-
-    Parameters
-    ----------
-    t : float
-        Time value.
-    dens : (M,) array_like
-        Density at t.
-    ion_f : function
-        Interpolated function for ionization rate.
-    inten_f : function
-        Interpolated function for intensity.
-    dens_n : float
-        Neutral density of the medium chosen.
-    ava_c : float
-        Avalanche ionization coefficient.
-
-    """
-    ion_s = ion_f(t)
-    inten_s = inten_f(t)
-
-    ion_term = ion_s * (dens_n - dens)
-    ava_term = ava_c * dens * inten_s
-
-    return ion_term + ava_term
-
-
-def _set_jacobian(t, dens, ion_f, inten_f, dens_n, ava_c):
-    """
-    Compute the electron density evolution Jacobian matrix for
-    Radau and BDF implicit methods. Better in comparison with
-    the vectorized approach, which relies on finite-difference
-    approximations.
-
-    Parameters
-    ----------
-    t : float
-        Time value.
-    dens : (M,) array_like
-        Density at t.
-    ion_f : function
-        Interpolated function for ionization rate.
-    inten_f : function
-        Interpolated function for intensity.
-    dens_n : float
-        Neutral density of the medium chosen.
-    ava_c : float
-        Avalanche ionization coefficient.
-
-    """
-    ion_s = ion_f(t)
-    inten_s = inten_f(t)
-
-    jacobian = -ion_s + ava_c * inten_s
-
-    return diags_array(jacobian, offsets=0)
