@@ -1,4 +1,4 @@
-"""Beam radius module."""
+"""Helper module for computing beam radius."""
 
 import numpy as np
 
