@@ -1,5 +1,5 @@
 """
-Fast Fourier Transform algorithm module.
+Helper module for the FFT algorithm module.
 
 How this works
 --------------
