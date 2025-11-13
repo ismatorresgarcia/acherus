@@ -1,14 +1,14 @@
-"""Split-Step Crank-Nicolson (SSCN) solver module."""
+"""Solver module for Split-Step Crank-Nicolson (SSCN) scheme."""
 
 import numpy as np
 from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
 from ..functions.density import compute_density, compute_density_rk4
-from ..functions.fft_backend import fft, ifft
+from ..functions.fft_backend import compute_fft, compute_ifft
 from ..functions.fluence import compute_fluence
 from ..functions.intensity import compute_intensity
-from ..functions.interp_w import compute_ionization
+from ..functions.ionization import compute_ion_rate
 from ..functions.nonlinear import compute_nonlinear_ab2
 from ..functions.radius import compute_radius
 from ..functions.raman import compute_raman
@@ -21,10 +21,12 @@ class SolverSSCN(SolverBase):
     def __init__(
         self,
         config,
+        dispersion,
         medium,
         laser,
         grid,
         eqn,
+        ion,
         output
     ):
         """Initialize SSCN solver.
@@ -33,6 +35,8 @@ class SolverSSCN(SolverBase):
         ----------
         config: object
             Contains the simulation options.
+        dispersion : object
+            Contains the dispersion medium properties.
         medium : object
             Contains the chosen medium parameters.
         laser : object
@@ -41,6 +45,8 @@ class SolverSSCN(SolverBase):
             Contains the grid input parameters.
         eqn : object
             Contains the equation parameters.
+        ion : object
+            Contains the ionization model parameters.
         output : object
             Contains the output manager methods for saving propagation results.
         """
@@ -48,10 +54,12 @@ class SolverSSCN(SolverBase):
         # Initialize base class
         super().__init__(
             config,
+            dispersion,
             medium,
             laser,
             grid,
             eqn,
+            ion,
             output
         )
 
@@ -115,10 +123,34 @@ class SolverSSCN(SolverBase):
         matrix_right = diags_array(diags, offsets=[-1, 0, 1], format="dia")
         return matrix_band, matrix_right
 
+    def compute_dispersion_function(self, w_det, w_0):
+        """
+        Compute the dispersion operator using the full dispersion
+        relation with Sellmeier formulas.
+
+        Parameters
+        ----------
+        w_det : (N,) array_like
+            Angular frequency detuning.
+        w_0 : float
+            Beam central frequency.
+
+        Returns
+        -------
+        disp : (N,) ndarray
+            Dispersion function for each frequency.
+
+        """
+        w = w_det + w_0
+
+        _, k_w, _ = self.dispersion.properties(w)
+
+        return k_w - self.k_0 - self.k_1 * w_det
+
     def set_operators(self):
         """Set SSCN operators."""
         diff_op = 0.25 * self.z_res / (self.k_0 * self.r_res**2)
-        disp_op = 0.25 * self.z_res * self.k_2 * self.w_grid**2
+        disp_op = 0.5 * self.z_res * self.compute_dispersion_function(self.w_grid, self.w_0)
         self.plasma_op = self.z_res * self.plasma_c
         self.mpa_op = self.z_res * self.mpa_c
         self.kerr_op = self.z_res * self.kerr_c
@@ -131,8 +163,8 @@ class SolverSSCN(SolverBase):
         """
         Compute one step of the FFT propagation scheme for dispersion.
         """
-        self.envelope_rt[:-1, :] = fft(
-            self.disp_exp * ifft(self.envelope_rt[:-1, :]),
+        self.envelope_rt[:-1, :] = compute_fft(
+            self.disp_exp * compute_ifft(self.envelope_rt[:-1, :]),
         )
 
     def compute_envelope(self):
@@ -151,28 +183,20 @@ class SolverSSCN(SolverBase):
 
     def solve_step(self, step):
         """Perform one propagation step."""
-        intensity_f = compute_intensity(
+        compute_intensity(
             self.envelope_rt[:-1, :],
             self.intensity_rt[:-1, :],
         )
-        if self.ion_model == "PPT":
-            compute_ionization(
-                self.intensity_rt[:-1, :],
-                self.ionization_rate[:-1, :],
-                self.number_photons,
-                self.mpi_c,
-                self.ion_model,
-                self.inten_ion
-            )
-        else:
-            compute_ionization(
-                self.intensity_rt[:-1, :],
-                self.ionization_rate[:-1, :],
-                self.number_photons,
-                self.mpi_c,
-                self.ion_model,
-                self.inten_ion
-            )
+        compute_ion_rate(
+            self.intensity_rt[:-1, :],
+            self.ionization_rate[:-1, :],
+            self.intensity_to_rate,
+        )
+        compute_ion_rate(
+            self.intensity_rt[:-1, :],
+            self.ionization_rate[:-1, :],
+            self.intensity_to_rate,
+        )
         if self.dens_meth == "RK4":
             compute_density_rk4(
                 self.intensity_rt[:-1, :],
@@ -190,19 +214,20 @@ class SolverSSCN(SolverBase):
                 self.ionization_rate[:-1, :],
                 self.t_grid,
                 self.density_n,
-                self.density_ini,
+                self._dens_init_buf[:-1],
                 self.avalanche_c,
                 self.dens_meth,
                 self.dens_meth_ini_step,
                 self.dens_meth_atol,
                 self.dens_meth_rtol,
+                self._dens_rhs_buf[:-1],
+                self._dens_tmp_buf[:-1],
             )
         if self.use_raman:
             compute_raman(
                 self.intensity_rt[:-1, :],
                 self.raman_rt[:-1, :],
                 self.raman_aux[:-1, :],
-                self.t_grid,
                 self.raman_ode1,
                 self.raman_ode2,
             )
@@ -222,6 +247,8 @@ class SolverSSCN(SolverBase):
             self.mpa_op,
             self.kerr_op,
             self.raman_op,
+            self.intensity_rt[:-1, :],
+            self._nlin_tmp_t[:-1, :],
         )
         self.compute_envelope()
         compute_fluence(self.envelope_rt, self.t_grid, self.fluence_r)

@@ -22,7 +22,7 @@ class Equation:
         # Initialize parameters
         self.alpha = self.medium.raman_partition
         self.u_i = self.medium.ionization_energy
-        self.n_0 = self.medium.refraction_index_linear
+        self.n_0 = self.laser.index_0
         self.n_2 = self.medium.refraction_index_nonlinear
         self.w_r = self.medium.raman_rotational_frequency
         self.w_0 = self.laser.frequency_0

@@ -8,8 +8,9 @@ from scipy.special import gamma as g_euler
 class Laser:
     """Laser pulse."""
 
-    def __init__(self, medium, grid, pulse_name, pulse_par):
+    def __init__(self, dispersion, medium, grid, pulse_name, pulse_par):
         # Initialize class attributes
+        self.dispersion = dispersion
         self.medium = medium
         self.pulse_name = pulse_name
 
@@ -31,9 +32,8 @@ class Laser:
     def init_parameters(self):
         """Initialize derived laser optical properties"""
         self.frequency_0 = 2 * np.pi * c_light / self.wavelength
-        self.wavenumber_0 = (
-            2 * np.pi * self.medium.refraction_index_linear / self.wavelength
-        )
+        _, self.wavenumber_0, _ = self.dispersion.properties(self.frequency_0)
+        self.index_0 = self.wavenumber_0 * c_light / self.frequency_0
         self.initial_power = self.energy / (self.duration * np.sqrt(0.5 * np.pi))
         if self.pulse_name == "gaussian":
             self.initial_intensity = (

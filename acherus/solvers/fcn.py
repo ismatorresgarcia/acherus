@@ -1,4 +1,4 @@
-"""Fourier-Crank-Nicolson (FCN) solver module."""
+"""Solver module for Fourier-Crank-Nicolson (FCN) scheme."""
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -8,14 +8,13 @@ from scipy.linalg import solve_banded
 from scipy.sparse import diags_array
 
 from ..functions.density import compute_density, compute_density_rk4
-from ..functions.fft_backend import fft, ifft
+from ..functions.fft_backend import compute_fft, compute_ifft
 from ..functions.fluence import compute_fluence
 from ..functions.intensity import compute_intensity
-from ..functions.interp_w import compute_ionization
+from ..functions.ionization import compute_ion_rate
 from ..functions.nonlinear import compute_nonlinear_w_ab2
 from ..functions.radius import compute_radius
 from ..functions.raman import compute_raman
-from ..physics.sellmeier import sellmeier_air, sellmeier_silica, sellmeier_water
 from .base import SolverBase
 
 
@@ -25,10 +24,12 @@ class SolverFCN(SolverBase):
     def __init__(
         self,
         config,
+        dispersion,
         medium,
         laser,
         grid,
         eqn,
+        ion,
         output
     ):
         """Initialize FCN solver.
@@ -37,6 +38,8 @@ class SolverFCN(SolverBase):
         ----------
         config: object
             Contains the simulation options.
+        dispersion : object
+            Contains the dispersion medium properties.
         medium : object
             Contains the chosen medium parameters.
         laser : object
@@ -45,6 +48,8 @@ class SolverFCN(SolverBase):
             Contains the grid input parameters.
         eqn : object
             Contains the equation parameters.
+        ion : object
+            Contains the ionization model parameters.
         output : object
             Contains the output manager methods for saving propagation results.
         """
@@ -52,16 +57,18 @@ class SolverFCN(SolverBase):
         # Initialize base class
         super().__init__(
             config,
+            dispersion,
             medium,
             laser,
             grid,
             eqn,
+            ion,
             output
         )
 
         # Initialize FCN-specific arrays
         self.envelope_fourier = np.zeros_like(self.envelope_rt)
-        self.nonlinear_next_rt = np.zeros_like(self.nonlinear_rt)
+        self._nlin_tmp_w = np.empty_like(self.envelope_rt)
 
         # Set initial conditions and operators
         self.set_initial_conditions()
@@ -123,7 +130,7 @@ class SolverFCN(SolverBase):
         matrix_right = diags_array(diags, offsets=[-1, 0, 1], format="dia")
         return matrix_band, matrix_right
 
-    def set_dispersion(self, w_det, w_0):
+    def compute_dispersion_function(self, w_det, w_0):
         """
         Compute the dispersion operator using the full dispersion
         relation with Sellmeier formulas.
@@ -141,23 +148,9 @@ class SolverFCN(SolverBase):
             Dispersion function for each frequency.
 
         """
-        medium_name = self.medium_n
-
         w = w_det + w_0
 
-        if medium_name in ["oxygen_800", "nitrogen_800"]:
-            n = sellmeier_air(w)
-        elif medium_name in ["water_400", "water_800"]:
-            n = sellmeier_water(w)
-        elif medium_name in ["silica_800"]:
-            n = sellmeier_silica(w)
-        else:
-            raise ValueError(
-                f"Not available medium option: '{medium_name}'. "
-                "Available media are: 'oxygen_800', 'nitrogen_800', "
-                "'water_400', 'water_800', and 'silica_800'. "
-            )
-        k_w = n * w / c_light
+        _, k_w, _ = self.dispersion.properties(w)
 
         return k_w - self.k_0 - self.k_1 * w_det
 
@@ -165,7 +158,7 @@ class SolverFCN(SolverBase):
         """Set Fourier-Crank-Nicolson operators."""
         self.steep_op = 1 + self.w_grid / self.w_0
         diff_op = 0.25 * self.z_res / (self.k_0 * self.r_res**2 * self.steep_op)
-        disp_op = 0.5 * self.z_res * self.set_dispersion(self.w_grid, self.w_0)
+        disp_op = 0.5 * self.z_res * self.compute_dispersion_function(self.w_grid, self.w_0)
         self.plasma_op = self.z_res * self.plasma_c / self.steep_op
         self.mpa_op = self.z_res * self.mpa_c
         self.kerr_op = self.z_res * self.kerr_c * self.steep_op
@@ -190,7 +183,7 @@ class SolverFCN(SolverBase):
         Compute one step of the generalized Fourier-Crank-Nicolson
         scheme for envelope propagation.
         """
-        self.envelope_fourier[:-1, :] = fft(self.envelope_rt[:-1, :])
+        self.envelope_fourier[:-1, :] = compute_fft(self.envelope_rt[:-1, :])
 
         def slice_wrapper(ww):
             """Wrapper for parallel computation of each slice."""
@@ -204,7 +197,7 @@ class SolverFCN(SolverBase):
         for ww, result in enumerate(results):
             self.envelope_fourier[:, ww] = result
 
-        self.envelope_rt[:-1, :] = ifft(self.envelope_fourier[:-1, :])
+        self.envelope_rt[:-1, :] = compute_ifft(self.envelope_fourier[:-1, :])
 
     def solve_step(self, step):
         """Perform one propagation step."""
@@ -212,24 +205,11 @@ class SolverFCN(SolverBase):
             self.envelope_rt[:-1, :],
             self.intensity_rt[:-1, :],
         )
-        if self.ion_model == "PPT":
-            compute_ionization(
-                self.intensity_rt[:-1, :],
-                self.ionization_rate[:-1, :],
-                self.number_photons,
-                self.mpi_c,
-                self.ion_model,
-                self.inten_ion
-            )
-        else:
-            compute_ionization(
-                self.intensity_rt[:-1, :],
-                self.ionization_rate[:-1, :],
-                self.number_photons,
-                self.mpi_c,
-                self.ion_model,
-                self.inten_ion
-            )
+        compute_ion_rate(
+            self.intensity_rt[:-1, :],
+            self.ionization_rate[:-1, :],
+            self.intensity_to_rate,
+        )
         if self.dens_meth == "RK4":
             compute_density_rk4(
                 self.intensity_rt[:-1, :],
@@ -247,19 +227,20 @@ class SolverFCN(SolverBase):
                 self.ionization_rate[:-1, :],
                 self.t_grid,
                 self.density_n,
-                self.density_ini,
+                self._dens_init_buf[:-1],
                 self.avalanche_c,
                 self.dens_meth,
                 self.dens_meth_ini_step,
                 self.dens_meth_atol,
                 self.dens_meth_rtol,
+                self._dens_rhs_buf[:-1],
+                self._dens_tmp_buf[:-1],
             )
         if self.use_raman:
             compute_raman(
                 self.intensity_rt[:-1, :],
                 self.raman_rt[:-1, :],
                 self.raman_aux[:-1, :],
-                self.t_grid,
                 self.raman_ode1,
                 self.raman_ode2,
             )
@@ -278,6 +259,9 @@ class SolverFCN(SolverBase):
             self.mpa_op,
             self.kerr_op,
             self.raman_op,
+            self.intensity_rt[:-1, :],
+            self._nlin_tmp_t[:-1, :],
+            self._nlin_tmp_w[:-1, :],
         )
         self.compute_envelope()
         compute_fluence(self.envelope_rt, self.t_grid, self.fluence_r)

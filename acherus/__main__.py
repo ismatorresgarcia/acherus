@@ -1,14 +1,13 @@
 """Entry point for running the package with 'python -m acherus'."""
 
-import cProfile
-
 from ._version import __version__
 from .config import ConfigOptions
-from .data.diagnostics import profiler_log
 from .data.store import OutputManager
 from .functions.fft_backend import fft_manager
 from .mesh.grid import Grid
+from .physics.dispersion import MediumDispersion
 from .physics.equation import Equation
+from .physics.keldysh import KeldyshIonization
 from .physics.laser import Laser
 from .physics.media import MediumParameters
 from .solvers.fcn import SolverFCN
@@ -39,14 +38,18 @@ def main():
         },
         density_solver={
             "RK45": {
-                "ini_step": 5e-15, 
-                "rtol": 1e-9, 
-                "atol": 1e-1
+                "ini_step": 5e-15,
+                "rtol": 1e-9,
+                "atol": 1e-6
             },
         },
-        nonlinear_method="AB2",
-        solver_scheme="FCN",
-        ionization_model="PPT",
+        propagation_solver="FCN",
+        ionization_model={
+            "PPTG": {
+                "wavelength": 800e-9,
+                "energy_gap": 12.063,
+            },
+        },
         computing_backend="CPU"
     )
 
@@ -55,56 +58,52 @@ def main():
         axis_par=config.axis_par,
         time_par=config.time_par
     )
+    disp = MediumDispersion(medium_name=config.medium_name)
     medium = MediumParameters(medium_name=config.medium_name)
     laser = Laser(
-        medium, grid, pulse_name=config.pulse_name, pulse_par=config.pulse_par
+        disp, medium, grid, pulse_name=config.pulse_name, pulse_par=config.pulse_par
     )
     eqn = Equation(medium, laser, grid)
+    ion = KeldyshIonization(disp, model_name=config.ionization_model, params=config.ionization_model_par)
     output = OutputManager()
 
-    if config.solver_scheme == "SSCN":
+    if config.propagation_method == "SSCN":
         solver = SolverSSCN(
             config,
+            disp,
             medium,
             laser,
             grid,
             eqn,
+            ion,
             output
         )
-    elif config.solver_scheme == "FCN":
+    elif config.propagation_method == "FCN":
         solver = SolverFCN(
             config,
+            disp,
             medium,
             laser,
             grid,
             eqn,
+            ion,
             output
         )
     else:
         raise ValueError(
-            f"Not available solver: '{config.solver_scheme}'. "
-            f"Available solvers are: 'SSCN' or 'FCN'."
+            f"Not available propagation method: '{config.propagation_method}'. "
+            f"Available methods are: 'SSCN' or 'FCN'."
         )
     # ... future solvers to be added in the future!
 
     # Initialize FFT algorithm
     fft_manager.set_fft_backend(config.computing_backend)
 
-    # Initialize profiler
-    profiler = cProfile.Profile()
-    profiler.enable()
-
     # Run simulation
     solver.propagate()
 
-    # Stop profiler
-    profiler.disable()
-
     # Save final propagation results
     output.save_results(solver, grid)
-
-    # Generate profiler report
-    profiler_log(profiler)
 
 
 if __name__ == "__main__":
