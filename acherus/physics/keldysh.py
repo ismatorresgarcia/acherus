@@ -1,5 +1,7 @@
 """
-Peremolov, Popov, and Terent'ev (PPT) ionization rate module.
+Peremolov, Popov, and Terent'ev (PPT) ionization rate module for gaseous media.
+
+Keldysh ionization rate module for condensed media.
 
 Mishima et al. (2002) molecular corrections for O2 and N2
 molecules are included in the PPT rate.
@@ -12,7 +14,7 @@ for a given medium and laser central frequency. This is
 done by computing a peak intensity array within a desired
 range of values, and then used to compute their corresponding
 ionization rates. In the end, an interpolating object or
-function is provided in the end.
+function is provided.
 
 2. For the chosen peak intensity values, the Keldysh parameter
 `gamma` is computed, followed by the computation of its
@@ -66,94 +68,135 @@ to SI units, in order to match the interpolating object.
 Instead, the interpolating function returned has a built-in
 unit conversion for the intensity array, which is meant to
 be provided in units of I = E**2, as expected inside Acherus.
-
 """
+
 
 import numpy as np
 from scipy.constants import c as c_light
 from scipy.constants import e as e_charge
 from scipy.constants import epsilon_0 as eps_0
-from scipy.constants import hbar, m_e, physical_constants
-from scipy.interpolate import PchipInterpolator
-from scipy.special import dawsn  # pylint: disable=no-name-in-module
-from scipy.special import gamma as g_euler  # pylint: disable=no-name-in-module
+from scipy.constants import hbar
+from scipy.interpolate import interp1d
+
+from ..functions.keldysh_rates import keldysh_condensed_rate, keldysh_gas_rate, mpi_rate
 
 
-def compute_ppt_rate(medium, laser):
+class KeldyshIonization:
     """
-    Compute and return PPT ionization rates.
+    MPI limit or general-Keldysh ionization models for gaseous and condensed media.
     """
-    w_au = 1 / physical_constants["atomic unit of time"][0]
-    f_au = physical_constants["atomic unit of electric field"][0]
-    u_h = physical_constants["Rydberg constant times hc in eV"][0]
-    l_0 = laser.wavelength
-    n_0 = medium.refraction_index_linear
-    u_i = medium.ionization_energy
 
-    def compute_rate(f, w_a, n_q, g, u_h, sum_a, f_0, g_a, u_i):
-        """Final PPT ionization rate."""
-        mishima = 4 * (16 / 3) * (2 * g**2 + 3) / (1 + g**2)
-        units = 0.5 * w_a * u_i / u_h
-        c_nl = 2 ** (2 * n_q) / (g_euler(n_q + 1))**2
-        a_m = (4 * np.sqrt(2) / np.pi) * (g**2 / (1 + g**2)) * sum_a
-        b_1 = (2 * f_0 / (f * np.sqrt(1 + g**2))) ** (2 * n_q - 1.5)
-        b_2 = np.exp(-2 * f_0 * g_a / (3 * f))
-
-        return mishima * units * c_nl * a_m * b_1 * b_2
-
-    def compute_sum(alpha_a, beta_a, nu_a, tol, max_iter):
+    def __init__(self, dispersion, model_name, params):
         """
-        Compute the PPT series truncated term.
+        Initialize the Keldysh ionization calculator with the given parameters.
+
+        Parameters
+        ----------
+        dispersion : object
+            Class containing the dispersion properties function.
+        model_name : str
+            Ionization model.
+        params : object
+            Dataclass containing all required parameters.
+
+        Raises
+        ------
+        ValueError
+            If parameter combinations are invalid for the chosen model
         """
-        n = len(alpha_a)
-        idx_min = np.ceil(nu_a)
+        self._dispersion = dispersion
+        self._model = model_name
+        self._parameters = params
+        self.interpolator = None
+        self._check_parameters(params)
 
-        ids = idx_min[:, None] + np.arange(max_iter)[None, :]
-        args = ids - nu_a[:, None]
+    def _check_parameters(self, params) -> None:
+        """Validate inputs for the chosen model and medium."""
+        general_checks = [
+            (params.wavelength is None, "wavelength value must be given"),
+            (params.energy_gap is None, "energy_gap value must be given"),
+            (params.wavelength <= 0, "wavelength must be positive"),
+            (params.energy_gap <= 0, "energy_gap must be positive"),
+            (
+                params.intensity_range[0] <= 0,
+                "intensity_range lower bound must be positive",
+            ),
+            (
+                params.intensity_range[1] <= 0,
+                "intensity_range upper bound must be positive",
+            ),
+            (
+                params.intensity_range[1] <= params.intensity_range[0],
+                "intensity_range upper bound must be greater than lower bound",
+            ),
+        ]
+        for condition, message in general_checks:
+            if condition:
+                raise ValueError(message)
 
-        sum_terms = (
-            np.exp(-alpha_a[:, None] * args) * dawsn(np.sqrt(beta_a[:, None] * args))
+        checks = {
+            "MPI": self._validate_mpi_params,
+            "PPTG": self._validate_pptg_params,
+            "PPTC": self._validate_pptc_params,
+        }
+        check = checks.get(params.model)
+        if check is None:
+            raise ValueError("model must be: 'MPI', 'PPTG', or 'PPTC'")
+        check(params)
+
+    def _validate_mpi_params(self, params) -> None:
+        if params.cross_section is None:
+            raise ValueError("cross_section must be given for 'MPI'")
+
+    def _validate_pptg_params(self, params) -> None:
+        pass
+
+    def _validate_pptc_params(self, params) -> None:
+        if params.neutral_density is None:
+            raise ValueError("neutral_density must be given for 'PPTC'")
+        if params.reduced_mass is None:
+            raise ValueError("reduced_mass must be given for 'PPTC'")
+
+    def _ionization_rate(self):
+        """Calculate ionization rates based on the chosen model."""
+        d = self._dispersion
+        m = self._model
+        p = self._parameters
+        inten = np.linspace(*p.intensity_range, p.num_points)
+        energy_gap = p.energy_gap * e_charge
+        omega_0 = 2 * np.pi * c_light / p.wavelength
+        index_0, _, _ = d.properties(omega_0)
+        photons = energy_gap / (hbar * omega_0)
+        field_factor = 0.5 * index_0 * c_light * eps_0
+
+        if m == "MPI":
+            return inten, mpi_rate(inten, photons, p.cross_section)
+        if m == "PPTC":
+            return inten, keldysh_gas_rate(
+                inten,
+                field_factor,
+                omega_0,
+                energy_gap,
+                photons,
+                p.tolerance,
+                p.max_iterations,
+            )
+        return inten, keldysh_condensed_rate(
+            inten,
+            field_factor,
+            omega_0,
+            energy_gap,
+            photons,
+            p.reduced_mass,
+            p.neutral_density,
+            p.tolerance,
+            p.max_iterations,
         )
 
-        sum_values = np.cumsum(sum_terms, axis=1)
-
-        stop = sum_terms < tol * sum_values
-        first_stop = np.argmax(stop, axis=1)
-
-        ion_sums = sum_values[np.arange(n), first_stop]
-
-        return ion_sums
-
-    w_0 = 2 * np.pi * c_light / l_0
-    nu_0 = u_i * e_charge / (hbar * w_0)
-    f_0 = f_au * np.sqrt(u_i / u_h) ** 3
-    n_quantum = 1 / np.sqrt(u_i / u_h)
-
-    inten_c = 0.5 * c_light * eps_0 * n_0
-    field = np.sqrt(np.linspace(1e-1, 1e19, 10000) / inten_c)
-
-    gamma = w_0 * np.sqrt(2 * m_e * u_i / e_charge) / field
-
-    asinh = np.arcsinh(gamma)
-    idx = 1 + 0.5 / gamma**2
-    nu = nu_0 * idx
-    beta = 2 * gamma / np.sqrt(1 + gamma**2)
-    alpha = 2 * asinh - beta
-    g_gamma = 1.5 * (idx * asinh - 1 / beta) / gamma
-
-    ion_sum = compute_sum(alpha, beta, nu, tol=1e-4, max_iter=250)
-    ion_rate = compute_rate(
-        field,
-        w_au,
-        n_quantum,
-        gamma,
-        u_h,
-        ion_sum,
-        f_0,
-        g_gamma,
-        u_i,
-    )
-
-    ion_inten = PchipInterpolator(inten_c * field**2, ion_rate, extrapolate=True)
-
-    return ion_inten
+    @property
+    def intensity_to_rate(self):
+        """Interpolation function for ionization rate vs intensity."""
+        if self.interpolator is None:
+            inten, rate = self._ionization_rate()
+            self.interpolator = interp1d(inten, rate, bounds_error=False, fill_value="extrapolate")
+        return self.interpolator
