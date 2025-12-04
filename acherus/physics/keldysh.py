@@ -1,10 +1,9 @@
 """
-Peremolov, Popov, and Terent'ev (PPT) ionization rate module for gaseous media.
+Peremolov, Popov, and Terent'ev (PPT, 1966) ionization rate module for gaseous
+media. Mishima et al. (2002) revised atomic and molecular corrections are
+included in the PPT.
 
 Keldysh ionization rate module for condensed media.
-
-Mishima et al. (2002) molecular corrections for O2 and N2
-molecules are included in the PPT rate.
 
 How this works
 --------------
@@ -76,7 +75,7 @@ from scipy.constants import c as c_light
 from scipy.constants import e as e_charge
 from scipy.constants import epsilon_0 as eps_0
 from scipy.constants import hbar
-from scipy.interpolate import interp1d
+from scipy.interpolate import make_interp_spline
 
 from ..functions.keldysh_rates import keldysh_condensed_rate, keldysh_gas_rate, mpi_rate
 
@@ -183,5 +182,5 @@ class KeldyshIonization:
         """Interpolation function for ionization rate vs intensity."""
         if self.interpolator is None:
             inten, rate = self._ionization_rate()
-            self.interpolator = interp1d(inten, rate, bounds_error=False, fill_value="extrapolate")
+            self.interpolator = make_interp_spline(inten, rate, k=1)
         return self.interpolator
