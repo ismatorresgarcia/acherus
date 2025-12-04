@@ -24,7 +24,7 @@ def compute_raman(inten_a, ram_a, ram_x_a, ram_c1_a, ram_c2_a):
         Raman frequency coefficient for the second term.
 
     """
-    nr, nt = inten_a.shape()
+    nr, nt = inten_a.shape
     for ii in prange(nr):
         for kk in range(nt - 1):
             ram_x_a[ii, kk + 1] = ram_c1_a * ram_x_a[ii, kk] + ram_c2_a * (inten_a[ii, kk + 1] + ram_c1_a * inten_a[ii, kk])
