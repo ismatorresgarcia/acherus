@@ -13,7 +13,12 @@ from .intensity import compute_intensity
 from .ionization import compute_ion_rate
 from .keldysh_rates import keldysh_condensed_rate, keldysh_gas_rate, mpi_rate
 from .keldysh_sum import series_sum
-from .nonlinear import compute_nonlinear_ab2, compute_nonlinear_w_ab2
+from .nonlinear import (
+    compute_nonlinear_nrfcn,
+    compute_nonlinear_nrsscn,
+    compute_nonlinear_rfcn,
+    compute_nonlinear_rsscn,
+)
 from .radius import compute_radius
 from .raman import compute_raman
 
@@ -31,8 +36,10 @@ __all__ = [
     "sellmeier_silica",
     "compute_raman",
     "compute_ion_rate",
-    "compute_nonlinear_ab2",
-    "compute_nonlinear_w_ab2",
+    "compute_nonlinear_rfcn",
+    "compute_nonlinear_nrfcn",
+    "compute_nonlinear_rsscn",
+    "compute_nonlinear_nrsscn",
     "series_sum",
     "mpi_rate",
     "keldysh_gas_rate",

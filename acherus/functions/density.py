@@ -3,29 +3,8 @@
 import numpy as np
 from numba import njit, prange
 from scipy.integrate import solve_ivp
+from scipy.interpolate import make_interp_spline
 
-
-class _LinearInterpolation:
-    """Lightweight linear interpolation class for density ODE."""
-    __slots__ = ("t", "y", "_out_y", "inv_dt", "last_idx")
-    def __init__(self, t_axis, values):
-        self.t = np.ascontiguousarray(t_axis)
-        self.y = np.ascontiguousarray(values)
-        self._out_y = np.empty(self.y.shape[0], dtype=self.y.dtype)
-        self.inv_dt = 1.0 / np.diff(self.t)
-        self.last_idx = len(t_axis) - 2
-
-    def __call__(self, t_call):
-        tc = float(t_call)
-        idx = np.searchsorted(self.t, tc, side="right") - 1
-        idx = 0 if idx < 0 else (self.last_idx if idx > self.last_idx else idx)
-        frac = (tc - self.t[idx]) * self.inv_dt[idx]
-
-        out = self._out_y
-        out[:] = self.y[:, idx]
-        out *= 1.0 - frac
-        out += frac * self.y[:, idx + 1]
-        return out
 
 @njit(parallel=True)
 def compute_density_rk4(inten_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a):
@@ -93,15 +72,15 @@ def _rhs_rk4(dens_s_a, int_s_a, ion_s_a, dens_n_a, ava_c_a):
 
 
 def compute_density(
-    inten_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a, method_a, first_step_a, rtol_a, atol_a, rhs_buf=None, tmp_buf=None
+    inten_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a, method_a, rtol_a, atol_a, rhs_buf=None, tmp_buf=None
 ):
     """
     Compute electron density evolution ODE for all time steps with SciPy's 'solve_ivp'.
 
     Parameters
     ----------
-    inten_a : function
-        Intensity function at current propagation step.
+    inten_a : (M, N) array_like
+        Intensity at current propagation step.
     dens_a : (M, N) array_like
         Density at current propagation step.
     ion_a : (M, N) array_like
@@ -116,8 +95,6 @@ def compute_density(
         Avalanche ionization coefficient.
     method_a : str
         Method for computing density evolution.
-    first_step_a : float
-        Initial step size for the ODE solver.
     rtol_a : float
         Relative tolerance for the ODE solver.
     atol_a : float
@@ -128,8 +105,8 @@ def compute_density(
         Temporary buffer array for RHS computations.
 
     """
-    ion_to_t = _LinearInterpolation(t_a, ion_a)
-    inten_to_t = _LinearInterpolation(t_a, inten_a)
+    ion_to_t = make_interp_spline(t_a, ion_a, k=1, axis=1)
+    inten_to_t = make_interp_spline(t_a, inten_a, k=1, axis=1)
 
     k = inten_a.shape[0]
     if rhs_buf is None:
@@ -151,11 +128,10 @@ def compute_density(
 
     sol = solve_ivp(
         _set_density,
-        (t_a[0], t_a[-1]),
-        dens_0_a,
+        t_span=(t_a[0], t_a[-1]),
+        y0=dens_0_a,
         method=method_a,
         t_eval=t_a,
-        first_step=first_step_a,
         rtol=rtol_a,
         atol=atol_a,
     )
