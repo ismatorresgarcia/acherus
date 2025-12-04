@@ -8,15 +8,15 @@ How this works
 and the `cufft` routine for GPU-accelerated FFT
 computations, and sets it as the global backend.
 SciPy's API can be used to perform the FFT operation
-with the target backend. Notice that the `GPU` variable
+with the target backend. Notice that the `gpu` variable
 determines initially whether the user wants to use
 GPU-acceleration or not.
 
 2. If the `CuPy` library is imported successfully and
-the `GPU` backend was chosen, this will indicate that
+the `gpu` backend was chosen, this will indicate that
 the `CuPy` backend is available for FFT computations, which
 has been set to use the `cufft` backend. If `CuPy` is not
-available, it sets `GPU` to `CPU`.
+available, it sets the backend to use the CPU.
 
 3. `compute_fft` and `compute_ifft` functions are the user's
 API functions which perform the required FFT or IFFT. By default,
@@ -27,10 +27,10 @@ argument, since the values will be overwritten or are not needed
 in the next steps, except for the `compute_ifft` because the
 pulse spectrum is important..
 
-4. In the end, if the backend is `GPU` this means that the
+4. In the end, if the backend is `gpu` this means that the
 `CuPy` library is available, and the user wants to use
 GPU-acceleration, so the FFT/IFFT is computed using the
-`cufft` routines. Otherwise, `CPU` is used, and the
+`cufft` routines. Otherwise, the CPU is used, and the
 FFT/IFFT is computed using pyFFTW's `fft` and `ifft`
 functions with the `workers=-1` argument, which allows
 parallelization across all available CPU cores.
@@ -51,7 +51,7 @@ class FFTManager:
     def set_fft_backend(self, backend: str):
         """FFT backends configuration"""
         backend_opt = backend
-        if backend_opt == "GPU":
+        if backend_opt == "gpu":
             try:
                 import cupyx.scipy.fft as cufft
 
