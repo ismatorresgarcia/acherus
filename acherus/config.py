@@ -5,6 +5,17 @@ from typing import Dict, Optional, Tuple, Type
 
 
 @dataclass
+class MediumConfig:
+    nonlinear_index: float # [m2 / W]
+    energy_gap: float # [eV]
+    collision_time: float # [s]
+    neutral_density: float # [1 / m3]
+    initial_density: float # [1 / m3]
+    raman_partition: Optional[float] = None # [-]
+    raman_response_time: Optional[float] = None # [s]
+    raman_rotational_time: Optional[float] = None # [s]
+
+@dataclass
 class SpaceGridConfig:
     nodes: int
     space_min: float
@@ -29,60 +40,38 @@ class GaussianPulseConfig:
     waist: float  # half-width at 1/e^2 of intensity
     duration: float  # half-width at 1/e^2 of intensity
     energy: float
-    chirp: float
-    focal_length: float
-    gauss_order: int
+    chirp: Optional[float] = None  # [-]
+    focal_length: Optional[float] = None  # [m]
+    gauss_order: Optional[int] = 2  # [-]
 
 @dataclass
 class RK4DensityConfig:
     pass
 
 @dataclass
-class RK23DensityConfig:
-    ini_step: Optional[float] = None
-    rtol: float = 1e-3
-    atol: float = 1e-6
-
-@dataclass
-class RK45DensityConfig:
-    ini_step: Optional[float] = None
-    rtol: float = 1e-3
-    atol: float = 1e-6
-
-@dataclass
-class DOP853DensityConfig:
-    ini_step: Optional[float] = None
-    rtol: float = 1e-3
-    atol: float = 1e-6
+class AdaptiveDensityConfig:
+    atol: Optional[float] = 1e-6
+    rtol: Optional[float] = 1e-3
 
 @dataclass
 class MPIConfig:
-    wavelength: float
-    linear_index: float
-    energy_gap: float
-    cross_section: float
-    intensity_range: Tuple[float, float] = (1e-1, 1e18)
-    num_points: int = 10000
+    cross_section: float # [s^-1 m^(2K)/W^K]
+    intensity_range: Optional[Tuple[float, float]] = (1e-1, 1e18) # [W/m^2]
+    num_points: Optional[int] = 10000
 
 @dataclass
-class PPTGasConfig:
-    wavelength: float
-    energy_gap: float
-    tolerance: float = 1e-3
-    max_iterations: int = 250
-    intensity_range: Tuple[float, float] = (1e-1, 1e18)
-    num_points: int = 10000
+class KeldyshConfig:
+    tolerance: Optional[float] = 1e-3
+    max_iterations: Optional[int] = 250
+    intensity_range: Optional[Tuple[float, float]] = (1e-1, 1e18) # [W/m^2]
+    num_points: Optional[int] = 10000
+    reduced_mass: Optional[float] = None # [-], only for condensed media
 
-@dataclass
-class PPTCondensedConfig:
-    wavelength: float
-    energy_gap: float
-    neutral_density: float
-    reduced_mass: float
-    tolerance: float = 1e-3
-    max_iterations: int = 250
-    intensity_range: Tuple[float, float] = (1e-1, 1e18)
-    num_points: int = 10000
+MEDIUM_CONFIG_CLASSES: Dict[str, Type] = {
+    "air": MediumConfig,
+    "water": MediumConfig,
+    "silica": MediumConfig,
+}
 
 GRID_CONFIG_CLASSES: Dict[str, Type] = {
     "space": SpaceGridConfig,
@@ -95,17 +84,26 @@ PULSE_CONFIG_CLASSES: Dict[str, Type] = {
 }
 
 DENSITY_CONFIG_CLASSES: Dict[str, Type] = {
-    "RK4": RK4DensityConfig,
-    "RK23": RK23DensityConfig,
-    "RK45": RK45DensityConfig,
-    "DOP853": DOP853DensityConfig,
+    "rk4": RK4DensityConfig,
+    "rk23": AdaptiveDensityConfig,
+    "rk45": AdaptiveDensityConfig,
+    "dop853": AdaptiveDensityConfig,
 }
 
 IONIZATION_CONFIG_CLASSES: Dict[str, Type] = {
-    "MPI": MPIConfig,
-    "PPTG": PPTGasConfig,
-    "PPTC": PPTCondensedConfig,
+    "mpi": MPIConfig,
+    "keldysh": KeldyshConfig,
 }
+
+def _lowercase_dict(d: Dict) -> Dict:
+    new_dict = {}
+    for k, v in d.items():
+        lower_key = k.lower()
+        if isinstance(v, dict):
+            new_dict[lower_key] = _lowercase_dict(v)
+        else:
+            new_dict[lower_key] = v
+    return new_dict
 
 @dataclass
 class ConfigOptions:
@@ -120,22 +118,24 @@ class ConfigOptions:
 
     Parameters                          Choice
     =============================       ======================================
-     medium_name : str                  see "media" module for the list
-     space_par: Dict                    see "classes" above for the list
-     axis_par: Dict                     see "classes" above for the list
-     time_par: Dict                     see "classes" above for the list
+     medium_name : str                  "air" | "water" | "silica"
+     medium_par : Dict                  see "classes" above for the list
+     space_par : Dict                   see "classes" above for the list
+     axis_par : Dict                    see "classes" above for the list
+     time_par : Dict                    see "classes" above for the list
      pulse_name : str                   "gaussian"
      pulse_par : Dict                   see "classes" above for the list
-     density_method : str               "RK4" | "RK23" | "RK45" | "DOP853"
+     density_method : str               "rk4" | "rk23" | "rk45" | "dop853"
      density_method_par : Dict          see "classes" above for the list
-     propagation_method : str           "SSCN" | "FCN"
-     ionization_model : str             "MPI" | "PPTG" | "PPTC"
+     propagation_method : str           "sscn" | "fcn"
+     ionization_model : str             "mpi" | "keldysh"
      ionization_model_par : Dict        see "classes" above for the list
-     computing_backend : str            "CPU" | "GPU"
+     computing_backend : str            "cpu" | "gpu"
     =============================       ======================================
 
     """
     medium_name: str
+    medium_par: object
     space_par: object
     axis_par: object
     time_par: object
@@ -150,7 +150,7 @@ class ConfigOptions:
 
     @staticmethod
     def build(
-        medium_name: str,
+        medium_parameters: Dict[str, Dict],
         grid_parameters: Dict[str, Dict],
         pulse_parameters: Dict[str, Dict],
         density_solver: Dict[str, Dict],
@@ -159,14 +159,30 @@ class ConfigOptions:
         computing_backend: str
     ) -> "ConfigOptions":
 
+        medium_parameters = _lowercase_dict(medium_parameters)
+        grid_parameters = _lowercase_dict(grid_parameters)
+        pulse_parameters = _lowercase_dict(pulse_parameters)
+        density_solver = _lowercase_dict(density_solver)
+        ionization_model = _lowercase_dict(ionization_model)
+
+        medium_name = next(iter(medium_parameters)).lower()
+        medium_params = medium_parameters[medium_name]
+
+        if medium_name not in MEDIUM_CONFIG_CLASSES:
+            raise ValueError(f"Invalid medium: '{medium_name}'.")
+
+        medium_class = MEDIUM_CONFIG_CLASSES[medium_name]
+        medium_config = medium_class(**medium_params)
+
         grid_config = {}
         for grid_name, grid_params in grid_parameters.items():
+            grid_name = grid_name.lower()
             if grid_name not in GRID_CONFIG_CLASSES:
                 raise ValueError(f"Unknown grid type: {grid_name}")
             grid_class = GRID_CONFIG_CLASSES[grid_name]
             grid_config[grid_name] = grid_class(**grid_params)
 
-        pulse_name = next(iter(pulse_parameters))
+        pulse_name = next(iter(pulse_parameters)).lower()
         pulse_params = pulse_parameters[pulse_name]
 
         if pulse_name not in PULSE_CONFIG_CLASSES:
@@ -175,7 +191,7 @@ class ConfigOptions:
         pulse_class = PULSE_CONFIG_CLASSES[pulse_name]
         pulse_config = pulse_class(**pulse_params)
 
-        density_name = next(iter(density_solver))
+        density_name = next(iter(density_solver)).lower()
         density_params = density_solver[density_name]
 
         if density_name not in DENSITY_CONFIG_CLASSES:
@@ -184,7 +200,7 @@ class ConfigOptions:
         density_class = DENSITY_CONFIG_CLASSES[density_name]
         density_config = density_class(**density_params)
 
-        ionization_name = next(iter(ionization_model))
+        ionization_name = next(iter(ionization_model)).lower()
         ionization_params = ionization_model[ionization_name]
 
         if ionization_name not in IONIZATION_CONFIG_CLASSES:
@@ -195,15 +211,16 @@ class ConfigOptions:
 
         return ConfigOptions(
             medium_name=medium_name,
+            medium_par=medium_config,
             space_par=grid_config["space"],
             time_par=grid_config["time"],
             axis_par=grid_config["axis"],
             pulse_name=pulse_name,
             pulse_par=pulse_config,
-            density_method=density_name,
+            density_method=density_name.upper(),
             density_method_par=density_config,
-            propagation_method=propagation_solver,
+            propagation_method=propagation_solver.lower(),
             ionization_model=ionization_name,
             ionization_model_par=ionization_config,
-            computing_backend=computing_backend
+            computing_backend=computing_backend.lower()
         )

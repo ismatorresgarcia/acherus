@@ -5,13 +5,14 @@ from .config import ConfigOptions
 from .data.store import OutputManager
 from .functions.fft_backend import fft_manager
 from .mesh.grid import Grid
-from .physics.dispersion import MediumDispersion
 from .physics.equation import Equation
 from .physics.keldysh import KeldyshIonization
 from .physics.laser import Laser
-from .physics.media import MediumParameters
-from .solvers.fcn import SolverFCN
-from .solvers.sscn import SolverSSCN
+from .physics.medium import Medium
+from .solvers.nrFCN import nrFCN
+from .solvers.nrSSCN import nrSSCN
+from .solvers.rFCN import rFCN
+from .solvers.rSSCN import rSSCN
 
 
 def main():
@@ -19,14 +20,25 @@ def main():
     print(f"Running Acherus v{__version__} for Python")
 
     config = ConfigOptions.build(
-        medium_name="oxygen_800",
+        medium_parameters={
+            "AIR": {
+                "nonlinear_index": 3.0e-23,
+                "energy_gap": 12.063,
+                "collision_time": 3.5e-15,
+                "neutral_density": 0.54e25,
+                "initial_density": 1e9,
+                "raman_partition": 0.5,
+                "raman_response_time": 70e-15,
+                "raman_rotational_time": 62.5e-15
+            },
+        },
         grid_parameters={
-            "space": {"nodes": 10000, "space_min": 0, "space_max": 10e-3},
-            "axis": {"nodes": 4000, "axis_min": 0, "axis_max": 2.2, "snapshots": 3},
-            "time": {"nodes": 4096, "time_min": -3e-12, "time_max": 3e-12},
+            "SPACE": {"nodes": 10000, "space_min": 0, "space_max": 10e-3},
+            "AXIS": {"nodes": 4000, "axis_min": 0, "axis_max": 2.2, "snapshots": 3},
+            "TIME": {"nodes": 4096, "time_min": -3e-12, "time_max": 3e-12}
         },
         pulse_parameters={
-            "gaussian": {
+            "GAUSSIAN": {
                 "wavelength": 800e-9,
                 "waist": 3.57e-3,
                 "duration": 1274e-15,
@@ -38,16 +50,13 @@ def main():
         },
         density_solver={
             "RK45": {
-                "ini_step": 5e-15,
                 "rtol": 1e-9,
-                "atol": 1e-6
+                #"atol": 1e-7
             },
         },
         propagation_solver="FCN",
         ionization_model={
-            "PPTG": {
-                "wavelength": 800e-9,
-                "energy_gap": 12.063,
+            "KELDYSH": {
             },
         },
         computing_backend="CPU"
@@ -58,19 +67,17 @@ def main():
         axis_par=config.axis_par,
         time_par=config.time_par
     )
-    disp = MediumDispersion(medium_name=config.medium_name)
-    medium = MediumParameters(medium_name=config.medium_name)
+    medium = Medium(medium_name=config.medium_name, medium_par=config.medium_par)
     laser = Laser(
-        disp, medium, grid, pulse_name=config.pulse_name, pulse_par=config.pulse_par
+        medium, grid, pulse_name=config.pulse_name, pulse_par=config.pulse_par
     )
     eqn = Equation(medium, laser, grid)
-    ion = KeldyshIonization(disp, model_name=config.ionization_model, params=config.ionization_model_par)
+    ion = KeldyshIonization(medium, laser, model_name=config.ionization_model, params=config.ionization_model_par)
     output = OutputManager()
 
-    if config.propagation_method == "SSCN":
-        solver = SolverSSCN(
+    if config.propagation_method == "sscn" and config.medium_par.raman_partition is not None:
+        solver = rSSCN(
             config,
-            disp,
             medium,
             laser,
             grid,
@@ -78,10 +85,29 @@ def main():
             ion,
             output
         )
-    elif config.propagation_method == "FCN":
-        solver = SolverFCN(
+    elif config.propagation_method == "sscn" and config.medium_par.raman_partition is None:
+        solver = nrSSCN(
             config,
-            disp,
+            medium,
+            laser,
+            grid,
+            eqn,
+            ion,
+            output
+        )
+    elif config.propagation_method == "fcn" and config.medium_par.raman_partition is not None:
+        solver = rFCN(
+            config,
+            medium,
+            laser,
+            grid,
+            eqn,
+            ion,
+            output
+        )
+    elif config.propagation_method == "fcn" and config.medium_par.raman_partition is None:
+        solver = nrFCN(
+            config,
             medium,
             laser,
             grid,
@@ -91,8 +117,7 @@ def main():
         )
     else:
         raise ValueError(
-            f"Not available propagation method: '{config.propagation_method}'. "
-            f"Available methods are: 'SSCN' or 'FCN'."
+            f"Invalid propagation method: '{config.propagation_method}'. "
         )
     # ... future solvers to be added in the future!
 

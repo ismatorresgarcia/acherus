@@ -6,14 +6,15 @@ from ._version import __version__
 from .config import ConfigOptions
 from .data.store import OutputManager
 from .mesh.grid import Grid
-from .physics.dispersion import MediumDispersion
 from .physics.equation import Equation
 from .physics.keldysh import KeldyshIonization
 from .physics.laser import Laser
-from .physics.media import Medium, MediumParameters
-from .solvers.base import SolverBase
-from .solvers.fcn import SolverFCN
-from .solvers.sscn import SolverSSCN
+from .physics.medium import Medium
+from .solvers.nrFCN import nrFCN
+from .solvers.nrSSCN import nrSSCN
+from .solvers.rFCN import rFCN
+from .solvers.rSSCN import rSSCN
+from .solvers.shared import Shared
 
 __all__ = [
     "__version__",
@@ -21,12 +22,12 @@ __all__ = [
     "OutputManager",
     "Grid",
     "Laser",
-    "MediumDispersion",
     "Medium",
-    "MediumParameters",
     "Equation",
     "KeldyshIonization",
-    "SolverBase",
-    "SolverSSCN",
-    "SolverFCN",
+    "Shared",
+    "rSSCN",
+    "nrSSCN",
+    "rFCN",
+    "nrFCN",
 ]
