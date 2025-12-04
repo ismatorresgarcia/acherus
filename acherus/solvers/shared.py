@@ -1,4 +1,4 @@
-"""Module for common variables and methods used by the solvers."""
+"""Module for shared variables and methods used by the solvers."""
 
 import numpy as np
 
@@ -11,13 +11,12 @@ from ..functions.fluence import compute_fluence
 from ..functions.radius import compute_radius
 
 
-class SolverBase:
-    """Base solver class."""
+class Shared:
+    """Class for shared variables and methods used by the different solvers."""
 
     def __init__(
         self,
         config,
-        dispersion,
         medium,
         laser,
         grid,
@@ -31,8 +30,6 @@ class SolverBase:
         ----------
         config: object
             Contains the simulation options.
-        dispersion : object
-            Contains the dispersion medium properties.
         medium : object
             Contains the chosen medium parameters.
         laser : object
@@ -47,7 +44,6 @@ class SolverBase:
             Contains the output manager methods.
 
         """
-        self.dispersion = dispersion
         self.medium = medium
         self.laser = laser
         self.grid = grid
@@ -56,7 +52,6 @@ class SolverBase:
         self.output = output
         self.medium_n = config.medium_name
         self.dens_meth = config.density_method
-        self.dens_meth_ini_step = config.density_method_par.ini_step
         self.dens_meth_rtol = config.density_method_par.rtol
         self.dens_meth_atol = config.density_method_par.atol
 
@@ -74,22 +69,15 @@ class SolverBase:
         self.t_grid = grid.t_grid
         self.w_grid = grid.w_grid
         self.number_photons = eqn.n_k
-        self.mpi_c = eqn.mpi_c
         self.w_0 = laser.frequency_0
         self.k_0 = laser.wavenumber_0
-        _, _, self.k_1 = dispersion.properties(self.w_0)
-        self.density_n = medium.density_neutral
-        self.density_ini = medium.density_initial
+        _, _, self.k_1 = medium.dispersion_properties(self.w_0)
+        self.density_n = medium.neutral_density
+        self.density_ini = medium.initial_density
         self.avalanche_c = eqn.ava_c
         self.plasma_c = eqn.plasma_c
         self.mpa_c = eqn.mpa_c
         self.kerr_c = eqn.kerr_c
-        self.raman_c = eqn.raman_c
-        self.raman_ode1 = eqn.raman_ode1
-        self.raman_ode2 = eqn.raman_ode2
-
-        # Set up flags
-        self.use_raman = medium.has_raman
 
         # Set up array shapes
         self.shape_r = (self.r_nodes,)
@@ -128,18 +116,12 @@ class SolverBase:
         self.radius = np.zeros(1, dtype=np.float64)
         self.radius_z = np.zeros(self.z_nodes, dtype=np.float64)
 
-        self.raman_rt = np.zeros(self.shape_rt, dtype=np.float64)
-        self.raman_aux = np.zeros(self.shape_rt, dtype=np.complex128)
-
         self.nonlinear_rt = np.zeros(self.shape_rt, dtype=np.complex128)
-        self.nonlinear_next_rt = np.zeros(self.shape_rt, dtype=np.complex128)
-        self._nlin_tmp_t = np.empty(self.shape_rt, dtype=np.complex128)
 
         self.ionization_rate = np.zeros(self.shape_rt, dtype=np.float64)
         self.intensity_to_rate = self.ion.intensity_to_rate
 
         self.snapshot_z_index = np.zeros(self.z_snapshots + 1, dtype=np.int16)
-
 
     def set_initial_conditions(self):
         """Set initial conditions."""

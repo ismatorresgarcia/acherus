@@ -1,0 +1,246 @@
+"""Solver module for Split-Step Crank-Nicolson (SSCN) scheme."""
+
+import numpy as np
+from scipy.linalg import solve_banded
+from scipy.sparse import diags_array
+
+from ..functions.density import compute_density
+from ..functions.fft_backend import compute_fft, compute_ifft
+from ..functions.fluence import compute_fluence
+from ..functions.intensity import compute_intensity
+from ..functions.ionization import compute_ion_rate
+from ..functions.nonlinear import compute_nonlinear_rsscn
+from ..functions.radius import compute_radius
+from ..functions.raman import compute_raman
+from .shared import Shared
+
+
+class rSSCN(Shared):
+    """Fourier Split-Step class implementation for cylindrical coordinates."""
+
+    def __init__(
+        self,
+        config,
+        medium,
+        laser,
+        grid,
+        eqn,
+        ion,
+        output
+    ):
+        """Initialize SSCN solver.
+
+        Parameters
+        ----------
+        config: object
+            Contains the simulation options.
+        medium : object
+            Contains the chosen medium parameters.
+        laser : object
+            Contains the laser input parameters.
+        grid : object
+            Contains the grid input parameters.
+        eqn : object
+            Contains the equation parameters.
+        ion : object
+            Contains the ionization model parameters.
+        output : object
+            Contains the output manager methods for saving propagation results.
+        """
+
+        # Initialize base class
+        super().__init__(
+            config,
+            medium,
+            laser,
+            grid,
+            eqn,
+            ion,
+            output
+        )
+
+        # Initialize raman-SSCN specific variables
+        self.raman_c = eqn.raman_c
+        self.raman_ode1 = eqn.raman_ode1
+        self.raman_ode2 = eqn.raman_ode2
+
+        self.raman_rt = np.zeros(self.shape_rt, dtype=np.float64)
+        self.raman_aux = np.zeros(self.shape_rt, dtype=np.complex128)
+
+        self.nonlinear_next_rt = np.zeros_like(self.nonlinear_rt)
+        self._nlin_tmp_t = np.empty(self.shape_rt, dtype=np.complex128)
+
+        # Set initial conditions and operators
+        self.set_initial_conditions()
+        self.set_operators()
+
+    def compute_matrices(self, n, coef_d):
+        """
+        Compute the three diagonals for the Crank-Nicolson matrices
+        with centered differences.
+
+        Parameters
+        ----------
+        n : integer
+            Number of radial nodes.
+        coef_d : complex
+            Complex diffraction coefficient.
+
+        Returns
+        -------
+        lres : (3, M) ndarray
+            Banded array for solving a large tridiagonal system.
+        rres : sparse array
+            Sparse array in DIA format for optimal matrix-vector product.
+        """
+        r_ind = np.arange(1, n - 1)
+
+        dl_left = np.zeros(n - 1, dtype=np.complex128)
+        d_left = np.full(n, 1 + 2j * coef_d, dtype=np.complex128)
+        du_left = np.zeros(n - 1, dtype=np.complex128)
+
+        dl_left[:-1] = -1j * coef_d * (1 - 0.5 / r_ind)
+        du_left[1:] = -1j * coef_d * (1 + 0.5 / r_ind)
+
+        # Boundary conditions for left matrix
+        d_left[0], d_left[-1] = 1 + 4j * coef_d, 1
+        du_left[0], dl_left[-1] = -4j * coef_d, 0
+
+        matrix_band = np.zeros((3, n), dtype=np.complex128)
+        matrix_band[0, 1:] = du_left
+        matrix_band[1, :] = d_left
+        matrix_band[2, :-1] = dl_left
+
+        dl_right = np.zeros(n - 1, dtype=np.complex128)
+        d_right = np.full(n, 1 - 2j * coef_d, dtype=np.complex128)
+        du_right = np.zeros(n - 1, dtype=np.complex128)
+
+        dl_right[:-1] = 1j * coef_d * (1 - 0.5 / r_ind)
+        du_right[1:] = 1j * coef_d * (1 + 0.5 / r_ind)
+
+        # Boundary conditions for right matrix
+        d_right[0], d_right[-1] = 1 - 4j * coef_d, 0
+        du_right[0], dl_right[-1] = 4j * coef_d, 0
+
+        diags = [dl_right, d_right, du_right]
+
+        matrix_right = diags_array(diags, offsets=[-1, 0, 1], format="dia")
+        return matrix_band, matrix_right
+
+    def compute_dispersion_function(self, w_det, w_0):
+        """
+        Compute the dispersion operator using the full dispersion
+        relation with Sellmeier formulas.
+
+        Parameters
+        ----------
+        w_det : (N,) array_like
+            Angular frequency detuning.
+        w_0 : float
+            Beam central frequency.
+
+        Returns
+        -------
+        disp : (N,) ndarray
+            Dispersion function for each frequency.
+
+        """
+        w = w_det + w_0
+
+        _, k_w, _ = self.medium.dispersion_properties(w)
+
+        return k_w - self.k_0 - self.k_1 * w_det
+
+    def set_operators(self):
+        """Set SSCN operators."""
+        diff_op = 0.25 * self.z_res / (self.k_0 * self.r_res**2)
+        disp_op = 0.5 * self.z_res * self.compute_dispersion_function(self.w_grid, self.w_0)
+        self.plasma_op = self.z_res * self.plasma_c
+        self.mpa_op = self.z_res * self.mpa_c
+        self.kerr_op = self.z_res * self.kerr_c
+        self.raman_op = self.z_res * self.raman_c
+
+        self.disp_exp = np.exp(2j * disp_op)
+        self.mat_left, self.mat_right = self.compute_matrices(self.r_nodes, diff_op)
+
+    def compute_dispersion(self):
+        """
+        Compute one step of the FFT propagation scheme for dispersion.
+        """
+        self.envelope_rt[:-1, :] = compute_fft(
+            self.disp_exp * compute_ifft(self.envelope_rt[:-1, :]),
+        )
+
+    def compute_envelope(self):
+        """
+        Compute one step of the generalized Crank-Nicolson scheme
+        for envelope propagation.
+        """
+        # Compute matrix-vector product using "DIA" sparse format
+        rhs_linear = self.mat_right @ self.envelope_rt
+
+        # Compute the left-hand side of the equation
+        rhs = rhs_linear + self.nonlinear_rt
+
+        # Solve the tridiagonal system using the banded solver
+        self.envelope_rt[:] = solve_banded((1, 1), self.mat_left, rhs)
+
+    def solve_step(self, step):
+        """Perform one propagation step."""
+        compute_intensity(
+            self.envelope_rt[:-1, :],
+            self.intensity_rt[:-1, :],
+        )
+        compute_ion_rate(
+            self.intensity_rt[:-1, :],
+            self.ionization_rate[:-1, :],
+            self.intensity_to_rate,
+        )
+        compute_ion_rate(
+            self.intensity_rt[:-1, :],
+            self.ionization_rate[:-1, :],
+            self.intensity_to_rate,
+        )
+        compute_density(
+            self.intensity_rt[:-1, :],
+            self.density_rt[:-1, :],
+            self.ionization_rate[:-1, :],
+            self.t_grid,
+            self.density_n,
+            self._dens_init_buf[:-1],
+            self.avalanche_c,
+            self.dens_meth,
+            self.dens_meth_atol,
+            self.dens_meth_rtol,
+            self._dens_rhs_buf[:-1],
+            self._dens_tmp_buf[:-1],
+        )
+        compute_raman(
+            self.intensity_rt[:-1, :],
+            self.raman_rt[:-1, :],
+            self.raman_aux[:-1, :],
+            self.raman_ode1,
+            self.raman_ode2,
+        )
+        self.compute_dispersion()
+        compute_nonlinear_rsscn(
+            step,
+            self.envelope_rt[:-1, :],
+            self.density_rt[:-1, :],
+            self.raman_rt[:-1, :],
+            self.ionization_rate[:-1, :],
+            self.nonlinear_next_rt[:-1, :],
+            self.nonlinear_rt[:-1, :],
+            self.density_n,
+            self.plasma_op,
+            self.mpa_op,
+            self.kerr_op,
+            self.raman_op,
+            self.intensity_rt[:-1, :],
+            self._nlin_tmp_t[:-1, :],
+        )
+        self.compute_envelope()
+        compute_fluence(self.envelope_rt, self.t_grid, self.fluence_r)
+        compute_radius(self.fluence_r, self.r_grid, self.radius)
+
+        self.nonlinear_rt[:] = self.nonlinear_next_rt

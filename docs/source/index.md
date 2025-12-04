@@ -1,6 +1,6 @@
-# 🔎 Overview
+# 🔎 Introduction
 
-## Welcome to `Acherus` documentation
+## Overview of `Acherus` documentation
 
 > Open-source **laser** pulse **filamentation** solver
 
