@@ -51,10 +51,11 @@ def sellmeier_air(omega):
     p2 = B1 / d1_2 + B2 / d2_2
 
     n = 1 + 1e-8 * p1
+    ng = n - 2e-8 * x * p2
     k_w = n * omega / c
-    dk_dw = (n - 2e-8 * x * p2) / c
+    dk = ng / c
 
-    return n, k_w, dk_dw
+    return n, k_w, dk
 
 
 def sellmeier_water(omega):
@@ -71,10 +72,11 @@ def sellmeier_water(omega):
     p2 = B2 + 2 * l * (B3 - B4 / d1_2)
 
     n = np.sqrt(p1)
+    ng = n - 0.5 * l * p2 / n
     k_w = n * omega / c
-    dk_dw = (n - 0.5 * l * p2 / n) / c
+    dk = ng / c
 
-    return n, k_w, dk_dw
+    return n, k_w, dk
 
 
 def sellmeier_silica(omega):
@@ -95,7 +97,8 @@ def sellmeier_silica(omega):
     p2 = -2 * l * (B1 * C1**2 / d1_2 + B2 * C2**2 / d2_2 + B3 * C3**2 / d3_2)
 
     n = np.sqrt(1 + p1)
+    ng = n - 0.5 * l * p2 / n
     k_w = n * omega / c
-    dk_dw = (n - 0.5 * l * p2 / n) / c
+    dk = ng / c
 
-    return n, k_w, dk_dw
+    return n, k_w, dk
