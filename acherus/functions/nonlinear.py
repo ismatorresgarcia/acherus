@@ -19,7 +19,7 @@ def compute_nonlinear_rsscn(
     kerr_c_a,
     ram_c_a,
     inten_a,
-    tmp_buf_t=None,
+    tmp_buf_t,
 ):
     """
     Compute envelope propagation nonlinearities in SSCN scheme
@@ -54,7 +54,7 @@ def compute_nonlinear_rsscn(
         Raman coefficient.
     inten_a : (M, N) array_like
         Intensity at current propagation step.
-    tmp_buf_t : (M, N) array_like, optional
+    tmp_buf_t : (M, N) array_like
         Temporary buffer in time domain.
 
     """
@@ -87,7 +87,7 @@ def _set_nlin_rsccn(
     kerr_c_a,
     ram_c_a,
     inten_a,
-    tmp_buf_t=None,
+    tmp_buf_t,
 ):
     """
     Compute RHS in rSSCN.
@@ -116,13 +116,10 @@ def _set_nlin_rsccn(
         Raman coefficient.
     inten_a : (M, N) array_like
         Intensity at current propagation step.
-    tmp_buf_t : (M, N) array_like, optional
+    tmp_buf_t : (M, N) array_like
         Temporary buffer in time domain.
 
     """
-    if tmp_buf_t is None:
-        tmp_buf_t = np.empty_like(env_a)
-
     np.multiply(dens_a, env_a, out=nlin_a)
     np.multiply(pls_c_a, nlin_a, out=nlin_a)
 
@@ -153,7 +150,7 @@ def compute_nonlinear_nrsscn(
     mpa_c_a,
     kerr_c_a,
     inten_a,
-    tmp_buf_t=None,
+    tmp_buf_t,
 ):
     """
     Compute envelope propagation nonlinearities in SSCN scheme
@@ -213,7 +210,7 @@ def _set_nlin_nrsccn(
     mpa_c_a,
     kerr_c_a,
     inten_a,
-    tmp_buf_t=None,
+    tmp_buf_t,
 ):
     """
     Compute RHS in nrSSCN.
@@ -238,13 +235,10 @@ def _set_nlin_nrsccn(
         Kerr coefficient.
     inten_a : (M, N) array_like
         Intensity at current propagation step.
-    tmp_buf_t : (M, N) array_like, optional
+    tmp_buf_t : (M, N) array_like
         Temporary buffer in time domain.
 
     """
-    if tmp_buf_t is None:
-        tmp_buf_t = np.empty_like(env_a)
-
     np.multiply(dens_a, env_a, out=nlin_a)
     np.multiply(pls_c_a, nlin_a, out=nlin_a)
 
@@ -273,8 +267,8 @@ def compute_nonlinear_rfcn(
     kerr_c_a,
     ram_c_a,
     inten_a,
-    tmp_buf_t=None,
-    tmp_buf_w=None,
+    tmp_buf_t,
+    tmp_buf_w,
 ):
     """
     Compute envelope propagation nonlinearities in FCN scheme
@@ -309,9 +303,9 @@ def compute_nonlinear_rfcn(
         Raman coefficient.
     inten_a : (M, N) array_like
         Intensity at current propagation step.
-    tmp_buf_t : (M, N) array_like, optional
+    tmp_buf_t : (M, N) array_like
         Temporary buffer in time domain.
-    tmp_buf_w : (M, N) array_like, optional
+    tmp_buf_w : (M, N) array_like
         Temporary buffer in frequency domain.
 
     """
@@ -345,8 +339,8 @@ def _set_nlin_rfcn(
     kerr_c_a,
     ram_c_a,
     inten_a,
-    tmp_buf_t=None,
-    tmp_buf_w=None,
+    tmp_buf_t,
+    tmp_buf_w,
 ):
     """
     Compute RHS in rFCN.
@@ -375,17 +369,12 @@ def _set_nlin_rfcn(
         Raman coefficient.
     inten_a : (M, N) array_like
         Intensity at current propagation step.
-    tmp_buf_t : (M, N) array_like, optional
+    tmp_buf_t : (M, N) array_like
         Temporary buffer in time domain.
-    tmp_buf_w : (M, N) array_like, optional
+    tmp_buf_w : (M, N) array_like
         Temporary buffer in frequency domain.
 
     """
-    if tmp_buf_t is None:
-        tmp_buf_t = np.empty_like(env_a)
-    if tmp_buf_w is None:
-        tmp_buf_w = np.empty_like(env_a)
-
     np.multiply(dens_a, env_a, out=tmp_buf_t)
     tmp_buf_w[:] = compute_fft(tmp_buf_t)
     np.multiply(pls_c_a, tmp_buf_w, out=nlin_a)
@@ -420,8 +409,8 @@ def compute_nonlinear_nrfcn(
     mpa_c_a,
     kerr_c_a,
     inten_a,
-    tmp_buf_t=None,
-    tmp_buf_w=None,
+    tmp_buf_t,
+    tmp_buf_w,
 ):
     """
     Compute envelope propagation nonlinearities in FCN scheme
@@ -452,9 +441,9 @@ def compute_nonlinear_nrfcn(
         Kerr coefficient.
     inten_a : (M, N) array_like
         Intensity at current propagation step.
-    tmp_buf_t : (M, N) array_like, optional
+    tmp_buf_t : (M, N) array_like
         Temporary buffer in time domain.
-    tmp_buf_w : (M, N) array_like, optional
+    tmp_buf_w : (M, N) array_like
         Temporary buffer in frequency domain.
 
     """
@@ -484,8 +473,8 @@ def _set_nlin_nrfcn(
     mpa_c_a,
     kerr_c_a,
     inten_a,
-    tmp_buf_t=None,
-    tmp_buf_w=None,
+    tmp_buf_t,
+    tmp_buf_w,
 ):
     """
     Compute RHS in nrFCN.
@@ -510,17 +499,12 @@ def _set_nlin_nrfcn(
         Kerr coefficient.
     inten_a : (M, N) array_like
         Intensity at current propagation step.
-    tmp_buf_t : (M, N) array_like, optional
+    tmp_buf_t : (M, N) array_like
         Temporary buffer in time domain.
-    tmp_buf_w : (M, N) array_like, optional
+    tmp_buf_w : (M, N) array_like
         Temporary buffer in frequency domain.
 
     """
-    if tmp_buf_t is None:
-        tmp_buf_t = np.empty_like(env_a)
-    if tmp_buf_w is None:
-        tmp_buf_w = np.empty_like(env_a)
-
     np.multiply(dens_a, env_a, out=tmp_buf_t)
     tmp_buf_w[:] = compute_fft(tmp_buf_t)
     np.multiply(pls_c_a, tmp_buf_w, out=nlin_a)

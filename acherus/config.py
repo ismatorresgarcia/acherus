@@ -40,8 +40,8 @@ class GaussianPulseConfig:
     waist: float  # half-width at 1/e^2 of intensity
     duration: float  # half-width at 1/e^2 of intensity
     energy: float
-    chirp: Optional[float] = None  # [-]
     focal_length: Optional[float] = None  # [m]
+    chirp: Optional[float] = None  # [-]
     gauss_order: Optional[int] = 2  # [-]
 
 @dataclass

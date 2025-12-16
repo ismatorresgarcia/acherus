@@ -72,7 +72,7 @@ def _rhs_rk4(dens_s_a, int_s_a, ion_s_a, dens_n_a, ava_c_a):
 
 
 def compute_density(
-    inten_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a, method_a, rtol_a, atol_a, rhs_buf=None, tmp_buf=None
+    inten_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a, method_a, rtol_a, atol_a, rhs_buf, tmp_buf
 ):
     """
     Compute electron density evolution ODE for all time steps with SciPy's 'solve_ivp'.
@@ -99,20 +99,14 @@ def compute_density(
         Relative tolerance for the ODE solver.
     atol_a : float
         Absolute tolerance for the ODE solver.
-    rhs_buf : (M,) array_like, optional
+    rhs_buf : (M,) array_like
         Buffer array for RHS computations.
-    tmp_buf : (M,) array_like, optional
+    tmp_buf : (M,) array_like
         Temporary buffer array for RHS computations.
 
     """
     ion_to_t = make_interp_spline(t_a, ion_a, k=1, axis=1)
     inten_to_t = make_interp_spline(t_a, inten_a, k=1, axis=1)
-
-    k = inten_a.shape[0]
-    if rhs_buf is None:
-        rhs_buf = np.empty(k, dtype=inten_a.dtype)
-    if tmp_buf is None:
-        tmp_buf = np.empty(k, dtype=inten_a.dtype)
 
     def _set_density(t, dens):
         """RHS of the electron density evolution ODE for SciPy."""
