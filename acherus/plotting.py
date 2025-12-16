@@ -388,10 +388,6 @@ class SimulationBox:
                     self.sliced_coor["r"], self.sliced_coor["z"]
                 ]
 
-        # Slice beam radius data if present
-        if "b_radius" in self.data:
-            self.sliced_data["b_radius"] = self.data["b_radius"][self.sliced_coor["z"]]
-
     def set_snapshot_points(self, indices):
         """Convert k-indices to their corresponding z-coordinates."""
         z_min = self.data["ini_dist_coor"] * self.units.fz
@@ -496,8 +492,43 @@ class BasePlot:
         """Set up fluence distribution for plotting."""
         return self.units.fa * self.units.fj * b_fluence
 
-    def compute_radius(self, b_radius):
+    def compute_radius(self, b_fluence, radial_grid):
         """Set up beam radius for plotting."""
+        fluence = b_fluence
+        r_grid = radial_grid
+
+        if self.box.r_sym:
+            zero_idx = self.box.nr_0
+            fluence = fluence[zero_idx:]
+            r_grid = r_grid[zero_idx:]
+
+        nz = fluence.shape[1]
+        b_radius = np.full(nz, np.nan, dtype=np.float64)
+
+        for jj in range(nz):
+            fluence_z = fluence[:, jj]
+            peak_idx = np.argmax(fluence_z)
+            half_max = 0.5 * fluence_z[peak_idx]
+
+            if half_max <= 0 or not np.isfinite(half_max):
+                continue
+
+            f_slice = fluence_z[peak_idx:]
+            r_slice = r_grid[peak_idx:]
+        
+            indices = (f_slice[:-1] >= half_max) & (f_slice[1:] < half_max)
+            if not np.any(indices):
+                b_radius[jj] = r_slice[-1] if f_slice[-1] >= half_max else np.nan
+                continue
+
+            idx = np.argmax(indices)
+            f0, f1 = f_slice[idx], f_slice[idx + 1]
+            r0, r1 = r_slice[idx], r_slice[idx + 1]
+            slope = (half_max - f0) / (f1 - f0)
+            radius = r0 + slope * (r1 - r0)
+
+            b_radius[jj] = radius
+
         return self.units.fr * b_radius
 
     def save_or_display(self, fig, filename, fig_path, dpi=150):
@@ -882,9 +913,9 @@ class VisualManager:
         """Compute fluence data."""
         return self.base_plot.compute_fluence(b_fluence)
 
-    def get_radius_data(self, b_radius):
-        """Compute beam radius data."""
-        return self.base_plot.compute_radius(b_radius)
+    def get_radius_data(self, b_fluence, radial_grid):
+        """Compute beam radius data using fluence."""
+        return self.base_plot.compute_radius(b_fluence, radial_grid)
 
     def create_1d_plot(self, data, k_i=None, z_c=None, magn="intensity", fig_path=None):
         """Create line plots."""
@@ -1062,12 +1093,10 @@ def load_simulation_data(directory):
                 if "peak_rz" in density:
                     data["elec_peak"] = np.array(density["peak_rz"])
 
-            if "pulse" in f:
-                pulse = f["pulse"]
-                if "fluence_rz" in pulse:
-                    data["b_fluence"] = np.array(pulse["fluence_rz"])
-                if "radius_z" in pulse:
-                    data["b_radius"] = np.array(pulse["radius_z"])
+            if "fluence" in f:
+                fluence = f["fluence"]
+                if "fluence_rz" in fluence:
+                    data["b_fluence"] = np.array(fluence["fluence_rz"])
 
     if not has_diagnostics and not has_snapshots:
         raise FileNotFoundError(f"No files were found in {base_dir.name}")
@@ -1148,7 +1177,10 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
         plot_data_fluence = plot.get_fluence_data(box.sliced_data["b_fluence"])
         plot_data = {"rz": plot_data_fluence}
     elif data_type == "radius":
-        plot_data_radius = plot.get_radius_data(box.sliced_data["b_radius"])
+        plot_data_radius = plot.get_radius_data(
+            box.sliced_data["b_fluence"], 
+            box.sliced_grids["r"],
+        )
         plot_data = {"z": plot_data_radius}
     else:
         raise ValueError(f"Unsupported physical variable: {data_type}")

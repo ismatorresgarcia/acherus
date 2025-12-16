@@ -88,13 +88,10 @@ class OutputManager:
                 "peak_rz", data=solver.density_tp_rz, compression=self.compression
             )
 
-            # Pulse characteristics
-            pulse_grp = f.create_group("pulse")
-            pulse_grp.create_dataset(
+            # Fluence data
+            fluence_grp = f.create_group("fluence")
+            fluence_grp.create_dataset(
                 "fluence_rz", data=solver.fluence_rz, compression=self.compression
-            )
-            pulse_grp.create_dataset(
-                "radius_z", data=solver.radius_z, compression=self.compression
             )
 
             # Coordinate information

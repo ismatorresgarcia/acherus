@@ -12,9 +12,9 @@ monitoring_path = path / "acherus_monitoring.h5"
 profiler_path = path / "acherus_log.txt"
 
 
-def validate_step(solver, exit_on_error=True, save_on_error=True):
+def error_diagnostics(solver, exit_on_error=True, save_on_error=True):
     """
-    Validate numerical results from solver state.
+    Check for errors in variables from solver state.
 
     Parameters
     ----------
@@ -58,12 +58,11 @@ def cheap_diagnostics(solver, step):
         Current propagation step.
 
     """
-    validate_step(solver)
+    error_diagnostics(solver)
 
     envelope_rt = solver.envelope_rt
     density_rt = solver.density_rt
     fluence_r = solver.fluence_r
-    radius = solver.radius
 
     max_intensity_idx = np.argmax(np.abs(envelope_rt), axis=1)
     max_density_idx = np.argmax(density_rt, axis=1)
@@ -77,7 +76,6 @@ def cheap_diagnostics(solver, step):
         np.arange(density_rt.shape[0]), max_density_idx
     ]
     solver.fluence_rz[:, step] = fluence_r
-    solver.radius_z[step] = radius[0]
 
 
 def monitoring_diagnostics(solver, step):

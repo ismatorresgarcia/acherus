@@ -19,15 +19,12 @@ from .nonlinear import (
     compute_nonlinear_rfcn,
     compute_nonlinear_rsscn,
 )
-from .radius import compute_radius
 from .raman import compute_raman
 
 __all__ = [
     "FFTManager",
     "compute_fft",
     "compute_ifft",
-    "compute_fluence",
-    "compute_radius",
     "compute_density_rk4",
     "compute_intensity",
     "compute_density",
@@ -40,6 +37,7 @@ __all__ = [
     "compute_nonlinear_nrfcn",
     "compute_nonlinear_rsscn",
     "compute_nonlinear_nrsscn",
+    "compute_fluence",
     "series_sum",
     "mpi_rate",
     "keldysh_gas_rate",

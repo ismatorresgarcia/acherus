@@ -10,7 +10,6 @@ from ..functions.fluence import compute_fluence
 from ..functions.intensity import compute_intensity
 from ..functions.ionization import compute_ion_rate
 from ..functions.nonlinear import compute_nonlinear_rsscn
-from ..functions.radius import compute_radius
 from ..functions.raman import compute_raman
 from .shared import Shared
 
@@ -240,7 +239,7 @@ class rSSCN(Shared):
             self._nlin_tmp_t[:-1, :],
         )
         self.compute_envelope()
-        compute_fluence(self.envelope_rt, self.t_grid, self.fluence_r)
-        compute_radius(self.fluence_r, self.r_grid, self.radius)
 
         self.nonlinear_rt[:] = self.nonlinear_next_rt
+
+        compute_fluence(self.envelope_rt, self.t_grid, self.fluence_r)

@@ -24,7 +24,7 @@ def main():
             "AIR": {
                 "nonlinear_index": 3.0e-23,
                 "energy_gap": 12.063,
-                "collision_time": 3.5e-15,
+                "collision_time": 3.5e-13,
                 "neutral_density": 0.54e25,
                 "initial_density": 1e9,
                 "raman_partition": 0.5,
@@ -43,8 +43,8 @@ def main():
                 "waist": 3.57e-3,
                 "duration": 1274e-15,
                 "energy": 0.1,
-                "chirp": 0,
                 "focal_length": 2,
+                "chirp": 0,
                 "gauss_order": 2
             },
         },

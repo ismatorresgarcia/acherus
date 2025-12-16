@@ -8,7 +8,6 @@ from ..data.diagnostics import (
     monitoring_diagnostics,
 )
 from ..functions.fluence import compute_fluence
-from ..functions.radius import compute_radius
 
 
 class Shared:
@@ -113,8 +112,6 @@ class Shared:
 
         self.fluence_r = np.zeros(self.shape_r, dtype=np.float64)
         self.fluence_rz = np.zeros(self.shape_rz, dtype=np.float64)
-        self.radius = np.zeros(1, dtype=np.float64)
-        self.radius_z = np.zeros(self.z_nodes, dtype=np.float64)
 
         self.nonlinear_rt = np.zeros(self.shape_rt, dtype=np.complex128)
 
@@ -129,7 +126,6 @@ class Shared:
         self.density_rt[:, 0] = self.density_ini
         self._dens_init_buf[:] = self.density_ini
         self.fluence_rz[:, 0] = compute_fluence(self.envelope_rt, t_g_a=self.t_grid)
-        self.radius_z[0] = compute_radius(self.fluence_rz[:, 0], r_g_a=self.r_grid)
 
         self.envelope_snapshot_rzt[:, 0, :] = self.envelope_rt
         self.envelope_r0_zt[0, :] = self.envelope_rt[0, :]
