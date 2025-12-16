@@ -1,9 +1,11 @@
 """
-Peremolov, Popov, and Terent'ev (PPT, 1966) ionization rate module for gaseous
+Perelomov et al. (PPT, 1966) ionization rate module for gaseous
 media. Mishima et al. (2002) revised atomic and molecular corrections are
-included in the PPT.
+included in the PPT. The Coulomb-corrected formula for long-range action
+appears, for example, in Nikishov and Ritus (1967) or in 
+Perelomov and Popov (1967) future works.
 
-Keldysh ionization rate module for condensed media.
+Keldysh (1965) ionization rate module for condensed media.
 
 How this works
 --------------
