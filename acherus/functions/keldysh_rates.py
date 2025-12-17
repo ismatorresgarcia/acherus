@@ -40,6 +40,10 @@ def keldysh_gas_rate(
     beta = 2 * g / xp.sqrt(1 + g**2)
     alpha = 2 * asinh - beta
     exp = 1.5 * (idx * asinh - 1 / beta) / g
+    b_momentum = 1 + 0.5 * (g**4 + 4 * g**2 + 1) / (photons * g * (1 + g**2)**1.5)
+    c_momentum = 0.5 * g**2 * (g**2 - 1) / (photons * (1 + g**2)**2)
+    alpha += 2 * c_momentum
+    beta *= b_momentum
 
     ion_sum = series_sum(alpha, beta, nu, "gas", tolerance, max_iterations)
 
@@ -51,7 +55,7 @@ def keldysh_gas_rate(
         * (2 ** (2 * n_q) / (gamma(n_q + 1)) ** 2)
         * (0.5 * energy_gap / u_hy)
         * (4 * xp.sqrt(2) / xp.pi)
-        * (g**2 / (1 + g**2))
+        * (g**2 / (1 + g**2)) / xp.sqrt(b_momentum)
         * ion_sum
         * (2 * f_a / (field * xp.sqrt(1 + g**2))) ** (2 * n_q - 1.5)
         * xp.exp(-2 * f_a * exp / (3 * field))
