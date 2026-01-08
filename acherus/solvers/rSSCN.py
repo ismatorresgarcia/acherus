@@ -209,8 +209,8 @@ class rSSCN(Shared):
             self._dens_init_buf[:-1],
             self.avalanche_c,
             self.dens_meth,
-            self.dens_meth_atol,
             self.dens_meth_rtol,
+            self.dens_meth_atol,
             self._dens_rhs_buf[:-1],
             self._dens_tmp_buf[:-1],
         )
