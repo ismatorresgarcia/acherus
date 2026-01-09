@@ -310,7 +310,7 @@ class SimulationBox:
 
         if self.r_sym:
             radius_p = np.linspace(0, self.r_max_ori, self.nr)
-            radius_n = -np.flip(radius_p[:-1])
+            radius_n = -np.flip(radius_p[1:])
             radius = np.concatenate((radius_n, radius_p))
             radius_slice = radius[self.sliced_coor["r"]]
         else:
@@ -400,7 +400,7 @@ class SimulationBox:
         if not self.r_sym:
             return data
 
-        flipped_data = np.flip(data[:-1], axis=axis_r)
+        flipped_data = np.flip(data[1:], axis=axis_r)
         return np.concatenate((flipped_data, data), axis=axis_r)
 
 
@@ -515,7 +515,7 @@ class BasePlot:
 
             f_slice = fluence_z[peak_idx:]
             r_slice = r_grid[peak_idx:]
-        
+
             indices = (f_slice[:-1] >= half_max) & (f_slice[1:] < half_max)
             if not np.any(indices):
                 b_radius[jj] = r_slice[-1] if f_slice[-1] >= half_max else np.nan
@@ -1178,7 +1178,7 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
         plot_data = {"rz": plot_data_fluence}
     elif data_type == "radius":
         plot_data_radius = plot.get_radius_data(
-            box.sliced_data["b_fluence"], 
+            box.sliced_data["b_fluence"],
             box.sliced_grids["r"],
         )
         plot_data = {"z": plot_data_radius}
