@@ -126,10 +126,9 @@ class rSSCN(Shared):
         matrix_right = diags_array(diags, offsets=[-1, 0, 1], format="dia")
         return matrix_band, matrix_right
 
-    def compute_dispersion_function(self, w_det, w_0):
+    def compute_dispersion_f(self, w_det, w_0):
         """
-        Compute the dispersion operator using the full dispersion
-        relation with Sellmeier formulas.
+        Compute the dispersion function using Sellmeier formulas.
 
         Parameters
         ----------
@@ -153,7 +152,7 @@ class rSSCN(Shared):
     def set_operators(self):
         """Set SSCN operators."""
         diff_op = 0.25 * self.z_res / (self.k_0 * self.r_res**2)
-        disp_op = 0.5 * self.z_res * self.compute_dispersion_function(self.w_grid, self.w_0)
+        disp_op = 0.5 * self.z_res * self.compute_dispersion_f(self.w_grid, self.w_0)
         self.plasma_op = self.z_res * self.plasma_c
         self.mpa_op = self.z_res * self.mpa_c
         self.kerr_op = self.z_res * self.kerr_c
