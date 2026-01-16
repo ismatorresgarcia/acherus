@@ -118,7 +118,7 @@ class Shared:
         self.ionization_rate = np.zeros(self.shape_rt, dtype=np.float64)
         self.intensity_to_rate = self.ion.intensity_to_rate
 
-        self.snapshot_z_index = np.zeros(self.z_snapshots + 1, dtype=np.int16)
+        self.snapshot_z_index = np.zeros(self.z_snapshots + 1, dtype=np.uint16)
 
     def set_initial_conditions(self):
         """Set initial conditions."""
