@@ -2,7 +2,7 @@
 Perelomov et al. (PPT, 1966) ionization rate module for gaseous
 media. Mishima et al. (2002) revised atomic and molecular corrections are
 included in the PPT. The Coulomb-corrected formula for long-range action
-appears, for example, in Nikishov and Ritus (1967) or in 
+appears, for example, in Nikishov and Ritus (1967) or in
 Perelomov and Popov (1967) future works.
 
 Keldysh (1965) ionization rate module for condensed media.
@@ -77,7 +77,7 @@ from scipy.constants import c as c_light
 from scipy.constants import e as e_charge
 from scipy.constants import epsilon_0 as eps_0
 from scipy.constants import hbar
-from scipy.interpolate import make_interp_spline
+from scipy.interpolate import PchipInterpolator
 
 from ..functions.keldysh_rates import keldysh_condensed_rate, keldysh_gas_rate, mpi_rate
 
@@ -184,5 +184,5 @@ class KeldyshIonization:
         """Interpolation function for ionization rate vs intensity."""
         if self.interpolator is None:
             inten, rate = self._ionization_rate()
-            self.interpolator = make_interp_spline(inten, rate, k=1)
+            self.interpolator = PchipInterpolator(inten, rate, extrapolate=True)
         return self.interpolator
