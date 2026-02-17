@@ -9,9 +9,11 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "acherus"
-copyright = "2025, Ismael Torres García"
-author = "Ismael Torres García"
-release = "0.7.0"
+copyright = "2025, UPM, IFN-GV"
+author = "Ismael Torres García, Eduardo Oliva Gonzalo"
+
+# Read The Docs latest version
+release = "1.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

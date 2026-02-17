@@ -1,17 +1,19 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "acherus",
-version = "dynamic",
 description = "3D spatiotemporal solver, focused in atmospheric laser-plasma filaments",
 license = { text = "Apache-2.0" }
 readme = "README.md",
 requires-python = ">=3.8",
-authors = [ 
-    { name = "Ismael Torres García et al.", email = "i.torresg@alumnos.upm.es"} 
+
+authors = [
+    { name = "Ismael Torres García", email = "i.torresg@upm.es"},
+    { name = "Eduardo Oliva Gonzalo", email = "eduardo.oliva@upm.es"}
 ]
+
 keywords = [
     "simulation",
     "laser",
@@ -22,7 +24,8 @@ keywords = [
     "nitrogen",
     "femtosecond",
     "picosecond",
-],
+]
+
 classifiers=[
     "Development Status :: 4 - Beta",
     "Programming Language :: Python",
@@ -34,26 +37,27 @@ classifiers=[
     "Operating System :: OS Independent",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Physics :: Atmospheric Science",
-],
+]
+
 dependencies = [
     "numpy",
     "scipy",
     "matplotlib",
     "h5py",
-],
+]
 
 [project.urls]
 Issues = "https://github.com/ismatorresgarcia/acherus/issues"
 Documents = "https://acherus.readthedocs.io/en/latest/index.html"
 Source = "https://github.com/ismatorresgarcia/acherus"
 Homepage = "https://acherus.readthedocs.io/"
-Downloads = "https://pypi.python.org/pypi/acherus",
+Downloads = "https://pypi.python.org/pypi/acherus"
 
 [project.scripts]
-acherus = "acherus.main:main"
+acherus = "acherus.__main__:main"
 
 [tool.setuptools]
-include-package-data = true
+include_package_data = true
 
 [tool.setuptools.dynamic]
 version = { attr = "acherus._version.__version__" }
