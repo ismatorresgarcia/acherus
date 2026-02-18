@@ -2,7 +2,9 @@ __pycache__
 .DS_Store
 _static/
 _templates/
-build/
 simulations/
+build/
+dist/
+acherus.egg-info/
 *.h5
 *.dat
