@@ -57,9 +57,6 @@ Downloads = "https://pypi.python.org/pypi/acherus"
 [project.scripts]
 acherus = "acherus.__main__:main"
 
-[tool.setuptools]
-include_package_data = true
-
 [tool.setuptools.dynamic]
 version = { attr = "acherus._version.__version__" }
 
