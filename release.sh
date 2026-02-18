@@ -20,3 +20,5 @@ echo "========================================================================"
 python -m build
 twine upload dist/*
 rm -r dist/ *.egg-info
+
+echo "✅ acherus v$VER released: GitHub tagged, PyPI uploaded, and RTD rebuild triggered."

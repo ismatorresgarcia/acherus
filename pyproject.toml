@@ -1,13 +1,13 @@
 [build-system]
-requires = ["setuptools>=61", "wheel"]
+requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "acherus",
-description = "3D spatiotemporal solver, focused in atmospheric laser-plasma filaments",
+name = "acherus"
+description = "3D spatiotemporal solver, focused in atmospheric laser-plasma filaments"
 license = { text = "Apache-2.0" }
-readme = "README.md",
-requires-python = ">=3.8",
+readme = "README.md"
+requires-python = ">=3.8"
 
 authors = [
     { name = "Ismael Torres García", email = "i.torresg@upm.es"},
