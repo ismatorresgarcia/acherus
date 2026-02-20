@@ -24,7 +24,7 @@ medium properties as direct attributes of the class.
 
 """
 
-from ..functions.dispersion_models import (
+from ..functions.sellmeier import (
     sellmeier_air,
     sellmeier_silica,
     sellmeier_water,
