@@ -1,7 +1,7 @@
 """Methods subpackage initialization file for importing functions."""
 
 from .density import compute_density, compute_density_rk4
-from .dispersion_models import (
+from .sellmeier import (
     sellmeier_air,
     sellmeier_silica,
     sellmeier_water,
