@@ -4,7 +4,7 @@ import numpy as np
 from numba import njit, prange
 
 
-@njit(parallel=True)
+@njit(parallel=True, cache=True, fastmath=False)
 def compute_raman(inten_a, ram_a, ram_x_a, ram_c1_a, ram_c2_a):
     """
     Compute Raman contribution delayed response for all time steps
@@ -24,9 +24,14 @@ def compute_raman(inten_a, ram_a, ram_x_a, ram_c1_a, ram_c2_a):
         Raman frequency coefficient for the second term.
 
     """
-    nr, nt = inten_a.shape
-    for ii in prange(nr):
-        for kk in range(nt - 1):
-            ram_x_a[ii, kk + 1] = ram_c1_a * ram_x_a[ii, kk] + ram_c2_a * (inten_a[ii, kk + 1] + ram_c1_a * inten_a[ii, kk])
+    n_r, n_t = inten_a.shape
+    for radial_idx in prange(n_r):
+        for time_idx in range(n_t - 1):
+            ram_x_a[radial_idx, time_idx + 1] = ram_c1_a * ram_x_a[
+                radial_idx, time_idx
+            ] + ram_c2_a * (
+                inten_a[radial_idx, time_idx + 1]
+                + ram_c1_a * inten_a[radial_idx, time_idx]
+            )
 
     ram_a[:] = np.imag(ram_x_a)
