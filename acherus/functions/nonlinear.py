@@ -100,7 +100,7 @@ def _set_nlin_rsccn(
     tmp_buf_t,
 ):
     """
-    Compute RHS in rSSCN.
+    Compute RHS in SSCN with Raman.
 
     Parameters
     ----------
@@ -225,7 +225,7 @@ def _set_nlin_nrsccn(
     tmp_buf_t,
 ):
     """
-    Compute RHS in nrSSCN.
+    Compute RHS in SSCN without Raman.
 
     Parameters
     ----------
@@ -357,7 +357,7 @@ def _set_nlin_rfcn(
     tmp_buf_w,
 ):
     """
-    Compute RHS in rFCN.
+    Compute RHS in FCN with Raman.
 
     Parameters
     ----------
@@ -493,7 +493,7 @@ def _set_nlin_nrfcn(
     tmp_buf_w,
 ):
     """
-    Compute RHS in nrFCN.
+    Compute RHS in FCN without Raman.
 
     Parameters
     ----------

@@ -4,7 +4,7 @@ import numpy as np
 from numba import njit, prange
 
 
-@njit(parallel=True, cache=True, fastmath=False)
+@njit(parallel=True)
 def compute_raman(inten_a, ram_a, ram_x_a, ram_c1_a, ram_c2_a):
     """
     Compute Raman contribution delayed response for all time steps
@@ -25,7 +25,7 @@ def compute_raman(inten_a, ram_a, ram_x_a, ram_c1_a, ram_c2_a):
 
     """
     n_r, n_t = inten_a.shape
-    for radial_idx in prange(n_r):
+    for radial_idx in prange(n_r):  # pylint: disable=not-an-iterable
         for time_idx in range(n_t - 1):
             ram_x_a[radial_idx, time_idx + 1] = ram_c1_a * ram_x_a[
                 radial_idx, time_idx

@@ -65,7 +65,7 @@ def sellmeier_air(omega):
 def sellmeier_water(omega):
     """Return water n(w), k(w), and dk/dω from Mielenz's model.
 
-    Validity range: 0.235–1.028 µm (20 °C).
+    Validity range: 0.235-1.028 µm (20 °C).
     """
     coeff_b1, coeff_b2, coeff_b3, coeff_b4 = (
         1.7604457,
@@ -94,7 +94,7 @@ def sellmeier_water(omega):
 def sellmeier_silica(omega):
     """Return silica n(w), k(w), and dk/dω from Malitson's model.
 
-    Validity range: 0.21–3.71 µm (20 °C).
+    Validity range: 0.21-3.71 µm (20 °C).
     """
     coeff_b1, coeff_b2, coeff_b3 = 0.6961663, 0.4079426, 0.8974794
     coeff_c1, coeff_c2, coeff_c3 = 0.0684043**2, 0.1162414**2, 9.896161**2
