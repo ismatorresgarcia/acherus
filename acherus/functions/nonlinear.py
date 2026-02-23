@@ -4,6 +4,15 @@ import numpy as np
 
 from .fft_backend import compute_fft
 
+INTENSITY_DIVISION_THRESHOLD = 1.0e-10
+
+
+def _divide_intensity(num, inten, out):
+    """Safe intensity division when it is above a threshold."""
+    valid = inten > INTENSITY_DIVISION_THRESHOLD
+    np.divide(num, inten, out=out, where=valid)
+    out[~valid] = 0.0
+
 
 def compute_nonlinear_rsscn(
     stp_a,
@@ -75,6 +84,7 @@ def compute_nonlinear_rsscn(
     if stp_a != 1:
         nlin_a[:] = 1.5 * nlin_a - 0.5 * nlin_p
 
+
 def _set_nlin_rsccn(
     env_a,
     dens_a,
@@ -125,7 +135,7 @@ def _set_nlin_rsccn(
 
     np.subtract(dens_n_a, dens_a, out=tmp_buf_t)
     np.multiply(tmp_buf_t, ion_a, out=tmp_buf_t)
-    np.divide(tmp_buf_t, inten_a + 1.0e-30, out=tmp_buf_t)
+    _divide_intensity(tmp_buf_t, inten_a, tmp_buf_t)
     np.multiply(tmp_buf_t, env_a, out=tmp_buf_t)
     np.multiply(mpa_c_a, tmp_buf_t, out=tmp_buf_t)
     np.add(nlin_a, tmp_buf_t, out=nlin_a)
@@ -137,6 +147,7 @@ def _set_nlin_rsccn(
     np.multiply(ram_a, env_a, out=tmp_buf_t)
     np.multiply(ram_c_a, tmp_buf_t, out=tmp_buf_t)
     np.add(nlin_a, tmp_buf_t, out=nlin_a)
+
 
 def compute_nonlinear_nrsscn(
     stp_a,
@@ -200,6 +211,7 @@ def compute_nonlinear_nrsscn(
     if stp_a != 1:
         nlin_a[:] = 1.5 * nlin_a - 0.5 * nlin_p
 
+
 def _set_nlin_nrsccn(
     env_a,
     dens_a,
@@ -244,7 +256,7 @@ def _set_nlin_nrsccn(
 
     np.subtract(dens_n_a, dens_a, out=tmp_buf_t)
     np.multiply(tmp_buf_t, ion_a, out=tmp_buf_t)
-    np.divide(tmp_buf_t, inten_a + 1.0e-30, out=tmp_buf_t)
+    _divide_intensity(tmp_buf_t, inten_a, tmp_buf_t)
     np.multiply(tmp_buf_t, env_a, out=tmp_buf_t)
     np.multiply(mpa_c_a, tmp_buf_t, out=tmp_buf_t)
     np.add(nlin_a, tmp_buf_t, out=nlin_a)
@@ -252,6 +264,7 @@ def _set_nlin_nrsccn(
     np.multiply(inten_a, env_a, out=tmp_buf_t)
     np.multiply(kerr_c_a, tmp_buf_t, out=tmp_buf_t)
     np.add(nlin_a, tmp_buf_t, out=nlin_a)
+
 
 def compute_nonlinear_rfcn(
     stp_a,
@@ -327,6 +340,7 @@ def compute_nonlinear_rfcn(
     if stp_a != 1:
         nlin_a[:] = 1.5 * nlin_a - 0.5 * nlin_p
 
+
 def _set_nlin_rfcn(
     env_a,
     dens_a,
@@ -382,7 +396,7 @@ def _set_nlin_rfcn(
     np.subtract(dens_n_a, dens_a, out=tmp_buf_t)
     np.multiply(tmp_buf_t, ion_a, out=tmp_buf_t)
     np.multiply(tmp_buf_t, env_a, out=tmp_buf_t)
-    np.divide(tmp_buf_t, inten_a + 1.0e-30, out=tmp_buf_t)
+    _divide_intensity(tmp_buf_t, inten_a, tmp_buf_t)
     tmp_buf_w[:] = compute_fft(tmp_buf_t)
     np.multiply(mpa_c_a, tmp_buf_w, out=tmp_buf_w)
     np.add(nlin_a, tmp_buf_w, out=nlin_a)
@@ -396,6 +410,7 @@ def _set_nlin_rfcn(
     tmp_buf_w[:] = compute_fft(tmp_buf_t)
     np.multiply(ram_c_a, tmp_buf_w, out=tmp_buf_w)
     np.add(nlin_a, tmp_buf_w, out=nlin_a)
+
 
 def compute_nonlinear_nrfcn(
     stp_a,
@@ -463,6 +478,7 @@ def compute_nonlinear_nrfcn(
     if stp_a != 1:
         nlin_a[:] = 1.5 * nlin_a - 0.5 * nlin_p
 
+
 def _set_nlin_nrfcn(
     env_a,
     dens_a,
@@ -512,7 +528,7 @@ def _set_nlin_nrfcn(
     np.subtract(dens_n_a, dens_a, out=tmp_buf_t)
     np.multiply(tmp_buf_t, ion_a, out=tmp_buf_t)
     np.multiply(tmp_buf_t, env_a, out=tmp_buf_t)
-    np.divide(tmp_buf_t, inten_a + 1.0e-30, out=tmp_buf_t)
+    _divide_intensity(tmp_buf_t, inten_a, tmp_buf_t)
     tmp_buf_w[:] = compute_fft(tmp_buf_t)
     np.multiply(mpa_c_a, tmp_buf_w, out=tmp_buf_w)
     np.add(nlin_a, tmp_buf_w, out=nlin_a)
