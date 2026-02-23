@@ -10,11 +10,9 @@ from .physics.equation import Equation
 from .physics.keldysh import KeldyshIonization
 from .physics.laser import Laser
 from .physics.medium import Medium
-from .solvers.nrFCN import nrFCN
-from .solvers.nrSSCN import nrSSCN
-from .solvers.rFCN import rFCN
-from .solvers.rSSCN import rSSCN
+from .solvers.FCN import FCN
 from .solvers.shared import Shared
+from .solvers.SSCN import SSCN
 
 __all__ = [
     "__version__",
@@ -26,8 +24,6 @@ __all__ = [
     "Equation",
     "KeldyshIonization",
     "Shared",
-    "rSSCN",
-    "nrSSCN",
-    "rFCN",
-    "nrFCN",
+    "SSCN",
+    "FCN",
 ]
