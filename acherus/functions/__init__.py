@@ -1,6 +1,6 @@
 """Methods subpackage initialization file for importing functions."""
 
-from .density import compute_density, compute_density_rk4
+from .density import compute_density_nr, compute_density_r, compute_density_rk4
 from .sellmeier import (
     sellmeier_air,
     sellmeier_silica,
@@ -26,8 +26,9 @@ __all__ = [
     "compute_fft",
     "compute_ifft",
     "compute_density_rk4",
+    "compute_density_nr",
+    "compute_density_r",
     "compute_intensity",
-    "compute_density",
     "sellmeier_air",
     "sellmeier_water",
     "sellmeier_silica",

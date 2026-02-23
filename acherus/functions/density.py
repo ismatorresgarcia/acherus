@@ -33,7 +33,7 @@ def compute_density_rk4(inten_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a
     dt = np.diff(t_a)
     dens_a[:, 0] = dens_0_a
 
-    for nn in prange(n_r):
+    for nn in prange(n_r):  # pylint: disable=not-an-iterable
         inten_nn = inten_a[nn]
         ion_nn = ion_a[nn]
         dens_nn = dens_a[nn]
@@ -65,17 +65,30 @@ def compute_density_rk4(inten_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a
             dens_p += dt_ll * (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0
             dens_nn[ll + 1] = dens_p
 
+
 @njit(inline="always")
 def _rhs_rk4(dens_s_a, int_s_a, ion_s_a, dens_n_a, ava_c_a):
     """RHS of the electron density evolution ODE for RK4."""
     return ion_s_a * (dens_n_a - dens_s_a) + ava_c_a * dens_s_a * int_s_a
 
 
-def compute_density(
-    inten_a, dens_a, ion_a, t_a, dens_n_a, dens_0_a, ava_c_a, method_a, rtol_a, atol_a, rhs_buf, tmp_buf
+def compute_density_nr(
+    inten_a,
+    dens_a,
+    ion_a,
+    t_a,
+    dens_n_a,
+    dens_0_a,
+    ava_c_a,
+    method_a,
+    rtol_a,
+    atol_a,
+    rhs_buf,
+    tmp_buf,
 ):
     """
     Compute electron density evolution ODE for all time steps with SciPy's 'solve_ivp'.
+    No recombination term is included in the ODE.
 
     Parameters
     ----------
@@ -118,6 +131,55 @@ def compute_density(
         np.multiply(dens, inten_s, out=tmp_buf)
         np.multiply(ava_c_a, tmp_buf, out=tmp_buf)
         np.add(rhs_buf, tmp_buf, out=rhs_buf)
+        return rhs_buf
+
+    sol = solve_ivp(
+        _set_density,
+        t_span=(t_a[0], t_a[-1]),
+        y0=dens_0_a,
+        method=method_a,
+        t_eval=t_a,
+        rtol=rtol_a,
+        atol=atol_a,
+    )
+    dens_a[:] = sol.y
+
+
+def compute_density_r(
+    inten_a,
+    dens_a,
+    ion_a,
+    t_a,
+    dens_n_a,
+    dens_0_a,
+    ava_c_a,
+    rec_c_a,
+    method_a,
+    rtol_a,
+    atol_a,
+    rhs_buf,
+    tmp_buf,
+):
+    """
+    Compute electron density evolution ODE for all time steps with SciPy's 'solve_ivp'.
+    Recombination is included as: rec_c_a * dens_a**2.
+    """
+    ion_to_t = make_interp_spline(t_a, ion_a, k=1, axis=1)
+    inten_to_t = make_interp_spline(t_a, inten_a, k=1, axis=1)
+
+    def _set_density(t, dens):
+        """RHS of the electron density evolution ODE with recombination."""
+        ion_s = ion_to_t(t)
+        inten_s = inten_to_t(t)
+
+        np.subtract(dens_n_a, dens, out=tmp_buf)
+        np.multiply(ion_s, tmp_buf, out=rhs_buf)
+        np.multiply(dens, inten_s, out=tmp_buf)
+        np.multiply(ava_c_a, tmp_buf, out=tmp_buf)
+        np.add(rhs_buf, tmp_buf, out=rhs_buf)
+        np.power(dens, 2, out=tmp_buf)
+        np.multiply(rec_c_a, tmp_buf, out=tmp_buf)
+        np.subtract(rhs_buf, tmp_buf, out=rhs_buf)
         return rhs_buf
 
     sol = solve_ivp(

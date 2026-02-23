@@ -2,27 +2,15 @@
 
 import numpy as np
 
-from ..data.diagnostics import (
-    cheap_diagnostics,
-    expensive_diagnostics,
-    monitoring_diagnostics,
-)
+from ..data.diagnostics import cheap_diagnostics, expensive_diagnostics
+from ..functions.density import compute_density_nr, compute_density_r
 from ..functions.fluence import compute_fluence
 
 
 class Shared:
     """Class for shared variables and methods used by the different solvers."""
 
-    def __init__(
-        self,
-        config,
-        medium,
-        laser,
-        grid,
-        eqn,
-        ion,
-        output
-    ):
+    def __init__(self, config, medium, laser, grid, eqn, ion, output):
         """Initialize solver with common parameters.
 
         Parameters
@@ -53,6 +41,12 @@ class Shared:
         self.dens_meth = config.density_method
         self.dens_meth_rtol = config.density_method_par.rtol
         self.dens_meth_atol = config.density_method_par.atol
+        self.recomb_c = config.medium_par.recombination_rate
+
+        if self.recomb_c is not None:
+            self._compute_density = self._compute_density_recombination
+        else:
+            self._compute_density = self._compute_density_no_recombination
 
         # Initialize frequent arguments
         self.r_nodes = grid.r_nodes
@@ -118,7 +112,42 @@ class Shared:
         self.ionization_rate = np.zeros(self.shape_rt, dtype=np.float64)
         self.intensity_to_rate = self.ion.intensity_to_rate
 
-        self.snapshot_z_index = np.zeros(self.z_snapshots + 1, dtype=np.uint16)
+        self.snapshot_z_index = np.zeros(self.z_snapshots + 1, dtype=np.uint32)
+
+    def _compute_density_no_recombination(self):
+        """Compute density without recombination term."""
+        compute_density_nr(
+            self.intensity_rt[:-1, :],
+            self.density_rt[:-1, :],
+            self.ionization_rate[:-1, :],
+            self.t_grid,
+            self.density_n,
+            self._dens_init_buf[:-1],
+            self.avalanche_c,
+            self.dens_meth,
+            self.dens_meth_rtol,
+            self.dens_meth_atol,
+            self._dens_rhs_buf[:-1],
+            self._dens_tmp_buf[:-1],
+        )
+
+    def _compute_density_recombination(self):
+        """Compute density with recombination term."""
+        compute_density_r(
+            self.intensity_rt[:-1, :],
+            self.density_rt[:-1, :],
+            self.ionization_rate[:-1, :],
+            self.t_grid,
+            self.density_n,
+            self._dens_init_buf[:-1],
+            self.avalanche_c,
+            self.recomb_c,
+            self.dens_meth,
+            self.dens_meth_rtol,
+            self.dens_meth_atol,
+            self._dens_rhs_buf[:-1],
+            self._dens_tmp_buf[:-1],
+        )
 
     def set_initial_conditions(self):
         """Set initial conditions."""
@@ -155,5 +184,5 @@ class Shared:
                 step_idx = (snap_idx - 1) * z_spsnap + steps_snap_idx
                 self.solve_step(step_idx)
                 cheap_diagnostics(self, step_idx)
-                monitoring_diagnostics(self, step_idx)
+                self.output.monitoring_diagnostics(self, step_idx)
             expensive_diagnostics(self, snap_idx)
