@@ -1,0 +1,76 @@
+# Acherus simulation configuration template
+#
+# Usage:
+#   acherus config.toml
+#   acherus config.toml --output ./results/my_run
+#
+# For simulation, if both are provided, --output overrides data_output_path below.
+# Plotting/monitoring use their own CLI arguments and may use this file as
+# a source of default paths together with --config.
+
+# Optional: base output directory for simulation data.
+# - Data are saved here.
+data_output_path = "./results/example_run"
+
+# Optional: base output directory for simulation plots.
+# - Plots are saved here.
+# If omitted, plotting/monitoring default to <data_output_path>/figures.
+figure_output_path = "./results/example_figures"
+
+propagation_solver = "FCN"   # "FCN" | "SSCN"
+computing_backend = "CPU"    # "CPU" | "GPU"
+
+[medium_parameters.AIR]
+nonlinear_index = 3.0e-23
+energy_gap = 12.063
+collision_time = 3.5e-13
+neutral_density = 0.54e25
+initial_density = 1e9
+# recombination_rate = 1e-20
+raman_partition = 0.5
+raman_response_time = 70e-15
+raman_rotational_time = 62.5e-15
+
+[grid_parameters.SPACE]
+nodes = 10000
+space_min = 0.0
+space_max = 0.01
+
+[grid_parameters.AXIS]
+nodes = 4000
+axis_min = 0.0
+axis_max = 2.2
+snapshots = 3
+
+[grid_parameters.TIME]
+nodes = 4096
+time_min = -3e-12
+time_max = 3e-12
+
+[pulse_parameters.GAUSSIAN]
+wavelength = 800e-9
+waist = 3.57e-3
+duration = 1274e-15
+energy = 0.1
+focal_length = 2.0
+chirp = 0.0
+gauss_order = 2
+
+# Choose one solver block under [density_solver.*]
+[density_solver.RK45]
+rtol = 1e-9
+atol = 1e-6
+
+# Choose one model block under [ionization_model.*]
+[ionization_model.KELDYSH]
+tolerance = 1e-3
+max_iterations = 250
+intensity_range = [1e-1, 1e18]
+num_points = 10000
+# reduced_mass = 0.5
+
+# Alternative ionization model example:
+# [ionization_model.MPI]
+# cross_section = 1e-130
+# intensity_range = [1e-1, 1e18]
+# num_points = 10000
