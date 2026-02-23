@@ -3,13 +3,6 @@
 import sys
 
 import numpy as np
-from h5py import File
-
-from .paths import sim_dir as path
-
-MONITORING_STEPS = 100
-monitoring_path = path / "acherus_monitoring.h5"
-profiler_path = path / "acherus_log.txt"
 
 
 def error_diagnostics(solver, exit_on_error=True, save_on_error=True):
@@ -76,63 +69,6 @@ def cheap_diagnostics(solver, step):
         np.arange(density_rt.shape[0]), max_density_idx
     ]
     solver.fluence_rz[:, step] = fluence_r
-
-
-def monitoring_diagnostics(solver, step):
-    """
-    Save diagnostics progressively every desired number of steps
-    and write them in a HDF5 file on the run.
-
-    Parameters
-    ----------
-    solver : object
-        Solver object with data.
-    step : integer
-        Current propagation step.
-
-    """
-    if step == 1:
-        with File(monitoring_path, "w") as f:
-            envelope_grp = f.create_group("envelope")
-            envelope_grp.create_dataset(
-                "peak_rz",
-                shape=(solver.grid.r_nodes, solver.grid.z_nodes),
-                maxshape=(solver.grid.r_nodes, None),
-                dtype=np.complex128,
-                compression="gzip",
-                chunks=(
-                    solver.grid.r_nodes,
-                    min(MONITORING_STEPS, solver.grid.z_nodes),
-                ),
-            )
-
-            coords = f.create_group("coordinates")
-            coords.create_dataset("r_min", data=solver.grid.r_min)
-            coords.create_dataset("r_max", data=solver.grid.r_max)
-            coords.create_dataset("z_min", data=solver.grid.z_min)
-            coords.create_dataset("z_max", data=solver.grid.z_max)
-            coords.create_dataset("r_grid", data=solver.grid.r_grid)
-            coords.create_dataset("z_grid", data=solver.grid.z_grid)
-
-            # Add metadata
-            meta = f.create_group("metadata")
-            meta.create_dataset("last_step", data=0, dtype=np.int16)
-
-    # Update data
-    if step % MONITORING_STEPS == 0 or step == solver.grid.z_nodes - 1:
-        with File(monitoring_path, "r+") as f:
-            step_idx = step + 1
-            last_step = f["metadata/last_step"][()]
-            last_step_idx = last_step + 1
-
-            if step > last_step:
-                f["envelope/peak_rz"][:, last_step_idx : step_idx] = (
-                    solver.envelope_tp_rz[:, last_step_idx : step_idx]
-                )
-                f["envelope/peak_rz"][:, last_step_idx : step_idx] = (
-                    solver.envelope_tp_rz[:, last_step_idx : step_idx]
-                )
-                f["metadata/last_step"][()] = step
 
 
 def expensive_diagnostics(solver, step):
