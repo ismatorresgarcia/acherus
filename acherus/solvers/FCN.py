@@ -3,8 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
-from scipy.linalg import solve_banded
-from scipy.sparse import diags_array
+from scipy.linalg.lapack import get_lapack_funcs
 
 from ..functions.fft_backend import compute_fft, compute_ifft
 from ..functions.fluence import compute_fluence
@@ -22,6 +21,9 @@ class FCN(Shared):
         """Initialize FCN solver."""
         super().__init__(config, medium, laser, grid, eqn, ion, output)
         self._executor = ThreadPoolExecutor()
+        self._gttrf, self._gttrs = get_lapack_funcs(
+            ("gttrf", "gttrs"), dtype=np.complex128
+        )
 
         self.has_raman = config.medium_par.raman_partition is not None
 
@@ -39,6 +41,8 @@ class FCN(Shared):
 
         self.envelope_fourier = np.zeros_like(self.envelope_rt)
         self.nonlinear_next_rt = np.zeros(self.shape_rt, dtype=np.complex128)
+        self._lin_rhs = np.empty(self.shape_rt, dtype=np.complex128)
+        self._lin_tmp = np.empty(self.shape_rt, dtype=np.complex128)
         self._nlin_tmp_t = np.empty(self.shape_rt, dtype=np.complex128)
         self._nlin_tmp_w = np.empty_like(self.envelope_rt)
 
@@ -46,7 +50,7 @@ class FCN(Shared):
         self.set_operators()
 
     def compute_matrices(self, n, coef_d, coef_p):
-        """Compute diagonals for Crank-Nicolson matrices."""
+        """Compute tridiagonal coefficients for Crank-Nicolson matrices."""
         r_ind = np.arange(1, n - 1)
 
         dl_left = np.zeros(n - 1, dtype=np.complex128)
@@ -59,11 +63,6 @@ class FCN(Shared):
         d_left[0], d_left[-1] = 1 + 4j * coef_d - 1j * coef_p, 1
         du_left[0], dl_left[-1] = -4j * coef_d, 0
 
-        matrix_band = np.zeros((3, n), dtype=np.complex128)
-        matrix_band[0, 1:] = du_left
-        matrix_band[1, :] = d_left
-        matrix_band[2, :-1] = dl_left
-
         dl_right = np.zeros(n - 1, dtype=np.complex128)
         d_right = np.full(n, 1 - 2j * coef_d + 1j * coef_p, dtype=np.complex128)
         du_right = np.zeros(n - 1, dtype=np.complex128)
@@ -74,10 +73,7 @@ class FCN(Shared):
         d_right[0], d_right[-1] = 1 - 4j * coef_d + 1j * coef_p, 0
         du_right[0], dl_right[-1] = 4j * coef_d, 0
 
-        matrix_right = diags_array(
-            [dl_right, d_right, du_right], offsets=[-1, 0, 1], format="dia"
-        )
-        return matrix_band, matrix_right
+        return dl_left, d_left, du_left, dl_right, d_right, du_right
 
     def compute_dispersion(self, w_det, w_0):
         """Compute the dispersion function using Sellmeier formulas."""
@@ -104,26 +100,48 @@ class FCN(Shared):
         def matrix_wrapper(ww):
             return self.compute_matrices(self.r_nodes, diff_op[ww], disp_op[ww])
 
-        for ww, (mat_left, mat_right) in enumerate(
+        for ww, (dl_left, d_left, du_left, dl_right, d_right, du_right) in enumerate(
             self._executor.map(matrix_wrapper, range(self.t_nodes))
         ):
-            self.mats_left[ww] = mat_left
-            self.mats_right[ww] = mat_right
+            dl_fac, d_fac, du_fac, du2_fac, ipiv_fac, _ = self._gttrf(
+                dl_left,
+                d_left,
+                du_left,
+                overwrite_dl=True,
+                overwrite_d=True,
+                overwrite_du=True,
+            )
+            self.mats_left[ww] = (dl_fac, d_fac, du_fac, du2_fac, ipiv_fac)
+            self.mats_right[ww] = (dl_right, d_right, du_right)
 
     def compute_envelope(self):
         """Compute one generalized Fourier-Crank-Nicolson propagation step."""
         self.envelope_fourier[:-1, :] = compute_fft(self.envelope_rt[:-1, :])
 
         def slice_wrapper(ww):
-            rhs_linear = self.mats_right[ww] @ self.envelope_fourier[:, ww]
-            rhs = rhs_linear + self.nonlinear_rt[:, ww]
-            return solve_banded(
-                (1, 1),
-                self.mats_left[ww],
+            dl_right, d_right, du_right = self.mats_right[ww]
+            env_w = self.envelope_fourier[:, ww]
+            rhs = self._lin_rhs[:, ww]
+            tmp = self._lin_tmp[:, ww]
+
+            np.multiply(d_right, env_w, out=rhs)
+            np.multiply(dl_right, env_w[:-1], out=tmp[1:])
+            rhs[1:] += tmp[1:]
+            np.multiply(du_right, env_w[1:], out=tmp[:-1])
+            rhs[:-1] += tmp[:-1]
+            rhs += self.nonlinear_rt[:, ww]
+
+            dl_fac, d_fac, du_fac, du2_fac, ipiv_fac = self.mats_left[ww]
+            sol, _ = self._gttrs(
+                dl_fac,
+                d_fac,
+                du_fac,
+                du2_fac,
+                ipiv_fac,
                 rhs,
                 overwrite_b=True,
-                check_finite=False,
             )
+            return sol
 
         for ww, result in enumerate(
             self._executor.map(slice_wrapper, range(self.t_nodes))
