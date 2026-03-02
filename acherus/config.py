@@ -210,7 +210,7 @@ class ConfigOptions:
     density_method_par : Dict           see "classes" above for the list
     propagation_method : str            "sscn" | "fcn"
     pml_par : Dict                      see "classes" above for the list
-    dispersion_name : str               "full" | "partial"
+    dispersion_model : str              "full" | "partial"
     dispersion_par : Dict               see "classes" above for the list
     ionization_model : str              "mpi" | "keldysh"
     ionization_model_par : Dict         see "classes" above for the list
@@ -229,7 +229,7 @@ class ConfigOptions:
     density_method: str
     density_method_par: RK4DensityConfig | AdaptiveDensityConfig
     propagation_method: str
-    dispersion_name: str
+    dispersion_model: str
     dispersion_par: FullDispersionConfig | PartialDispersionConfig
     ionization_model: str
     ionization_model_par: MPIConfig | KeldyshConfig
@@ -286,7 +286,7 @@ class ConfigOptions:
             "Invalid density solver: {name}.",
         )
 
-        dispersion_name, dispersion_config = _build_single_choice_config(
+        dispersion_model, dispersion_config = _build_single_choice_config(
             dispersion,
             DISPERSION_CONFIG_CLASSES,
             "Invalid dispersion model: {name}.",
@@ -309,7 +309,7 @@ class ConfigOptions:
             pulse_par=pulse_config,
             density_method=density_name.upper(),
             density_method_par=density_config,
-            dispersion_name=dispersion_name,
+            dispersion_model=dispersion_model,
             dispersion_par=dispersion_config,
             ionization_model=ionization_name,
             ionization_model_par=ionization_config,
