@@ -49,6 +49,14 @@ class TimeGridConfig:
 
 
 @dataclass
+class RadialPMLConfig:
+    """Optional PML parameters."""
+
+    pml_damping: float
+    pml_width: float
+
+
+@dataclass
 class GaussianPulseConfig:
     """Input Gaussian pulse parameters."""
 
@@ -104,6 +112,7 @@ GRID_CONFIG_CLASSES: Dict[str, Type[Any]] = {
     "space": SpaceGridConfig,
     "axis": AxisGridConfig,
     "time": TimeGridConfig,
+    "pml": RadialPMLConfig,
 }
 
 
@@ -142,6 +151,9 @@ def _build_single_choice_config(
     invalid_message: str,
 ) -> tuple[str, Any]:
     """Build config object from a single-key options mapping."""
+    if len(options) != 1:
+        raise ValueError("Exactly one option block is required.")
+
     option_name = next(iter(options)).lower()
     option_params = options[option_name]
 
@@ -183,32 +195,33 @@ class ConfigOptions:
     """
 
     medium_name: str
-    medium_par: object
-    space_par: object
-    axis_par: object
-    time_par: object
+    medium_par: MediumConfig
+    space_par: SpaceGridConfig
+    axis_par: AxisGridConfig
+    time_par: TimeGridConfig
     pulse_name: str
-    pulse_par: object
+    pulse_par: GaussianPulseConfig
     density_method: str
-    density_method_par: object
+    density_method_par: RK4DensityConfig | AdaptiveDensityConfig
     propagation_method: str
     ionization_model: str
-    ionization_model_par: object
+    ionization_model_par: MPIConfig | KeldyshConfig
     computing_backend: str
     data_output_path: Optional[Path] = None
     figure_output_path: Optional[Path] = None
+    pml_par: Optional[RadialPMLConfig] = None
 
     @staticmethod
     def build(
-        medium_parameters: Dict[str, Dict],
-        grid_parameters: Dict[str, Dict],
-        pulse_parameters: Dict[str, Dict],
-        density_solver: Dict[str, Dict],
+        medium_parameters: Dict[str, Dict[str, Any]],
+        grid_parameters: Dict[str, Dict[str, Any]],
+        pulse_parameters: Dict[str, Dict[str, Any]],
+        density_solver: Dict[str, Dict[str, Any]],
         propagation_solver: str,
-        ionization_model: Dict[str, Dict],
+        ionization_model: Dict[str, Dict[str, Any]],
         computing_backend: str,
-        data_output_path: Optional[str] = None,
-        figure_output_path: Optional[str] = None,
+        data_output_path: Optional[str | Path] = None,
+        figure_output_path: Optional[str | Path] = None,
     ) -> "ConfigOptions":
         """Build a normalized `ConfigOptions` instance from raw input mappings."""
 
@@ -253,16 +266,17 @@ class ConfigOptions:
         return ConfigOptions(
             medium_name=medium_name,
             medium_par=medium_config,
-            space_par=grid_config["space"],
-            time_par=grid_config["time"],
-            axis_par=grid_config["axis"],
+            space_par=grid_config.get("space"),
+            time_par=grid_config.get("time"),
+            axis_par=grid_config.get("axis"),
+            pml_par=grid_config.get("pml"),
             pulse_name=pulse_name,
             pulse_par=pulse_config,
             density_method=density_name.upper(),
             density_method_par=density_config,
-            propagation_method=propagation_solver.lower(),
             ionization_model=ionization_name,
             ionization_model_par=ionization_config,
+            propagation_method=propagation_solver.lower(),
             computing_backend=computing_backend.lower(),
             data_output_path=Path(data_output_path) if data_output_path else None,
             figure_output_path=Path(figure_output_path) if figure_output_path else None,

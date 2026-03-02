@@ -152,7 +152,9 @@ class Shared:
     def set_initial_conditions(self):
         """Set initial conditions."""
         self.envelope_rt[:] = self.laser.init_envelope()
+        self.envelope_rt[-1, :] = 0
         self.density_rt[:, 0] = self.density_ini
+        self.density_rt[-1, :] = self.density_ini
         self._dens_init_buf[:] = self.density_ini
         self.fluence_rz[:, 0] = compute_fluence(self.envelope_rt, t_g_a=self.t_grid)
 

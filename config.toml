@@ -47,6 +47,11 @@ nodes = 4096
 time_min = -3e-12
 time_max = 3e-12
 
+# Optional PML block.
+# [grid_parameters.PML]
+# pml_damping = 10.0
+# pml_width = 0.2
+
 [pulse_parameters.GAUSSIAN]
 wavelength = 800e-9
 waist = 3.57e-3

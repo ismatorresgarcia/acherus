@@ -20,6 +20,7 @@ class FCN(Shared):
     def __init__(self, config, medium, laser, grid, eqn, ion, output):
         """Initialize FCN solver."""
         super().__init__(config, medium, laser, grid, eqn, ion, output)
+        self.pml_par = config.pml_par
         self._executor = ThreadPoolExecutor()
         self._gttrf, self._gttrs = get_lapack_funcs(
             ("gttrf", "gttrs"), dtype=np.complex128
@@ -51,27 +52,86 @@ class FCN(Shared):
 
     def compute_matrices(self, n, coef_d, coef_p):
         """Compute tridiagonal coefficients for Crank-Nicolson matrices."""
-        r_ind = np.arange(1, n - 1)
+        dr = self.r_res
+        r = self.r_grid
+
+        if self.pml_par is None:
+            r_ind = np.arange(1, n - 1)
+            radial_term = 0.5 / r_ind
+
+            dl_left = np.zeros(n - 1, dtype=np.complex128)
+            d_left = np.full(n, 1 + 2j * coef_d - 1j * coef_p, dtype=np.complex128)
+            du_left = np.zeros(n - 1, dtype=np.complex128)
+
+            lower_diag = -1j * coef_d * (1 - radial_term)
+            upper_diag = -1j * coef_d * (1 + radial_term)
+            dl_left[:-1] = lower_diag
+            du_left[1:] = upper_diag
+
+            d_left[0], d_left[-1] = 1 + 4j * coef_d - 1j * coef_p, 1
+            du_left[0], dl_left[-1] = -4j * coef_d, 0
+
+            dl_right = np.conjugate(dl_left)
+            d_right = np.conjugate(d_left)
+            du_right = np.conjugate(du_left)
+
+            d_right[0], d_right[-1] = np.conjugate(d_left[0]), 0
+            du_right[0], dl_right[-1] = np.conjugate(du_left[0]), 0
+
+            return dl_left, d_left, du_left, dl_right, d_right, du_right
+
+        r_max = r[-1]
+        pml_rotation = 0.5 * np.sqrt(2) * (1 + 1j)
+        pml_damping = self.pml_par.pml_damping
+
+        pml_width_01 = self.pml_par.pml_width
+        if pml_width_01 <= 0 or pml_width_01 >= 1:
+            raise ValueError(
+                "PML requires pml_width (delta) in the open interval (0, 1)."
+            )
+
+        r_boundary = r_max * (1.0 - pml_width_01)
+        pml_width = r_max - r_boundary
+
+        f_r = r.astype(np.complex128)
+        p_r = np.zeros_like(f_r)
+        dp_dr = np.zeros_like(f_r)
+
+        mask = (r >= r_boundary) & (r < r_max)
+
+        p_r[mask] = pml_damping * ((f_r[mask] - r_boundary) / pml_width) ** 2
+        dp_dr[mask] = 2 * pml_damping * (f_r[mask] - r_boundary) / pml_width
+
+        f_r[mask] += (
+            pml_rotation
+            * pml_damping
+            * ((f_r[mask] - r_boundary) ** 3 - r_max**3)
+            / (3 * pml_width**2)
+        )
+
+        s_r = 1 + pml_rotation * p_r
+        ds_dr = pml_rotation * dp_dr
+
+        a_r = 1 / s_r**2
+        a_r_inner = a_r[1:-1]
+        b_r = 1 / f_r[1:-1] - ds_dr[1:-1] / s_r[1:-1] ** 3
 
         dl_left = np.zeros(n - 1, dtype=np.complex128)
-        d_left = np.full(n, 1 + 2j * coef_d - 1j * coef_p, dtype=np.complex128)
+        d_left = 1 + 2j * coef_d * a_r - 1j * coef_p
         du_left = np.zeros(n - 1, dtype=np.complex128)
 
-        dl_left[:-1] = -1j * coef_d * (1 - 0.5 / r_ind)
-        du_left[1:] = -1j * coef_d * (1 + 0.5 / r_ind)
+        dl_left[:-1] = -1j * coef_d * (a_r_inner - 0.5 * dr * b_r)
+        du_left[1:] = -1j * coef_d * (a_r_inner + 0.5 * dr * b_r)
 
         d_left[0], d_left[-1] = 1 + 4j * coef_d - 1j * coef_p, 1
         du_left[0], dl_left[-1] = -4j * coef_d, 0
 
-        dl_right = np.zeros(n - 1, dtype=np.complex128)
-        d_right = np.full(n, 1 - 2j * coef_d + 1j * coef_p, dtype=np.complex128)
-        du_right = np.zeros(n - 1, dtype=np.complex128)
+        dl_right = np.conjugate(dl_left)
+        d_right = np.conjugate(d_left)
+        du_right = np.conjugate(du_left)
 
-        dl_right[:-1] = 1j * coef_d * (1 - 0.5 / r_ind)
-        du_right[1:] = 1j * coef_d * (1 + 0.5 / r_ind)
-
-        d_right[0], d_right[-1] = 1 - 4j * coef_d + 1j * coef_p, 0
-        du_right[0], dl_right[-1] = 4j * coef_d, 0
+        d_right[0], d_right[-1] = np.conjugate(d_left[0]), 0
+        du_right[0], dl_right[-1] = np.conjugate(du_left[0]), 0
 
         return dl_left, d_left, du_left, dl_right, d_right, du_right
 
@@ -216,6 +276,7 @@ class FCN(Shared):
         self._compute_raman()
         self._compute_nonlinear(step)
         self.compute_envelope()
+        self.envelope_rt[-1, :] = 0
 
         self.nonlinear_rt[:] = self.nonlinear_next_rt
         compute_fluence(self.envelope_rt, self.t_grid, self.fluence_r)
