@@ -149,8 +149,7 @@ class SimulationBox:
     def init_grid_nodes(self):
         """Set up the plotting box boundary nodes."""
         self.nr = self.data["e_dist"].shape[0]
-        self.nz = self.data["e_axis"].shape[0]
-        self.nt = self.data["e_axis"].shape[1]
+        self.nz, self.nt = self.data["e_axis"].shape
 
         if self.r_sym:
             dr_ori = self.r_max_ori - self.r_min_ori
@@ -159,27 +158,17 @@ class SimulationBox:
         else:
             self.nr_0 = 0
 
+        r_nodes = self.nr_sym if self.r_sym else self.nr
+        r_min_ori = -self.r_max_ori if self.r_sym else self.r_min_ori
+
         self.nodes = {}
-        for dim, (min_b, max_b, n_nodes, min_o, max_o) in {
-            "r_data": (
-                *self.b_r,
-                self.nr if not self.r_sym else self.nr_sym,
-                (self.r_min_ori if not self.r_sym else -self.r_max_ori),
-                self.r_max_ori,
-            ),
-            "z_data": (
-                *self.b_z,
-                self.nz,
-                self.z_min_ori,
-                self.z_max_ori,
-            ),
-            "t_data": (
-                *self.b_t,
-                self.nt,
-                self.t_min_ori,
-                self.t_max_ori,
-            ),
-        }.items():
+        bounds = {
+            "r_data": (*self.b_r, r_nodes, r_min_ori, self.r_max_ori),
+            "z_data": (*self.b_z, self.nz, self.z_min_ori, self.z_max_ori),
+            "t_data": (*self.b_t, self.nt, self.t_min_ori, self.t_max_ori),
+        }
+
+        for dim, (min_b, max_b, n_nodes, min_o, max_o) in bounds.items():
             n_min = (min_b - min_o) * (n_nodes - 1) / (max_o - min_o)
             n_max = (max_b - min_o) * (n_nodes - 1) / (max_o - min_o)
             self.nodes[dim] = (int(n_min), int(n_max + 1))
@@ -345,18 +334,18 @@ class BasePlot:
 
     def compute_intensity(self, envelope_dist, envelope_axis, envelope_peak):
         """Set up intensities for plotting."""
-        return 1e-4 * (
-            np.abs(envelope_dist) ** 2,
-            np.abs(envelope_axis) ** 2,
-            np.abs(envelope_peak) ** 2,
+        return (
+            1e-4 * np.abs(envelope_dist) ** 2,
+            1e-4 * np.abs(envelope_axis) ** 2,
+            1e-4 * np.abs(envelope_peak) ** 2,
         )
 
     def compute_density(self, density_dist, density_axis, density_peak):
         """Set up densities for plotting."""
-        return 1e-6 * (
-            density_dist,
-            density_axis,
-            density_peak,
+        return (
+            1e-6 * density_dist,
+            1e-6 * density_axis,
+            1e-6 * density_peak,
         )
 
     def compute_fluence(self, b_fluence):
@@ -904,7 +893,7 @@ def parse_cli_options():
     """Parse and validate CLI options."""
     user_paths = get_user_paths(create=False)
 
-    def parse_range_arg(raw_text, argument_name, fail_hard=False):
+    def parse_range_arg(raw_text, arg_name):
         """Parse a comma-separated numeric range."""
         if raw_text is None:
             return None
@@ -912,12 +901,8 @@ def parse_cli_options():
         try:
             lower, upper = map(float, raw_text.split(","))
             return (lower, upper)
-        except ValueError as exc:
-            if fail_hard:
-                raise ValueError(f"{argument_name} format must be 'min,max'.") from exc
-            print(
-                f"Error: {argument_name} format must be 'min,max'. " "Using full range."
-            )
+        except ValueError:
+            print(f"Error: {arg_name} format must be 'min,max'. " "Using full range.")
             return None
 
     def parse_csv_flags(raw_text):
@@ -950,6 +935,16 @@ def parse_cli_options():
             raise ValueError("--colors-1d values must be between 0 and 1.")
 
         return values
+
+    def parse_bool_arg(raw_text):
+        """Parse boolean argument as true/false."""
+        value = raw_text.strip().lower()
+        if value == "true":
+            return True
+        if value == "false":
+            return False
+
+        raise ValueError("--radial-symmetry expects 'true' or 'false'.")
 
     parser = argparse.ArgumentParser(
         description="Plot simulation data from HDF5 files.",
@@ -1043,8 +1038,9 @@ def parse_cli_options():
     )
     parser.add_argument(
         "--radial-symmetry",
+        type=parse_bool_arg,
         default=False,
-        help="Plot all radial axis symmetrically.",
+        help="Plot radial axis symmetrically: use 'true' or 'false'.",
     )
 
     args = parser.parse_args()
@@ -1069,11 +1065,9 @@ def parse_cli_options():
     args.sim_path = args.sim_path or sim_default
     args.fig_path = args.fig_path or fig_default
 
-    args.axial_range = parse_range_arg(args.axial_range, "Axial range")
-    args.time_range = parse_range_arg(args.time_range, "Time range")
-    args.log_y_range = parse_range_arg(
-        args.log_y_range, "--log-y-range", fail_hard=True
-    )
+    args.axial_range = parse_range_arg(args.axial_range, "--axial-range")
+    args.time_range = parse_range_arg(args.time_range, "--time-range")
+    args.log_y_range = parse_range_arg(args.log_y_range, "--log-y-range")
 
     if args.log_rt_levels is not None and args.log_rt_levels <= 0:
         raise ValueError("--log-rt-levels must be a positive integer.")
@@ -1246,10 +1240,12 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
     """Process a specific physical variable and generate the plots."""
     print(f"Processing {data_type} data...")
 
-    z_snap_idx = data["z_idx"]
-    z_snap_coor = box.set_snapshot_points(z_snap_idx)
+    z_snap_idx = data.get("z_idx")
+    z_snap_coor = (
+        box.set_snapshot_points(z_snap_idx) if z_snap_idx is not None else None
+    )
 
-    three_view_fetchers = {
+    missing_variables = {
         "intensity": (
             plot.get_intensity_data,
             ("e_dist", "e_axis", "e_peak"),
@@ -1260,15 +1256,30 @@ def process_simulation_data(data_type, data, plot, box, plot_types, args):
         ),
     }
 
-    if data_type in three_view_fetchers:
-        fetcher, keys = three_view_fetchers[data_type]
+    if data_type in missing_variables:
+        fetcher, keys = missing_variables[data_type]
+        missing_keys = [key for key in keys if key not in box.sliced_data]
+        if missing_keys:
+            print(f"Skipping {data_type}: missing required datasets {missing_keys}.")
+            return
+
+        if z_snap_idx is None:
+            print(f"Skipping {data_type}: missing snapshot indices ('z_idx').")
+            return
+
         dist_data, axis_data, peak_data = fetcher(
             *(box.sliced_data[key] for key in keys)
         )
         plot_data = {"rt": dist_data, "zt": axis_data, "rz": peak_data}
     elif data_type == "fluence":
+        if "b_fluence" not in box.sliced_data:
+            print("Skipping fluence: missing required dataset 'b_fluence'.")
+            return
         plot_data = {"rz": plot.get_fluence_data(box.sliced_data["b_fluence"])}
     elif data_type == "radius":
+        if "b_fluence" not in box.data:
+            print("Skipping radius: missing required dataset 'b_fluence'.")
+            return
         z_slice = box.sliced_coor["z"]
         fluence = box.data["b_fluence"][:, z_slice]
         radial_grid = np.linspace(box.r_min_ori, box.r_max_ori, box.nr)

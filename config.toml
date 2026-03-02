@@ -57,9 +57,9 @@ wavelength = 800e-9
 waist = 3.57e-3
 duration = 1274e-15
 energy = 0.1
-focal_length = 2.0
-chirp = 0.0
-gauss_order = 2
+# focal_length = 2.0
+# chirp = 0.890
+# gauss_order = 3
 
 # Choose one solver block under [density_solver.*]
 [density_solver.RK45]
@@ -68,10 +68,10 @@ atol = 1e-6
 
 # Choose one model block under [ionization_model.*]
 [ionization_model.KELDYSH]
-tolerance = 1e-3
-max_iterations = 250
 intensity_range = [1e-1, 1e18]
 num_points = 10000
+# tolerance = 1e-3
+# max_iterations = 250
 # reduced_mass = 0.5
 
 # Alternative ionization model example:
