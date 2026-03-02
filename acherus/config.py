@@ -24,46 +24,46 @@ class MediumConfig:
 class SpaceGridConfig:
     """Spatial propagation grid parameters."""
 
-    nodes: int
-    space_min: float
-    space_max: float
+    nodes: int  # [-]
+    space_min: float  # [m]
+    space_max: float  # [m]
 
 
 @dataclass
 class AxisGridConfig:
     """Axis grid parameters and number of z snapshots."""
 
-    nodes: int
-    axis_min: float
-    axis_max: float
-    snapshots: int
+    nodes: int  # [-]
+    axis_min: float  # [m]
+    axis_max: float  # [m]
+    snapshots: int  # [-]
 
 
 @dataclass
 class TimeGridConfig:
     """Temporal grid parameters."""
 
-    nodes: int
-    time_min: float
-    time_max: float
+    nodes: int  # [-]
+    time_min: float  # [s]
+    time_max: float  # [s]
 
 
 @dataclass
 class RadialPMLConfig:
     """Optional PML parameters."""
 
-    pml_damping: float
-    pml_width: float
+    pml_damping: float  # [-]
+    pml_width: float  # [-] between 0 and 1, fraction of the radial grid
 
 
 @dataclass
 class GaussianPulseConfig:
     """Input Gaussian pulse parameters."""
 
-    wavelength: float
+    wavelength: float  # [m]
     waist: float  # half-width at 1/e^2 of intensity
     duration: float  # half-width at 1/e^2 of intensity
-    energy: float
+    energy: float  # [J]
     focal_length: Optional[float] = None  # [m]
     chirp: Optional[float] = None  # [-]
     gauss_order: Optional[int] = 2  # [-]
@@ -88,7 +88,7 @@ class MPIConfig:
 
     cross_section: float  # [s^-1 m^(2K)/W^K]
     intensity_range: Optional[Tuple[float, float]] = (1e-1, 1e18)  # [W/m^2]
-    num_points: Optional[int] = 10000
+    num_points: Optional[int] = 10000  # [-]
 
 
 @dataclass
@@ -96,10 +96,27 @@ class KeldyshConfig:
     """Generalized Keldysh model parameters."""
 
     tolerance: Optional[float] = 1e-3
-    max_iterations: Optional[int] = 250
+    max_iterations: Optional[int] = 250  # [-]
     intensity_range: Optional[Tuple[float, float]] = (1e-1, 1e18)  # [W/m^2]
-    num_points: Optional[int] = 10000
-    reduced_mass: Optional[float] = None  # [-], only for condensed media
+    num_points: Optional[int] = 10000  # [-]
+    reduced_mass: Optional[float] = (
+        None  # [-], between 0 and 1, fraction of the electron mass
+    )
+
+
+@dataclass
+class FullDispersionConfig:
+    """Use full Sellmeier-based dispersion relation."""
+
+
+@dataclass
+class PartialDispersionConfig:
+    """Use truncated dispersion expansion around the carrier frequency."""
+
+    k2: float  # [s^2 / m]
+    k3: Optional[float] = None  # [s^3 / m]
+    k4: Optional[float] = None  # [s^4 / m]
+    k5: Optional[float] = None  # [s^5 / m]
 
 
 MEDIUM_CONFIG_CLASSES: Dict[str, Type[Any]] = {
@@ -130,6 +147,11 @@ DENSITY_CONFIG_CLASSES: Dict[str, Type[Any]] = {
 IONIZATION_CONFIG_CLASSES: Dict[str, Type[Any]] = {
     "mpi": MPIConfig,
     "keldysh": KeldyshConfig,
+}
+
+DISPERSION_CONFIG_CLASSES: Dict[str, Type[Any]] = {
+    "full": FullDispersionConfig,
+    "partial": PartialDispersionConfig,
 }
 
 
@@ -177,19 +199,22 @@ class ConfigOptions:
 
     Parameters                          Choice
     =============================       ======================================
-     medium_name : str                  "air" | "water" | "silica"
-     medium_par : Dict                  see "classes" above for the list
-     space_par : Dict                   see "classes" above for the list
-     axis_par : Dict                    see "classes" above for the list
-     time_par : Dict                    see "classes" above for the list
-     pulse_name : str                   "gaussian"
-     pulse_par : Dict                   see "classes" above for the list
-     density_method : str               "rk4" | "rk23" | "rk45" | "dop853"
-     density_method_par : Dict          see "classes" above for the list
-     propagation_method : str           "sscn" | "fcn"
-     ionization_model : str             "mpi" | "keldysh"
-     ionization_model_par : Dict        see "classes" above for the list
-     computing_backend : str            "cpu" | "gpu"
+    medium_name : str                   "air" | "water" | "silica"
+    medium_par : Dict                   see "classes" above for the list
+    space_par : Dict                    see "classes" above for the list
+    axis_par : Dict                     see "classes" above for the list
+    time_par : Dict                     see "classes" above for the list
+    pulse_name : str                    "gaussian"
+    pulse_par : Dict                    see "classes" above for the list
+    density_method : str                "rk4" | "rk23" | "rk45" | "dop853"
+    density_method_par : Dict           see "classes" above for the list
+    propagation_method : str            "sscn" | "fcn"
+    pml_par : Dict                      see "classes" above for the list
+    dispersion_name : str               "full" | "partial"
+    dispersion_par : Dict               see "classes" above for the list
+    ionization_model : str              "mpi" | "keldysh"
+    ionization_model_par : Dict         see "classes" above for the list
+    computing_backend : str             "cpu" | "gpu"
     =============================       ======================================
 
     """
@@ -204,6 +229,8 @@ class ConfigOptions:
     density_method: str
     density_method_par: RK4DensityConfig | AdaptiveDensityConfig
     propagation_method: str
+    dispersion_name: str
+    dispersion_par: FullDispersionConfig | PartialDispersionConfig
     ionization_model: str
     ionization_model_par: MPIConfig | KeldyshConfig
     computing_backend: str
@@ -218,6 +245,7 @@ class ConfigOptions:
         pulse_parameters: Dict[str, Dict[str, Any]],
         density_solver: Dict[str, Dict[str, Any]],
         propagation_solver: str,
+        dispersion: Dict[str, Dict[str, Any]],
         ionization_model: Dict[str, Dict[str, Any]],
         computing_backend: str,
         data_output_path: Optional[str | Path] = None,
@@ -229,6 +257,7 @@ class ConfigOptions:
         grid_parameters = _lowercase_dict(grid_parameters)
         pulse_parameters = _lowercase_dict(pulse_parameters)
         density_solver = _lowercase_dict(density_solver)
+        dispersion = _lowercase_dict(dispersion)
         ionization_model = _lowercase_dict(ionization_model)
 
         medium_name, medium_config = _build_single_choice_config(
@@ -257,6 +286,12 @@ class ConfigOptions:
             "Invalid density solver: {name}.",
         )
 
+        dispersion_name, dispersion_config = _build_single_choice_config(
+            dispersion,
+            DISPERSION_CONFIG_CLASSES,
+            "Invalid dispersion model: {name}.",
+        )
+
         ionization_name, ionization_config = _build_single_choice_config(
             ionization_model,
             IONIZATION_CONFIG_CLASSES,
@@ -274,6 +309,8 @@ class ConfigOptions:
             pulse_par=pulse_config,
             density_method=density_name.upper(),
             density_method_par=density_config,
+            dispersion_name=dispersion_name,
+            dispersion_par=dispersion_config,
             ionization_model=ionization_name,
             ionization_model_par=ionization_config,
             propagation_method=propagation_solver.lower(),

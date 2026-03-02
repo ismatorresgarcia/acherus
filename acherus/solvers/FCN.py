@@ -137,9 +137,22 @@ class FCN(Shared):
 
     def compute_dispersion(self, w_det, w_0):
         """Compute the dispersion function using Sellmeier formulas."""
-        w = w_det + w_0
-        _, k_w, _ = self.medium.dispersion_properties(w)
-        return k_w - self.k_0 - self.k_1 * w_det
+        if self.dispersion_name == "full":
+            w = w_det + w_0
+            _, k_w, _ = self.medium.dispersion_properties(w)
+            return k_w - self.k_0 - self.k_1 * w_det
+
+        if self.dispersion_name == "partial":
+            disp = 0.5 * self.dispersion_par.k2 * w_det**2
+            if self.dispersion_par.k3 is not None:
+                disp += (1.0 / 6.0) * self.dispersion_par.k3 * w_det**3
+            if self.dispersion_par.k4 is not None:
+                disp += (1.0 / 24.0) * self.dispersion_par.k4 * w_det**4
+            if self.dispersion_par.k5 is not None:
+                disp += (1.0 / 120.0) * self.dispersion_par.k5 * w_det**5
+            return disp
+
+        raise ValueError(f"Invalid dispersion model: '{self.dispersion_name}'.")
 
     def set_operators(self):
         """Set Fourier-Crank-Nicolson operators."""

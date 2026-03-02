@@ -79,3 +79,13 @@ num_points = 10000
 # cross_section = 1e-130
 # intensity_range = [1e-1, 1e18]
 # num_points = 10000
+
+# Choose one model block under [dispersion.*]
+[dispersion.FULL]
+
+# Alternative truncated models:
+# [dispersion.PARTIAL]
+# k2 = 2e-28
+# k3 = 3e-43
+# k4 = 1e-58
+# k5 = 5e-74

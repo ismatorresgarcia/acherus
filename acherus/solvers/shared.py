@@ -42,6 +42,8 @@ class Shared:
         self.dens_meth_rtol = config.density_method_par.rtol
         self.dens_meth_atol = config.density_method_par.atol
         self.recomb_c = config.medium_par.recombination_rate
+        self.dispersion_name = config.dispersion_name
+        self.dispersion_par = config.dispersion_par
 
         if self.recomb_c is not None:
             self._compute_density = self._compute_density_recombination
