@@ -61,7 +61,7 @@ array. This array is then passed to the `sum_values`
 array to extract the corresponding values, which are the
 truncated series summation for each peak intensity.
 
-NOTE: It can be checked the created `field` uses the SI
+OBS: It can be checked the created `field` uses the SI
 convention, which implies the intensity array provided to
 the function would have to follow the same SI units. This
 would require to convert the intensity at each propagation step
@@ -71,14 +71,13 @@ unit conversion for the intensity array, which is meant to
 be provided in units of I = E**2, as expected inside Acherus.
 """
 
-
 import numpy as np
-from scipy.constants import c as c_light
-from scipy.constants import e as e_charge
-from scipy.constants import epsilon_0 as eps_0
-from scipy.constants import hbar
 from scipy.interpolate import PchipInterpolator
 
+from ..constants import C_LIGHT as c_light
+from ..constants import E_CHARGE as e_charge
+from ..constants import EPS_0 as eps_0
+from ..constants import HBAR as hbar
 from ..functions.keldysh_rates import keldysh_condensed_rate, keldysh_gas_rate, mpi_rate
 
 
@@ -123,7 +122,9 @@ class KeldyshIonization:
         if params.intensity_range[1] <= 0:
             raise ValueError("intensity_range upper bound must be positive")
         if params.intensity_range[1] <= params.intensity_range[0]:
-            raise ValueError("intensity_range upper bound must be greater than lower bound")
+            raise ValueError(
+                "intensity_range upper bound must be greater than lower bound"
+            )
 
         if self._model == "mpi":
             if not hasattr(p, "cross_section"):

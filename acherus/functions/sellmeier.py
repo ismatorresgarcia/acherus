@@ -33,7 +33,9 @@ Hence, the same unit conversion is computed.
 """
 
 import numpy as np
-from scipy.constants import c
+
+from ..constants import C_LIGHT as c
+from ..constants import PI as pi
 
 
 def sellmeier_air(omega):
@@ -45,7 +47,7 @@ def sellmeier_air(omega):
     coeff_b1, coeff_b2 = 5791817, 167909
     coeff_c1, coeff_c2 = 238.0185, 57.362
 
-    wavenumber = 1e-6 * omega / (2 * np.pi * c)
+    wavenumber = 1e-6 * omega / (2 * pi * c)
     k2 = wavenumber**2
 
     d1 = coeff_c1 - k2
@@ -75,7 +77,7 @@ def sellmeier_water(omega):
     )
     coeff_c1 = 1.49119e-2
 
-    wavelength = 1e6 * 2 * np.pi * c / omega
+    wavelength = 1e6 * 2 * pi * c / omega
     l2 = wavelength**2
 
     d1 = l2 - coeff_c1
@@ -99,7 +101,7 @@ def sellmeier_silica(omega):
     coeff_b1, coeff_b2, coeff_b3 = 0.6961663, 0.4079426, 0.8974794
     coeff_c1, coeff_c2, coeff_c3 = 0.0684043**2, 0.1162414**2, 9.896161**2
 
-    wavelength = 1e6 * 2 * np.pi * c / omega
+    wavelength = 1e6 * 2 * pi * c / omega
     l2 = wavelength**2
 
     d1 = l2 - coeff_c1

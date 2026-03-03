@@ -1,8 +1,10 @@
 """Laser pulse properties for a Gaussian beam in cylindrical coordinates."""
 
 import numpy as np
-from scipy.constants import c as c_light
 from scipy.special import gamma as g_euler
+
+from ..constants import C_LIGHT as c_light
+from ..constants import PI as pi
 
 
 class Laser:
@@ -30,17 +32,17 @@ class Laser:
 
     def init_parameters(self):
         """Initialize derived laser optical properties"""
-        self.frequency_0 = 2 * np.pi * c_light / self.wavelength
+        self.frequency_0 = 2 * pi * c_light / self.wavelength
         _, self.wavenumber_0, _ = self.medium.dispersion_properties(self.frequency_0)
         self.index_0 = self.wavenumber_0 * c_light / self.frequency_0
-        self.initial_power = self.energy / (self.duration * np.sqrt(0.5 * np.pi))
+        self.initial_power = self.energy / (self.duration * np.sqrt(0.5 * pi))
 
         if self.pulse_name == "gaussian":
             self.initial_intensity = (
                 self.gauss_order
                 * self.initial_power
                 * 2 ** (2 / self.gauss_order)
-                / (2 * np.pi * self.waist**2 * g_euler(2 / self.gauss_order))
+                / (2 * pi * self.waist**2 * g_euler(2 / self.gauss_order))
             )
 
     def init_envelope(self):

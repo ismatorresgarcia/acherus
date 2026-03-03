@@ -3,10 +3,12 @@ Equation coefficients.
 """
 
 import numpy as np
-from scipy.constants import c as c_light
-from scipy.constants import e as q_e
-from scipy.constants import epsilon_0 as eps_0
-from scipy.constants import hbar, m_e
+
+from ..constants import C_LIGHT as c_light
+from ..constants import E_CHARGE as q_e
+from ..constants import EPS_0 as eps_0
+from ..constants import HBAR as hbar
+from ..constants import M_E as m_e
 
 
 class Equation:

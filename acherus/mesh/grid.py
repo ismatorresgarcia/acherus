@@ -3,6 +3,8 @@
 import numpy as np
 from scipy.fft import fftfreq
 
+from ..constants import PI as pi
+
 
 class Grid:
     """
@@ -46,4 +48,4 @@ class Grid:
         self.t_grid = np.linspace(
             self.t_min, self.t_max, self.t_nodes, dtype=np.float64
         )
-        self.w_grid = 2 * np.pi * fftfreq(self.t_nodes, self.t_res)
+        self.w_grid = 2 * pi * fftfreq(self.t_nodes, self.t_res)
