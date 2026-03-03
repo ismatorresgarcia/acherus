@@ -23,7 +23,7 @@ def _format_z_snapshots(value, decimals=6):
     """Format z-snapshots coordinate values for figure names."""
     text = f"{value:.{decimals}f}".rstrip("0").rstrip(".")
     if text in ("", "-0"):
-        return "0"
+        return "0.0"
     return text
 
 
@@ -32,7 +32,7 @@ class PlotConfiguration:
     """Plot style configuration."""
 
     default_1d_color: tuple = (0.121569, 0.466667, 0.705882)
-    default_2d_color: str = "viridis"
+    default_2d_color: str = "jet"
 
     def get_plot_config(self, plot_type: str) -> Dict:
         """
@@ -997,8 +997,8 @@ def parse_cli_options():
     )
     parser.add_argument(
         "--colors-2d",
-        default="viridis",
-        help="Matplotlib colormap name for 2D/3D plots (e.g. viridis).",
+        default="jet",
+        help="Matplotlib colormap name for 2D/3D plots (e.g. jet).",
     )
     parser.add_argument(
         "--log-y-range",
