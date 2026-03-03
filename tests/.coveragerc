@@ -1,0 +1,13 @@
+[run]
+omit =
+	acherus/__init__.py
+	acherus/__main__.py
+	acherus/_version.py
+	acherus/monitoring.py
+	acherus/plotting.py
+	acherus/data/paths.py
+	acherus/solvers/*.py
+	acherus/functions/density.py
+	acherus/functions/nonlinear.py
+	acherus/functions/raman.py
+	acherus/functions/fft_*.py

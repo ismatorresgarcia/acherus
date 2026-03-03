@@ -1,12 +1,13 @@
 [build-system]
-requires = ["setuptools>=64", "wheel"]
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "acherus"
 dynamic = ["version"]
 description = "3D spatiotemporal solver, focused in atmospheric laser-plasma filaments"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.11"
 
@@ -44,6 +45,8 @@ dependencies = [
     "scipy",
     "matplotlib",
     "h5py",
+    "numba",
+    "pyFFTW",
 ]
 
 [project.urls]
@@ -55,6 +58,8 @@ Downloads = "https://pypi.python.org/pypi/acherus"
 
 [project.scripts]
 acherus = "acherus.__main__:main"
+acherus-monitoring = "acherus.monitoring:main"
+acherus-plotting = "acherus.plotting:main"
 
 [tool.setuptools.dynamic]
 version = { attr = "acherus._version.__version__" }
