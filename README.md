@@ -11,7 +11,7 @@
 ![PyPI - Version](https://img.shields.io/pypi/v/acherus?style=flat-square&color=fuchsia)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/acherus)
 [![PyPI - License](https://img.shields.io/pypi/l/acherus?style=flat-square&color=orange)](https://www.apache.org/licenses/LICENSE-2.0)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15527405.svg)](https://doi.org/10.5281/zenodo.15527405)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18864578.svg)](https://doi.org/10.5281/zenodo.18864578)
 
 🚀 **HASTUR Project** - *Harnessing Atmospheric Lasing: Towards Ultrasensitive Detection of Toxic Agents and Pathogens*
 
@@ -64,9 +64,9 @@ pip install -e .
   * 🌀 Using the previous numerical codes to study the amplification of ultraviolet (UV) radiation in nitrogen plasma filaments.
 
 ## Citing `Acherus`
-🔖 All `Acherus` releases are linked automatically to a [Zenodo](https://doi.org/10.5281/zenodo.15924923) publication under a unique [DOI](https://doi.org/10.5281/zenodo.15924923). If you use `Acherus` in your work, please star this [repository](https://github.com/ismatorresgarcia/acherus) so we can track adoption and improve the project. Additionally, if you use `Acherus` in a scientific publication, please consider citing this work:
+🔖 All `Acherus` releases are linked automatically to a [Zenodo](https://doi.org/10.5281/zenodo.18864578) publication under a unique [DOI](https://doi.org/10.5281/zenodo.18864578). If you use `Acherus` in your work, please star this [repository](https://github.com/ismatorresgarcia/acherus) so we can track adoption and improve the project. Additionally, if you use `Acherus` in a scientific publication, please consider citing this work:
 
-> \[1\] I. Torres García et al., "Acherus". Zenodo, 2025. https://doi.org/10.5281/zenodo.15924923
+> \[1\] I. Torres García et al., "Acherus". Zenodo, 2025. https://doi.org/10.5281/zenodo.18864578
 
 ---
 ### Tests badges
