@@ -1,0 +1,133 @@
+# Acherus configuration file
+# ==========================
+# This file can be used as a minimal working example and as a reference.
+#
+# Installation
+# ------------
+# From PyPI:
+#   pip install acherus
+#
+# From source repository:
+#   git clone https://github.com/ismatorresgarcia/acherus.git
+#   cd acherus
+#
+#   Optional (editable install for development):
+#     pip install -e .
+#
+# Execution
+# ---------
+# Before running commands below, copy this file to your working directory
+# (for example, repository root) and keep the name `004_water_UV_fs.toml`.
+#
+# Installed package:
+#   acherus 004_water_UV_fs.toml
+#   acherus 004_water_UV_fs.toml --output ./results/my_run
+#   acherus-monitoring --config 004_water_UV_fs.toml
+#   acherus-plotting --config 004_water_UV_fs.toml --CLI args...
+#
+# Cloned repository (approach A):
+#   python -m acherus 004_water_UV_fs.toml
+#   python -m acherus 004_water_UV_fs.toml --output ./results/my_run
+#   python -m acherus.monitoring --config 004_water_UV_fs.toml
+#   python -m acherus.plotting --config 004_water_UV_fs.toml --CLI args...
+#
+# Cloned repository after editable install (approach B):
+#   acherus 004_water_UV_fs.toml
+#   acherus 004_water_UV_fs.toml --output ./results/my_run
+#   acherus-monitoring --config 004_water_UV_fs.toml
+#   acherus-plotting --config 004_water_UV_fs.toml --CLI args...
+#
+# Notes
+# -----
+# - If both are provided, --output overrides data_output_path.
+# - Plotting/monitoring use their own CLI arguments and may read defaults from this file.
+# - Use SI units unless explicitly noted.
+
+# Optional output path for simulation data.
+data_output_path = "./results/example_run"
+
+# Optional output path for generated figures.
+# If omitted, plotting/monitoring default to <data_output_path>/figures.
+figure_output_path = "./results/example_figures"
+
+# Water femtosecond example
+# ======================
+# This is an example of femtosecond filamentation in water at 400 nm.
+
+propagation_solver = "FCN"   # "FCN" | "SSCN"
+computing_backend = "CPU"    # "CPU" | "GPU" (not supported yet)
+
+[medium_parameters.WATER]
+nonlinear_index = 4.1e-20   # Kerr index
+energy_gap = 6.5         # ionization energy (in eV)
+collision_time = 1e-15    # electron collision time
+neutral_density = 6.7e28    # medium neutral atom density
+initial_density = 1e9       # initial electron density
+recombination_rate = 2e-15      # Optional: electron recombination rate (default: None)
+# raman_partition = 0.5             # Optional: partition parameter (default: None)
+# raman_response_time = 70e-15      # Optional: damping time (default: None)
+# raman_rotational_time = 62.5e-15  # Optional: fundamental time (default: None)
+
+[grid_parameters.SPACE]
+nodes = 3126
+space_min = 0.0
+space_max = 312e-6
+
+[grid_parameters.AXIS]
+nodes = 37501
+axis_min = 0.0
+axis_max = 2.5e-2
+snapshots = 5
+
+[grid_parameters.TIME]
+nodes = 512
+time_min = -450e-15
+time_max = 450e-15
+
+# Optional PML block.
+[grid_parameters.PML]
+pml_damping = 10.0  # PML max. damping coefficient
+pml_width = 0.2     # PML thickness (in space_max units)
+
+[pulse_parameters.GAUSSIAN]
+wavelength = 400e-9
+waist = 45e-6
+duration = 90e-15
+energy = 400e-9
+# focal_length = 2.0  # Optional (default: None)
+# chirp = 0.890       # Optional (default: None)
+# gauss_order = 3     # Optional (default: 2)
+
+# Choose one solver block under [density_solver.*]
+# Available adaptive options: RK23, RK45, DOP853
+[density_solver.RK45]
+rtol = 1e-9    # Optional (default: 1e-3)
+# atol = 1e-6  # Optional (default: 1e-6)
+
+# Choose one model block under [ionization_model.*]
+# Available options: KELDYSH, MPI
+# [ionization_model.KELDYSH]
+# intensity_range = [1e-6, 1e18]  # Optional: interpolation interval (default: [1e-1, 1e18])
+# num_points = 200000              # Optional: interpolation grid size (default: 10000)
+# tolerance = 1e-3              # Optional: series convergence tolerance (default: 1e-3)
+# max_iterations = 250          # Optional: series max iterations (default: 250)
+# reduced_mass = 0.5            # Optional: only for condensed media
+
+# MPI option:
+[ionization_model.MPI]
+cross_section = 5.41e-41  # Required
+intensity_range = [1e-6, 1e18]  # Optional: interpolation interval (default: [1e-1, 1e18])
+num_points = 200000              # Optional: interpolation grid size (default: 10000)
+# Optional fields: same as in KELDYSH
+
+# Choose one model block under [dispersion.*]
+# Available options: FULL, PARTIAL
+[dispersion.FULL]
+
+# Partial option:
+# [dispersion.PARTIAL]
+# Provide coefficients for Taylor expansion of k(w) at central laser frequency
+# k2 = 2e-28  # Required
+# k3 = 3e-43  # Optional
+# k4 = 1e-58  # Optional
+# k5 = 5e-74  # Optional
