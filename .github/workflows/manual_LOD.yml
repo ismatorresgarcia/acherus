@@ -6,6 +6,7 @@ on:
 jobs:
   update-lod-badge:
     runs-on: ubuntu-latest
+     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,8 +35,7 @@ jobs:
 
       - name: Download badge from shields.io
         run: |
-          curl -L -o badge-docs.svg "https://img.shields.io/badge/Lines_of_Docs-${MD_LOC_BADGE}-blue"
-          cp badge-docs.svg /tmp/badge-docs.svg
+          curl -L -o /tmp/badge-docs.svg "https://img.shields.io/badge/Lines_of_Docs-${MD_LOC_BADGE}-blue"
 
       - name: Push badge to gh-pages
         run: |

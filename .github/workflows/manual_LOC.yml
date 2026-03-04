@@ -3,9 +3,6 @@ name: LoC Badge
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   update-loc-badge:
     runs-on: ubuntu-latest
@@ -13,8 +10,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -40,8 +35,7 @@ jobs:
 
       - name: Download badge
         run: |
-          curl -L -o badge.svg "https://img.shields.io/badge/Lines_of_Code-${PY_LOC_BADGE}-blue"
-          cp badge.svg /tmp/badge.svg
+          curl -L -o /tmp/badge.svg "https://img.shields.io/badge/Lines_of_Code-${PY_LOC_BADGE}-blue"
 
       - name: Push badge to gh-pages
         run: |
