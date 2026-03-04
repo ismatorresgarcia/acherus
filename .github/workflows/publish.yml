@@ -1,4 +1,4 @@
-name: Publish Acherus to PyPI (Python's package index)
+name: Publish Acherus to PyPI
 
 on:
   push:

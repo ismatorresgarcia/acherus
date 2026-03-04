@@ -1,6 +1,6 @@
 # This is a basic workflow that is nightly triggered
 
-name: nighlty_codecov
+name: Codecov nightly tests
 
 # Controls when the action will run. CRON schedule runs at mm hh dd mm yy UTC TIME
 on:
