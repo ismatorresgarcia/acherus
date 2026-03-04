@@ -1,7 +1,7 @@
 # 📣 Releases
 Release notes for the latest packaged versions of `Acherus` are available on [PyPI](https://pypi.org/project/acherus/). Other versions are also available on [Zenodo](https://zenodo.org/records/18864578) and [GitHub Releases](https://github.com/ismatorresgarcia/acherus/releases).
 
-## v0.8.0
+## Acherus v0.8.0
 
 ### 🚀 New Features
 
