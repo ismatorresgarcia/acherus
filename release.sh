@@ -13,12 +13,4 @@ echo "========================================================================"
 git tag -a v$VER
 git push origin v$VER
 
-echo "========================================================================"
-echo "Releasing $NAME v$VER on PyPI"
-echo "========================================================================"
-
-python -m build
-twine upload dist/*
-rm -r dist/ *.egg-info
-
-echo "✅ acherus v$VER released: GitHub tagged, PyPI uploaded, and RTD rebuild triggered."
+echo "✅ acherus v$VER tagged and pushed."
