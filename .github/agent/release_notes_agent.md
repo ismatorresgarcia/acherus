@@ -10,11 +10,11 @@ Create release notes for a new version by summarizing commits between two tags.
 Use this before publishing a release.
 
 # Required inputs
-- Previous and current release tags (example: `v0.8.0`, `v0.8.1`)
-- Commit history for that range (example: `git log v0.8.0...v0.8.1`)
+* Previous and current release tags (example: `v0.8.0`, `v0.8.1`)
+* Commit history for that range (example: `git log v0.8.0...v0.8.1`)
 
 # Expected output
-- One markdown release note document that follows the template below.
+* One markdown release note document that follows the template below.
 
 # Steps
 1. Collect all commits between the two tags.
@@ -29,6 +29,7 @@ Use this before publishing a release.
 - Do not include unreleased or planned work.
 - Keep the template structure unless the user asks to change it.
 - Keep wording clear, short, and user-friendly.
+- Follow semantic versioning standards.
 
 # Release Notes Template
 
@@ -42,41 +43,33 @@ This release introduces ...: [short summary of highlights].
 ## 🚀 New Features
 
 * 🧩 **Component/Module**
-
   * [Feature description including PR-number]
   * [Feature description]
 
 * 🧩 **Component/Module**
-
   * [Feature description]
 
 ## 🏷️ Other Features
 
 * 🔁 **Tests**
-
   * [Test-related changes]
 
 * 📚 **Documentation and Examples**
-
   * [Docs-related changes]
   * [Examples-related changes]
 
 * 🐍 **Build and Compatibility**
-
   * [Build/compatibility changes]
 
 * 🎨 **Code Style**
-
   * [Style-related changes]
   * [Formatter-related changes]
   * [Linting-related changes]
 
 * 🛡️ **Security**
-
   * [Security-related changes]
 
 ## 🐛 Bug-fixes
-
 * [Bugfix description]
 * [Bugfix description]
 
