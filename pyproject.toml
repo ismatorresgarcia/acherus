@@ -54,7 +54,7 @@ Issues = "https://github.com/ismatorresgarcia/acherus/issues"
 Documents = "https://acherus.readthedocs.io/en/latest/index.html"
 Source = "https://github.com/ismatorresgarcia/acherus"
 Homepage = "https://acherus.readthedocs.io/"
-Downloads = "https://pypi.python.org/pypi/acherus"
+Downloads = "https://pypi.org/project/acherus/"
 
 [project.scripts]
 acherus = "acherus.__main__:main"
