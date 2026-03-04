@@ -8,9 +8,9 @@
 [![LoC](https://raw.githubusercontent.com/ismatorresgarcia/acherus/gh-pages/badge.svg)](https://github.com/ismatorresgarcia/acherus)
 [![LoD](https://raw.githubusercontent.com/ismatorresgarcia/acherus/gh-pages/badge-docs.svg)](https://github.com/ismatorresgarcia/acherus)
 
-![PyPI - Version](https://img.shields.io/pypi/v/acherus?style=flat-square&color=fuchsia)
-![PyPI - Downloads](https://img.shields.io/pypi/dm/acherus)
-[![PyPI - License](https://img.shields.io/pypi/l/acherus?style=flat-square&color=orange)](https://www.apache.org/licenses/LICENSE-2.0)
+![PyPI - Version](https://img.shields.io/pypi/v/acherus?style=flat-square&color=fuchsia&cacheSeconds=3600)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/acherus&cacheSeconds=3600)
+[![PyPI - License](https://img.shields.io/pypi/l/acherus?style=flat-square&color=orange&cacheSeconds=3600)](https://www.apache.org/licenses/LICENSE-2.0)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18864578.svg)](https://doi.org/10.5281/zenodo.18864578)
 
 🚀 **HASTUR Project** - *Harnessing Atmospheric Lasing: Towards Ultrasensitive Detection of Toxic Agents and Pathogens*
