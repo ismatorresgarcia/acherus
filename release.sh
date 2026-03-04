@@ -10,7 +10,6 @@ echo "========================================================================"
 echo "Tagging $NAME v$VER"
 echo "========================================================================"
 
-git tag -a v$VER
+git tag -a v$VER -m "Release $NAME v$VER"
 git push origin v$VER
-
 echo "✅ acherus v$VER tagged and pushed."
