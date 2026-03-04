@@ -98,10 +98,8 @@ Release notes for the latest packaged versions of `Acherus` are available on [Py
 
 ### 📝 Full changelog
 
-| **N commits** | 📚 Docs | 🧪 Tests | 🐛 Fixes | 🎨 Style | ✨ Features | Other |
+| **N commits** | 📚 Docs | 🔁 Tests | 🐛 Fixes | 🎨 Style | 🚀 Features | Other |
 |---------------|---------|----------|----------|----------|-------------|-------|
-| % of Commits  | XX%     | XX%      | XX%      | XX%      | XX%         | XX%   |
-
-`git log vX.Y.Z-1...vX.Y.Z --date=short --pretty=format:"* %ad %d %s (%aN)*`
+| % of Commits  | 11%     | 4%       | 25%      | 10%      | 44%         | 6%    |
 
 Full changelog: https://github.com/ismatorresgarcia/acherus/compare/v0.7.0...v0.8.0
