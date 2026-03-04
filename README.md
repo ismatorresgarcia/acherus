@@ -51,7 +51,7 @@ pip install -e .
 
 📌 **Have a bug, feature request, or suggestion?** Open a [GitHub Issue](https://github.com/ismatorresgarcia/acherus/issues) so the community can track it.
 
-👥 **Want to contribute?**  To merge your changes into `main`, create a **Pull Request (PR)** following this [PR template](https://github.com/ismatorresgarcia/acherus/blob/main/.github/pull_request_template.md).
+👥 **Want to contribute?**  To merge your changes into `main`, create a **Pull Request (PR)** following this [PR template](https://github.com/ismatorresgarcia/acherus/tree/master/.github/pull_request_template.md).
 
 ## Motivation
 🌱 This project is part of research work carried out during the academic years 2024–2026 at the Universidad Politécnica de Madrid.
