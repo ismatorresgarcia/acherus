@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this software in your research, please cite it as follows"
+
+title: "Acherus"
+abstract: "Acherus is a scientific software package for (2+1)-dimensional simulations of laser filamentation in transparent media"
+version: 0.8.0
+date-released: 2026-03-04
+
+authors:
+- family-names: "Torres García"
+  given-names: "Ismael"
+  orcid: "https://orcid.org/0009-0001-6076-2037"
+
+doi: https://doi.org/10.5281/zenodo.18864578
+
+repository-code: "https://github.com/ismatorresgarcia/acherus"
+url: "https://github.com/ismatorresgarcia/acherus"
+
+license: "Apache-2.0"
+
+keywords: 
+  - laser filamentation
+  - nonlinear optics
+  - ultrafast optics
+  - laser pulse propagation
+  - self-focusing
+  - plasma generation
+  - computational physics
