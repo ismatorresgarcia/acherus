@@ -1,4 +1,4 @@
-# Contributing to Wakis
+# Contributing to Acherus
 
 First off, thanks for taking the time to contribute! ❤️ For a complete guide on how to contribute with new features, report bugs or open issues, please refer to our [CONTRIBUTING.md](https://github.com/ismatorresgarcia/acherus/blob/main/CONTRIBUTING.md). Find a quick snippet below:
 
