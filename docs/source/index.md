@@ -1,14 +1,29 @@
-# 🔎 Introduction
+# 🔎 Overview
 
-## Overview of `Acherus` documentation
+## Welcome to `acherus` documentation
 
-> Open-source **laser** pulse **filamentation** solver
+> Open-source **laser** pulse **filamentation** (2+1)-dimensional solver
 
-`Acherus` is a **3D spatiotemporal filamentation code** that solves the Nonlinear Envelope Equation (NEE) for ultrashort and ultraintense cylindrically symmetric laser pulses propagating through optically transparent media using various numerical schemes. It computes the laser pulse **intensity** and **fluence distribution**, as well as its **radius**, together with the generated plasma **electron density**. It is capable of reproducing both numerical and experimental results in different scenarios, allowing the simulation of **condensed dielectric**, **liquid**, and **gaseous media**.
+Developed for **ultrashort laser filamentation modeling**, Acherus is a **(2+1)-spatiotemporal laser filamentation** package for Python. It solves the Nonlinear Envelope Equation (NEE) for ultrashort laser pulses in optically transparent and dispersive media---gases (air), liquids (water), and solids (silica)---using the pseudo-spectral Fourier-Crank-Nicolson (FCN) method. The package computes the temporal evolution of the plasma **electron density** generated during propagation, as well as the pulse **intensity**, **fluence**, and **width** spatiotemporal profiles. Acherus enables accurate prediction and reproduction of numerical or experimental ultrashort laser filamentation scenarios under moderate input powers, providing a versatile tool for modeling a wide range of nonlinear optical phenomena, including **supercontinuum generation**, **conical emission**, and **X-wave formation**, among others.
 
-For example, **atmospheric** filamentation can be studied thanks to the interaction of laser pulses with nitrogen and oxygen diatomic molecules. Another common medium where filamentation has been reported experimentally is **water** (or in any other aqueous media), as well as dense dielectrics like **fused silica**, since this phenomenon was first discovered by [M. Hercher (1964)](https://link.springer.com/10.1007/978-0-387-34727-1) (see p. 280) when laser-induced damage tracks were found in glass during an experiment.
+🚀 Key features of `acherus`:
+* Input beam models: Gaussian spatiotemporal profiles including chirped and lens-focused beams.
+* Dispersion models: full or partial chromatic dispersion using Sellmeier semi-empirical equations.
+* Ionization models: multiphoton ionization (MPI) or general Keldysh-PPT theory rate predictions.
+* Python implementation with exposed API: access to modules, classes, functions, and core simulation objects.
+* High performance matrix operations using `numpy` and `scipy` compiled libraries for fast, GIL-free computation.
+* Built-in 1D-3D visualization tools for post-processing and on-the-fly simulation monitoring with Matplotlib.
+* Optimized memory management and multithreading using `ThreadPoolExecutor` shared work pools.
 
-:::{toctree}
+🧩 Other features of `acherus`:
+* Decoupled split-step Crank-Nicolson (SSCN) solver for simpler scenarios.
+* Optimized output storage (`HDF5` format) and post-processing with `h5py` library.
+
+📣 Tag and version updates are described in each `acherus` [GitHub Release](https://github.com/ismatorresgarcia/acherus/releases)
+* The source code is available on the `acherus` [GitHub](https://github.com/ismatorresgarcia/acherus) repository.
+* For specific queries, please contact the developer 👩‍💻👋 through this [Email](mailto:i.torresg@upm.es).
+
+```{toctree}
 :maxdepth: 2
 :caption: Table of Contents
 
@@ -18,4 +33,4 @@ userguide.md
 physics.md
 releases.md
 acherus.rst
-:::
+```

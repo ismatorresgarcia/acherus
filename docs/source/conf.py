@@ -8,8 +8,8 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "acherus"
-copyright = "2025, UPM, IFN-GV"
+project = "Acherus"
+copyright = "2026, UPM, IFN"
 author = "Ismael Torres García, Eduardo Oliva Gonzalo"
 
 # Read The Docs latest version
