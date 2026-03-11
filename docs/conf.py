@@ -5,7 +5,9 @@ project = "Acherus"
 project_copyright = "2026, IFN, Universidad Politecnica de Madrid"
 author = "Ismael Torres García, Eduardo Oliva Gonzalo"
 
-# Latest version
+# Short project version
+version = "0.8"
+# Full project version
 release = "0.8.0"
 
 # -- General configuration ---------------------------------------------------
@@ -70,8 +72,8 @@ html_theme_options = {
     "show_prev_next": True,
     "github_url": "https://github.com/ismatorresgarcia/acherus",
     "logo": {
-        "image_light": "_static/images/acherus-logo-b.png",
-        "image_dark": "_static/images/acherus-logo-u.png",
+        "image_light": "_static/images/acherus-logo-r.png",
+        "image_dark": "_static/images/acherus-logo-g.png",
     },
 }
 
