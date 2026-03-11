@@ -1,10 +1,12 @@
 # 📦 Installation Guide
-This section presents the installation process of the Acherus package for users and developers.
+This section provides a step-by-step guide for installing Acherus package, aimed at both users and developers.
 
 The installation guide is devoted to UNIX-based operating systems Linux and macOS---since they are dominant in scientific computing---from personal basic applications (Linux/macOS-based) to supercomputers, clusters, and high performance computing (HPC) facilities (entirely Linux-based). However, Acherus ecosystem is entirely dependent on Python libraries and modules, hence it can be used in any Linux, macOS, or Windows operating system. In the latter case, there are two approaches. The first one is to give up on Windows and use a UNIX machine instead. The second one is to install a Linux distribution on a Windows machine, which is easy to do following the [WSL Guide](https://learn.microsoft.com/en-us/windows/wsl/install).
+
 ```{contents}
 :depth: 3
 ```
+
 ## Acherus installation
 
 ### For users
