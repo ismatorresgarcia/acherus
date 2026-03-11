@@ -1,23 +1,14 @@
 """Sphinx configuration file."""
 
-# Configuration file for the Sphinx documentation builder.
-#
-# For the full list of built-in configuration values, see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
-
 # -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-
 project = "Acherus"
-copyright = "2026, UPM, IFN"
+project_copyright = "2026, IFN, Universidad Politecnica de Madrid"
 author = "Ismael Torres García, Eduardo Oliva Gonzalo"
 
-# Read The Docs latest version
-release = "1.0"
+# Latest version
+release = "0.8.0"
 
 # -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
-
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -36,7 +27,8 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
-# Enable all syntax extensions for MyST Markdown.
+
+# MyST Markdown extensions.
 myst_enable_extensions = [
     "amsmath",
     "attrs_inline",
@@ -52,25 +44,43 @@ myst_enable_extensions = [
     "substitution",
     "tasklist",
 ]
+
 source_suffix = {
     ".rst": "restructuredtext",
     ".md": "markdown",
 }
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-# toctree master document.
-master_doc = "index"
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+master_doc = "index"  # table of contents master document
 
 # Pygments (Python-driven syntax highlighting) style.
 pygments_style = "sphinx"
+pygments_dark_style = "monokai"
 
 # -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
-html_theme = "sphinx_rtd_theme"
-html_static_path = ["../images"]
-html_logo = "../images/acherus-logo-b.png"
+html_theme = "pydata_sphinx_theme"
+
+html_static_path = ["_static"]
+html_css_files = ["custom.css"]
+
+# -- PyData Sphinx Theme options ---------------------------------------------
 html_theme_options = {
-    "logo_only": True,
-    "collapse_navigation": False,
-    "navigation_depth": 1,
+    "navbar_start": ["navbar-logo"],
+    "navbar_end": ["navbar-icon-links"],
+    "show_prev_next": True,
+    "github_url": "https://github.com/ismatorresgarcia/acherus",
+    "logo": {
+        "image_light": "_static/images/acherus-logo-b.png",
+        "image_dark": "_static/images/acherus-logo-u.png",
+    },
 }
+
+html_context = {
+    "github_user": "ismatorresgarcia",
+    "github_repo": "acherus",
+    "github_version": "main",
+    "doc_path": "",
+}
+
+# Enable "Edit on GitHub" buttons
+use_page_edit_button = True
