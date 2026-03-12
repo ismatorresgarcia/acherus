@@ -25,7 +25,8 @@ jobs:
       - name: Count Markdown LoD in acherus/
         id: tokei
         run: |
-          TOKEI_OUT=$(tokei . --types Markdown --output json)
+          cd acherus
+          TOKEI_OUT=$(tokei acherus/ --types Markdown --output json)
           MD_LOC=$(echo "$TOKEI_OUT" | python -c "import sys, json; print(json.load(sys.stdin)['Markdown']['code'])")
           if [ "$MD_LOC" -ge 1000 ]; then
             MD_LOC_BADGE=$(awk "BEGIN {printf \"%.1fk\", $MD_LOC/1000}")
@@ -36,6 +37,7 @@ jobs:
 
       - name: Download badge from shields.io
         run: |
+          cd acherus
           curl -L -o /tmp/badge-docs.svg "https://img.shields.io/badge/Lines_of_Docs-${MD_LOC_BADGE}-blue"
 
       - name: Push badge to gh-pages
@@ -53,3 +55,4 @@ jobs:
           git add badge-docs.svg
           git commit -m "Update LoD badge [skip ci]" || echo "No changes to commit"
           git push origin gh-pages
+        working_directory: acherus
