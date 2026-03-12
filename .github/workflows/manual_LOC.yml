@@ -22,7 +22,8 @@ jobs:
           sudo apt-get install -y cargo
           cargo install tokei
 
-      - name: Count Python LoC
+      - name: Count Python LoC in acherus/
+        id: tokei
         run: |
           TOKEI_OUT=$($HOME/.cargo/bin/tokei acherus/ --types Python --output json)
           PY_LOC=$(echo "$TOKEI_OUT" | python -c "import sys,json; d=json.load(sys.stdin); print(d.get('Python',{}).get('code',0))")
