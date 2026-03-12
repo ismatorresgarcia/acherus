@@ -26,7 +26,7 @@ jobs:
         id: tokei
         run: |
           cd acherus
-          TOKEI_OUT=$(tokei acherus/ --types Python --output json)
+          TOKEI_OUT=$(tokei . --types Python --output json)
           PY_LOC=$(echo "$TOKEI_OUT" | python -c "import sys,json; d=json.load(sys.stdin); print(d.get('Python',{}).get('code',0))")
           if [ "$PY_LOC" -ge 1000 ]; then
             PY_LOC_BADGE=$(awk "BEGIN {printf \"%.1fk\", $PY_LOC/1000}")

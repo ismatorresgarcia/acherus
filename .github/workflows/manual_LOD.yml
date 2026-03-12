@@ -26,7 +26,7 @@ jobs:
         id: tokei
         run: |
           cd acherus
-          TOKEI_OUT=$(tokei acherus/ --types Markdown --output json)
+          TOKEI_OUT=$(tokei . --types Markdown --output json)
           MD_LOC=$(echo "$TOKEI_OUT" | python -c "import sys, json; print(json.load(sys.stdin)['Markdown']['code'])")
           if [ "$MD_LOC" -ge 1000 ]; then
             MD_LOC_BADGE=$(awk "BEGIN {printf \"%.1fk\", $MD_LOC/1000}")
