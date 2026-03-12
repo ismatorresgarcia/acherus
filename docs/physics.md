@@ -1,1 +1,1 @@
-# 🧲 Physics Guide
+# Physics Guide

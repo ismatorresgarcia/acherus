@@ -1,0 +1,9 @@
+/* Fonts */
+
+body {
+    font-family: "Inter", system-ui, sans-serif;
+}
+
+code, pre {
+    font-family: "JetBrains Mono", monospace;
+}

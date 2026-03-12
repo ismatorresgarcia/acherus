@@ -57,7 +57,6 @@ master_doc = "index"  # table of contents master document
 
 # Pygments (Python-driven syntax highlighting) style.
 pygments_style = "sphinx"
-pygments_dark_style = "monokai"
 
 # -- Options for HTML output -------------------------------------------------
 html_theme = "pydata_sphinx_theme"
@@ -68,7 +67,8 @@ html_css_files = ["custom.css"]
 # -- PyData Sphinx Theme options ---------------------------------------------
 html_theme_options = {
     "navbar_start": ["navbar-logo"],
-    "navbar_end": ["navbar-icon-links"],
+    "navbar_center": ["navbar-nav"],
+    "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "show_prev_next": True,
     "github_url": "https://github.com/ismatorresgarcia/acherus",
     "logo": {
