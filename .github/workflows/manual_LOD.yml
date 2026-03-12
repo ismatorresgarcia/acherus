@@ -6,7 +6,7 @@ on:
 jobs:
   update-lod-badge:
     runs-on: ubuntu-latest
-     
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -25,19 +25,21 @@ jobs:
       - name: Count Markdown LoD in acherus/
         id: tokei
         run: |
-          cd acherus
-          TOKEI_OUT=$(tokei . --types Markdown --output json)
-          MD_LOC=$(echo "$TOKEI_OUT" | python -c "import sys, json; print(json.load(sys.stdin)['Markdown']['code'])")
-          if [ "$MD_LOC" -ge 1000 ]; then
+          TOKEI_OUT=$(tokei acherus/ --types Markdown --output json)
+          MD_LOC=$(echo "$TOKEI_OUT" | python -c "import sys,json; d=json.load(sys.stdin); print(sum(v.get('Markdown', {}).get('code', 0) for v in d.values()))")
+
+          if [ "$MD_LOC" -ge 1000000 ]; then
+            MD_LOC_BADGE=$(awk "BEGIN {printf \"%.1fM\", $MD_LOC/1000000}")
+          elif [ "$MD_LOC" -ge 1000 ]; then
             MD_LOC_BADGE=$(awk "BEGIN {printf \"%.1fk\", $MD_LOC/1000}")
           else
             MD_LOC_BADGE="$MD_LOC"
           fi
+
           echo "MD_LOC_BADGE=$MD_LOC_BADGE" >> $GITHUB_ENV
 
       - name: Download badge from shields.io
         run: |
-          cd acherus
           curl -L -o /tmp/badge-docs.svg "https://img.shields.io/badge/Lines_of_Docs-${MD_LOC_BADGE}-blue"
 
       - name: Push badge to gh-pages
