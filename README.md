@@ -1,4 +1,4 @@
-[![Acherus logo](https://raw.githubusercontent.com/ismatorresgarcia/acherus/master/docs/images/acherus-logo-g.png)](https://github.com/ismatorresgarcia/acherus)
+[![Acherus logo](https://raw.githubusercontent.com/ismatorresgarcia/acherus/master/docs/_static/images/acherus-logo-g.png)](https://github.com/ismatorresgarcia/acherus)
 
 > Open-source **laser** pulse **filamentation** solver
 
