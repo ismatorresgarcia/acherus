@@ -55,4 +55,3 @@ jobs:
           git add badge-docs.svg
           git commit -m "Update LoD badge [skip ci]" || echo "No changes to commit"
           git push origin gh-pages
-        working_directory: acherus

@@ -55,4 +55,3 @@ jobs:
           git add badge.svg
           git commit -m "Update LoC badge [skip ci]" || echo "No changes to commit"
           git push origin gh-pages
-        working_directory: acherus
