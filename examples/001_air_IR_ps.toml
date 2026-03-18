@@ -94,7 +94,7 @@ wavelength = 1032e-9
 waist = 3.57e-3
 duration = 1274e-15
 energy = 0.1
-# focal_length = 2.0  # Optional (default: None)
+focal_length = 2.0    # Optional (default: None)
 # chirp = 0.890       # Optional (default: None)
 # gauss_order = 3     # Optional (default: 2)
 
