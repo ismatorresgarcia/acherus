@@ -1,8 +1,8 @@
 __pycache__
 .DS_Store
 simulations/
-build/
 dist/
+_build/
 acherus.egg-info/
 *.h5
 *.dat

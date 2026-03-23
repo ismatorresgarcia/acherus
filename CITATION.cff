@@ -3,15 +3,15 @@ message: "If you use this software in your research, please cite it as follows"
 
 title: "Acherus"
 abstract: "Acherus is a scientific software package for (2+1)-dimensional simulations of laser filamentation in transparent media"
-version: 0.8.0
-date-released: 2026-03-04
+version: 0.8.1
+date-released: 2026-03-23
 
 authors:
 - family-names: "Torres García"
   given-names: "Ismael"
   orcid: "https://orcid.org/0009-0001-6076-2037"
 
-doi: https://doi.org/10.5281/zenodo.18864578
+doi: https://doi.org/10.5281/zenodo.18864577
 
 repository-code: "https://github.com/ismatorresgarcia/acherus"
 url: "https://github.com/ismatorresgarcia/acherus"
