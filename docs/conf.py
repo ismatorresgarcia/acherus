@@ -1,14 +1,18 @@
 """Sphinx configuration file."""
 
-# -- Project information -----------------------------------------------------
-project = "Acherus"
-project_copyright = "2026, IFN, Universidad Politecnica de Madrid"
-author = "Ismael Torres García, Eduardo Oliva Gonzalo"
+import os
 
-# Short project version
-version = "0.8"
-# Full project version
-release = "0.8.0"
+
+def read_svg(filename):
+    path = os.path.join(os.path.dirname(__file__), "_static/images", filename)
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+# -- Project information -----------------------------------------------------
+project = "acherus"
+project_copyright = "2026, IFN, Universidad Politécnica de Madrid"
+author = "Ismael Torres García, Eduardo Oliva Gonzalo"
 
 # -- General configuration ---------------------------------------------------
 extensions = [
@@ -17,15 +21,16 @@ extensions = [
     "sphinx.ext.doctest",
     "sphinx.ext.extlinks",
     "sphinx.ext.intersphinx",
-    "sphinx.ext.mathjax",  # for eqs
+    "sphinx.ext.mathjax",  # for math
     "sphinx.ext.napoleon",
     "sphinx.ext.todo",
     "sphinx.ext.viewcode",
     "sphinx.ext.githubpages",
-    "sphinx_copybutton",
+    # External
     "myst_parser",  # for markdown
+    "sphinx_copybutton",
     "sphinx_design",
-    "sphinx_last_updated_by_git",
+    "sphinx_inline_tabs",
 ]
 
 templates_path = ["_templates"]
@@ -59,30 +64,27 @@ master_doc = "index"  # table of contents master document
 pygments_style = "sphinx"
 
 # -- Options for HTML output -------------------------------------------------
-html_theme = "pydata_sphinx_theme"
+html_theme = "furo"
+html_title = "Acherus"
 
 html_static_path = ["_static"]
-html_css_files = ["custom.css"]
+html_logo = "_static/images/acherus-logo-g.png"
 
-# -- PyData Sphinx Theme options ---------------------------------------------
+# -- Furo Theme options ---------------------------------------------
 html_theme_options = {
-    "navbar_start": ["navbar-logo"],
-    "navbar_center": ["navbar-nav"],
-    "navbar_end": ["theme-switcher", "navbar-icon-links"],
-    "show_prev_next": True,
-    "github_url": "https://github.com/ismatorresgarcia/acherus",
-    "logo": {
-        "image_light": "_static/images/acherus-logo-r.png",
-        "image_dark": "_static/images/acherus-logo-g.png",
-    },
+    "sidebar_hide_name": True,
+    "footer_icons": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/ismatorresgarcia/acherus",
+            "html": read_svg("github-logo.svg"),
+            "class": "",
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/acherus",
+            "html": read_svg("pypi-logo.svg"),
+            "class": "",
+        },
+    ],
 }
-
-html_context = {
-    "github_user": "ismatorresgarcia",
-    "github_repo": "acherus",
-    "github_version": "main",
-    "doc_path": "",
-}
-
-# Enable "Edit on GitHub" buttons
-use_page_edit_button = True

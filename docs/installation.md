@@ -1,17 +1,14 @@
+(installation)=
 # Installation Guide
 This section provides a step-by-step guide for installing Acherus package, aimed at both users and developers.
 
 The installation guide is devoted to UNIX-based operating systems Linux and macOS---since they are dominant in scientific computing---from personal basic applications (Linux/macOS-based) to supercomputers, clusters, and high performance computing (HPC) facilities (entirely Linux-based). However, Acherus ecosystem is entirely dependent on Python libraries and modules, hence it can be used in any Linux, macOS, or Windows operating system. In the latter case, there are two approaches. The first one is to give up on Windows and use a UNIX machine instead. The second one is to install a Linux distribution on a Windows machine, which is easy to do following the [WSL Guide](https://learn.microsoft.com/en-us/windows/wsl/install).
 
-```{contents}
-:depth: 3
-```
-
 ## Acherus installation
 
 ### For users
 Acherus is now part of the [PyPI](https://pypi.org/project/acherus) software repository and can be installed as a package using `pip`:
-```{code-block} console
+```bash
 pip install acherus
 ```
 
@@ -47,16 +44,16 @@ If the developer has any ideas, suggestions, or improvements, and wants to push 
 1. Fork the repository: <https://github.com/ismatorresgarcia/acherus/fork>
 2. Create a new branch:
 ```bash
-git checkout -b <branch-name>
+git checkout -b branch-name
 ```
 3. Make your changes and commit them:
 ```bash
-git add <file-name>.py
-git commit -m '<changes-description>'
+git add file-name.py
+git commit -m "changes-description"
 ```
 4. Push to the new branch:
 ```bash
-git push origin <branch-name>
+git push origin branch-name
 ```
 5. Submit a pull request: <https://github.com/ismatorresgarcia/acherus/pulls>
 
@@ -65,7 +62,7 @@ As mentioned at the beginning, Acherus is an entirely Python-written code which 
 * [NumPy](https://numpy.org): Fundamental package for scientific computing in Python. Specially important for fast operations on arrays of multidimensional shapes.
 * [SciPy](https://scipy.org): Mathematical algorithms and high-level functions built on NumPy. Specially important for accessing various numerical linear algebra tools.
 * [Matplotlib](https://matplotlib.org): Comprehensive library for creating static, animated, and interactive figures in Python. Specially useful for plotting and animating 1D and 2D plots.
-* [H5Py](https://www.h5py.org): Python interface to the HDF5 binary data format. Specially important for storing laser field intensity and electron density 3D arrays at different propagation steps.
+* [h5py](https://www.h5py.org): Python interface to the HDF5 binary data format. Specially important for storing laser field intensity and electron density 3D arrays at different propagation steps.
 * [Numba](https://numba.pydata.org): Performance library that uses JIT compilation to translate on runtime Python and NumPy pieces of code into machine code. Specially important for enhancing the speed of sequential algorithms from explicit numerical schemes.
 * [pyFFTW](https://numba.pydata.org): Python wrapper around the well-known C subroutine library [FFTW](https://www.fftw.org) for computing the _Fastest Fourier Transform in the West_. Specially important for implementing the high-speed FFT algorithms and low-level controls in pseudospectral schemes.
 
@@ -97,19 +94,19 @@ Most popular Linux distributions already include Python because the package mana
 
 1. Debian-based ([Ubuntu](https://ubuntu.com/server/docs/how-to/software/package-management/), [Debian](https://www.debian.org/doc/manuals/debian-reference/ch02.en.html), [Linux Mint](https://linuxmint.com/documentation.php))
 ```bash
-sudo apt-get install <python-version-name>
+sudo apt-get install python-version-name
 ```
 2. Red Hat-based ([RHEL](https://www.redhat.com/en/blog/install-software-packages-rhel), [CentOS](https://www.centos.org), [Fedora](https://docs.fedoraproject.org/en-US/quick-docs/dnf/))
 ```bash
-sudo dnf install <python-version-name>
+sudo dnf install python-version-name
 ```
 1. [Arch Linux](https://wiki.archlinux.org/title/Main_page) & [Manjaro](https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=https://wiki.manjaro.org/index.php/Pacman_Overview&ved=2ahUKEwiC3s6n7JWTAxXWU6QEHTHfF4QQmuEJegQIEBAB&usg=AOvVaw2nTLel5yOCIfTIbB2xTVof)
 ```bash
-sudo pacman -S <python-version-name>
+sudo pacman -S python-version-name
 ```
 4. [OpenSUSE](https://doc.opensuse.org/documentation/leap/reference/html/book-reference/cha-sw-cl.html)
 ```bash
-sudo zypper install <python-version-name>
+sudo zypper install python-version-name
 ```
 
 Then, verify the installation in the terminal:
@@ -148,15 +145,15 @@ pyenv install --list
 ```
 To install any of the Python versions available, do:
 ```bash
-pyenv install <X.YY.Z>
+pyenv install X.YY.Z
 ```
 
 One of the main advantages of Pyenv is it downloads, builds, installs, and sets multiple Python versions **completely separate** from the system Python. This avoid any conflict between previously existing Python versions and the possibility of interfering with the system installation, which would become a nightmare and potentially break the system. For example, let's say Python 3.12.3 was installed. To set it as the default (global) version of the system, just do:
-```bash
+```console
 pyenv global 3.12.3
 ```
 Another interesting thing, quite useful for developers, is the ability to set one version per project. For example, to set a project-specific (local) Python 3.12.3, do inside the `acherus/` project folder:
-```
+```console
 pyenv local 3.12.3
 ```
 This simply creates a `.python-version` file inside the project folder, meaning everything contained in it (without affecting anything outside) use that Python version automatically. It guarantees the Python version being used when running any simulation is restricted to the `acherus/` project folder, as well as shifting easily between other versions. Also, Pyenv shims, routes, and unifies every active Python version under the commands `python` and `pip`, so there is no need to type `python3` and `pip3` anymore.
@@ -169,37 +166,37 @@ To create and activate a virtual environment inside your project folder, do (Win
 ::::{tab-set}
 
 :::{tab-item} Linux & macOS
-```bash
-python -m venv .<venv-name>
-source .<venv-name>/bin/activate
+```console
+python -m venv .venv-name
+source .venv-name/bin/activate
 ```
 :::
 
 :::{tab-item} Windows (CMD)
-```bash
-python -m venv .<venv-name>
-.<venv-name>\Scripts\activate.bat
+```console
+python -m venv .venv-name
+.venv-name\Scripts\activate.bat
 ```
 :::
 
 :::{tab-item} Windows (PowerShell)
-```bash
-python -m venv .<venv-name>
-.<venv-name>\Scripts\Activate.ps1
+```console
+python -m venv .venv-name
+.venv-name\Scripts\Activate.ps1
 ```
 
 :::
 
 ::::
 
-Instead of creating a `.<venv-name>` inside every project, the user might choose to store virtual environments in some centralized location. This can make management easier if you work with many projects. For example, a global folder named `virtualenvs/` in your home directory could host a new environment:
+Instead of creating a virtual environment inside every project, the user might choose to store virtual environments in some centralized location. This can make management easier if you work with many projects. For example, a global folder named `virtualenvs/` in your home directory could host a new environment:
 ```bash
-python -m venv ~/virtualenvs/<venv-name>
+python -m venv ~/virtualenvs/venv-name
 ```
 
 Once the environment is activated, any `pip` command installs **exclusively inside the virtual environment**, separated from the system Python or other project folders:
 ```bash
-pip install <package-name>
+pip install package-name
 ```
 For example, to recreate the exact environment used in the `acherus/` project:
 ```bash
@@ -210,16 +207,21 @@ When finished, to return the shell to the previous state, type:
 deactivate
 ```
 In summary, we deeply encourage users and developers to set a Python 3 version (between 3.10 and 3.13) with Pyenv and create a dedicated virtual environment:
-```bash
-# 1. Set one python version with pyenv
-pyenv local <3.YY.Z> # Option 1: project folder
-pyenv global <3.YY.Z> # Option 2: entire system
 
-# 2. Set one python virtual environment (Linux & macOS)
-source .<venv-name>/bin/activate # Option 1: project folder
-source ~/virtualenvs/<venv-name>/bin/activate # Option 2: shared folder
+* 1. Set one python version with pyenv
+```console
+pyenv local X.YY.Z # Option 1: project folder
+pyenv global X.YY.Z # Option 2: entire system
+```
 
-# 3. Set acherus installation with pip
+* 2. Set one python virtual environment (Linux & macOS)
+```console
+source .venv-name/bin/activate # Option 1: project folder
+source ~/virtualenvs/venv-name/bin/activate # Option 2: shared folder
+```
+
+* 3. Set acherus installation with pip
+```console
 pip install acherus
 ```
 

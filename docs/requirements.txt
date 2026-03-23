@@ -1,11 +1,11 @@
 sphinx
-pydata-sphinx-theme
-sphinx-autodoc2
+furo
 readthedocs-sphinx-search
-sphinx-copybutton
 myst-parser
+sphinx-copybutton
 sphinx-design
-sphinx-last-updated-by-git
+sphinx-inline-tabs
+sphinx-tabs
 
 numpy
 scipy

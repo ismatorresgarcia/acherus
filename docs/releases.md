@@ -1,9 +1,22 @@
 # Releases
 Release notes for the latest packaged versions of `acherus` are available on [PyPI](https://pypi.org/project/acherus/). Other versions are also available on [Zenodo](https://zenodo.org/records/18864578) and [GitHub Releases](https://github.com/ismatorresgarcia/acherus/releases).
 
-```{contents} 
-:depth: 2
-```
+## Acherus v0.8.1
+### 🏷️Other Features
+
+* 📚 **Documentation and Examples**
+  * Updated README and version links.
+  * Updated [Read The Docs](https://acherus.readthedocs.io/) with the new `furo` theme layout and reorganized structure.
+  * Updated the `docs` folder with detailed installation and user guides (available at [Read The Docs](https://acherus.readthedocs.io/)).
+    * Updated air configuration examples (`001_air_IR_ps.toml` and `002_air_IR_fs.toml`) focal length to match the value reported by [Houard *et al.*](https://opg.optica.org/oe/abstract.cfm?uri=oe-24-7-7437).
+
+### 📝 Full changelog
+
+| **N commits** | 📚 Docs | 🔁 Tests | 🐛 Fixes | 🎨 Style | 🚀 Features | Other |
+|---------------|---------|----------|----------|----------|-------------|-------|
+| % of Commits  | 100%    | 0%       | 0%       | 0%       | 0%          | 0%    |
+
+Full changelog: https://github.com/ismatorresgarcia/acherus/compare/v0.8.0...v0.8.1
 
 ## Acherus v0.8.0
 
@@ -63,7 +76,7 @@ Release notes for the latest packaged versions of `acherus` are available on [Py
   * `validate_step` in `diagnostics` now saves propagation results in case of failure. `Output_manager` is initialized in `__main__` and accessible from `shared` to save results when density or envelope values overflow.
   * Removed profiling capabilities from `diagnostics`, as they are no longer needed.
 
-### 🏷️ Other Features
+### 🏷️Other Features
 
 * 🔁 **Tests**
   * Added a `tests` folder for development and quality control through GitHub Actions workflows.
