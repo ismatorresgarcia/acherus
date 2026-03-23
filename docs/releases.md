@@ -2,7 +2,7 @@
 Release notes for the latest packaged versions of `acherus` are available on [PyPI](https://pypi.org/project/acherus/). Other versions are also available on [Zenodo](https://zenodo.org/records/18864578) and [GitHub Releases](https://github.com/ismatorresgarcia/acherus/releases).
 
 ## Acherus v0.8.1
-### 🏷️Other Features
+### 🏷️ Other Features
 
 * 📚 **Documentation and Examples**
   * Updated README and version links.
@@ -76,7 +76,7 @@ Full changelog: https://github.com/ismatorresgarcia/acherus/compare/v0.8.0...v0.
   * `validate_step` in `diagnostics` now saves propagation results in case of failure. `Output_manager` is initialized in `__main__` and accessible from `shared` to save results when density or envelope values overflow.
   * Removed profiling capabilities from `diagnostics`, as they are no longer needed.
 
-### 🏷️Other Features
+### 🏷️ Other Features
 
 * 🔁 **Tests**
   * Added a `tests` folder for development and quality control through GitHub Actions workflows.
@@ -99,7 +99,7 @@ Full changelog: https://github.com/ismatorresgarcia/acherus/compare/v0.8.0...v0.
   * Configuration options now accept uppercase and lowercase strings.
   * Applied consistency/readability cleanups across touched plotting/function modules.
 
-* 🛡️ **Security**
+* 🛡️**Security**
   * Added `SECURITY.md` file to the repository root.
 
 ### 🐛 Bug-fixes
