@@ -80,7 +80,7 @@ axis_max = 3.0
 snapshots = 5
 
 [grid_parameters.TIME]
-nodes = 512
+nodes = 2048
 time_min = -6e-12
 time_max = 6e-12
 
