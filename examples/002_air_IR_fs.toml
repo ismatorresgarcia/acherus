@@ -81,8 +81,8 @@ snapshots = 5
 
 [grid_parameters.TIME]
 nodes = 512
-time_min = -400e-12
-time_max = 400e-12
+time_min = -400e-15
+time_max = 400e-15
 
 # Optional PML block.
 # [grid_parameters.PML]
